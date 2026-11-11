@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d08">
+<title>H-LUX Defense</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0b0d08;--bg2:radial-gradient(ellipse at 50% 0%,#1d2614 0%,#0b0d08 66%)}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%}
+#cv{display:block;touch-action:manipulation;border-radius:12px;box-shadow:0 0 0 2px #c9a45c,0 18px 40px rgba(0,0,0,.55)}
+.bar{display:flex;gap:6px;width:100%;max-width:520px}
+.bar .btn,.bar .btn-primary{min-height:44px;width:auto;flex:1;padding:0 10px}
+.towers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.tw{border-radius:12px;border:1px solid var(--line);background:var(--panel2);padding:10px;text-align:left;color:var(--text);min-height:76px}
+.tw b{display:block;font-size:14px}.tw small{display:block;color:var(--muted);font-size:11.5px;line-height:1.35;margin-top:2px}
+.tw i{font-style:normal;color:var(--accent2);font-weight:800;font-size:13px}
+.tw.no{opacity:.4}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.stats div{background:var(--panel2);border-radius:10px;padding:6px;font-size:11px;color:var(--muted)}.stats b{display:block;color:var(--text);font-size:15px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Def<b>ense</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Ouro</small><b id="gold">0</b></div><div class="sc"><small>Vidas</small><b id="lives">20</b></div><div class="sc"><small>Onda</small><b id="wave">0/0</b></div><div class="sc"><small>Mapa</small><b id="map">1</b></div></div>
+  <div class="stage" id="stage"><div class="wrap"><canvas id="cv"></canvas><div class="bar"><button class="btn-primary" id="go">Iniciar onda</button><button class="btn" id="spd">1×</button><button class="btn" id="ps">Pausa</button></div></div></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX DEFENSE v1.0 — tower defense em grade. 5 mapas desbloqueáveis com caminhos diferentes; ondas com 5 tipos de inimigo
+   (incluindo chefes); 4 torres com 3 níveis de melhoria; torres atacam sozinhas quem estiver no alcance.
+   Módulos: MAPS · TOWERS · FOES · Game · View · UI */
+const S = HX.store('defense');
+const C = 9, R = 13, CS = 40, W = C * CS, H = R * CS;
+const MAPS = [
+  { n: 'Vale Dourado', way: [[-1, 2], [6, 2], [6, 6], [2, 6], [2, 10], [9, 10]], waves: 10, gold: 160, mult: 1 },
+  { n: 'Serpente', way: [[1, -1], [1, 3], [7, 3], [7, 5], [1, 5], [1, 8], [7, 8], [7, 11], [4, 11], [4, 13]], waves: 12, gold: 170, mult: 1.3 },
+  { n: 'Duas Torres', way: [[-1, 1], [4, 1], [4, 11], [7, 11], [7, 4], [9, 4]], waves: 12, gold: 170, mult: 1.5 },
+  { n: 'Espiral', way: [[9, 1], [1, 1], [1, 11], [7, 11], [7, 4], [4, 4], [4, 8], [4, 13]], waves: 14, gold: 200, mult: 1.65 },
+  { n: 'Fortaleza H-LUX', way: [[4, -1], [4, 2], [1, 2], [1, 6], [7, 6], [7, 9], [2, 9], [2, 11], [9, 11]], waves: 15, gold: 220, mult: 1.95 }
+];
+const TOWERS = {
+  gold: { n: 'Dourada', d: 'Rápida, dano baixo', c: '#e0b14a', cost: 50, lv: [{ dmg: 6, rng: 2.2, rate: 2.4 }, { dmg: 10, rng: 2.4, rate: 2.8 }, { dmg: 16, rng: 2.6, rate: 3.4 }], up: [55, 90] },
+  cannon: { n: 'Canhão', d: 'Dano em área, lento', c: '#d6463d', cost: 80, lv: [{ dmg: 18, rng: 2.3, rate: .8, splash: .9 }, { dmg: 30, rng: 2.4, rate: .9, splash: 1 }, { dmg: 48, rng: 2.6, rate: 1, splash: 1.15 }], up: [80, 130] },
+  ice: { n: 'Gelo', d: 'Desacelera inimigos', c: '#6fb7ff', cost: 70, lv: [{ dmg: 3, rng: 2, rate: 1.2, slow: .45 }, { dmg: 5, rng: 2.3, rate: 1.4, slow: .38 }, { dmg: 8, rng: 2.6, rate: 1.6, slow: .3 }], up: [60, 100] },
+  lance: { n: 'Lança', d: 'Longo alcance, dano alto', c: '#c86bff', cost: 120, lv: [{ dmg: 45, rng: 3.6, rate: .55, pierce: 1 }, { dmg: 75, rng: 4, rate: .6, pierce: 1 }, { dmg: 120, rng: 4.4, rate: .7, pierce: 1 }], up: [110, 170] }
+};
+const FOES = { normal: { hp: 40, sp: 1.15, gold: 6, c: '#c9b38a', r: 9 }, fast: { hp: 26, sp: 2.1, gold: 6, c: '#3ddc84', r: 7 }, armor: { hp: 80, sp: .85, gold: 10, c: '#8a8f9c', r: 10, armor: 5 }, swarm: { hp: 14, sp: 1.5, gold: 2, c: '#f2c230', r: 5 }, boss: { hp: 650, sp: .6, gold: 80, c: '#e5484d', r: 15, armor: 3, lives: 5 } };
+const Game = {
+  mi: 0, M: null, path: [], pathSet: new Set(), towers: [], foes: [], shots: [], fx: [], gold: 0, lives: 20, wave: 0, queue: [], spawnT: 0, state: 'idle', speed: 1, sel: null, waveOn: false, len: 0,
+  start(mi, resume) {
+    HX.close(); this.mi = mi; this.M = MAPS[mi]; this.buildPath(); this.foes = []; this.shots = []; this.fx = []; this.queue = []; this.waveOn = false; this.sel = null;
+    if (resume) { Object.assign(this, { gold: resume.gold, lives: resume.lives, wave: resume.wave }); this.towers = resume.towers.map(t => Object.assign({ cd: 0 }, t)); }
+    else { this.gold = this.M.gold; this.lives = 20; this.wave = 0; this.towers = []; }
+    this.state = 'play'; this.save(); UI.hud(); View.draw();
+  },
+  buildPath() {
+    const pts = this.M.way.map(([c, r]) => [(c + .5) * CS, (r + .5) * CS]); this.path = pts; this.pathSet = new Set();
+    for (let k = 1; k < this.M.way.length; k++) { const [c0, r0] = this.M.way[k - 1], [c1, r1] = this.M.way[k]; const n = Math.max(Math.abs(c1 - c0), Math.abs(r1 - r0)); for (let j = 0; j <= n; j++) { const c = c0 + Math.sign(c1 - c0) * j, r = r0 + Math.sign(r1 - r0) * j; if (c >= 0 && r >= 0 && c < C && r < R) this.pathSet.add(r * C + c); } }
+    this.segs = []; this.len = 0; for (let k = 1; k < pts.length; k++) { const l = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); this.segs.push({ a: pts[k - 1], b: pts[k], l, s: this.len }); this.len += l; }
+  },
+  posAt(d) { for (const s of this.segs) if (d <= s.s + s.l) { const u = (d - s.s) / s.l; return [s.a[0] + (s.b[0] - s.a[0]) * u, s.a[1] + (s.b[1] - s.a[1]) * u]; } const e = this.path[this.path.length - 1]; return [e[0], e[1]]; },
+  waveList(w) { // composição de cada onda
+    const L = []; const n = 6 + w * 2; const boss = w % 5 === 0 || w === this.M.waves;
+    for (let k = 0; k < n; k++) { let t = 'normal'; const r = (k * 7 + w * 3) % 10; if (w >= 2 && r < 3) t = 'fast'; if (w >= 4 && r >= 8) t = 'armor'; if (w >= 3 && r === 5) t = 'swarm'; L.push({ t, delay: t === 'swarm' ? .25 : .7 }); if (t === 'swarm') for (let j = 0; j < 3; j++) L.push({ t: 'swarm', delay: .2 }); }
+    if (boss) L.push({ t: 'boss', delay: 1.5 }); return L;
+  },
+  startWave() { if (this.waveOn || this.state !== 'play' || this.wave >= this.M.waves) return; this.wave++; this.queue = this.waveList(this.wave); this.spawnT = .3; this.waveOn = true; HX.sfx('power'); UI.hud(); if (this.wave % 5 === 0 || this.wave === this.M.waves) HX.toast('Chefe nesta onda!', 1200); },
+  hpScale() { return this.M.mult * (1 + (this.wave - 1) * .3 + Math.max(0, this.wave - 6) * .14); },
+  step(dt) {
+    if (this.state !== 'play') return; dt *= this.speed;
+    if (this.waveOn && this.queue.length) { this.spawnT -= dt; if (this.spawnT <= 0) { const q = this.queue.shift(), F = FOES[q.t], hp = F.hp * this.hpScale(); this.foes.push({ t: q.t, d: 0, hp, max: hp, slow: 0, slowF: 1, x: this.path[0][0], y: this.path[0][1] }); this.spawnT = this.queue.length ? this.queue[0].delay : 0; } }
+    for (const f of this.foes) { const F = FOES[f.t]; if (f.slow > 0) f.slow -= dt; else f.slowF = 1; f.d += F.sp * CS * f.slowF * dt; [f.x, f.y] = this.posAt(f.d); if (f.d >= this.len) { f.done = true; this.lives -= F.lives || 1; HX.sfx('lose'); HX.vibrate(30); } }
+    this.foes = this.foes.filter(f => !f.done && f.hp > 0);
+    if (this.lives <= 0) { this.lives = 0; return this.lose(); }
+    for (const t of this.towers) { const T = TOWERS[t.k], L = T.lv[t.lv]; t.cd -= dt; if (t.cd > 0) continue; const tx = (t.c + .5) * CS, ty = (t.r + .5) * CS, rng = L.rng * CS;
+      // alvo: o inimigo mais adiantado no caminho dentro do alcance (gelo prefere quem ainda não está lento)
+      let best = null; for (const f of this.foes) { if (Math.hypot(f.x - tx, f.y - ty) > rng) continue; const score = f.d + (t.k === 'ice' && f.slow <= 0 ? 1e4 : 0) + (t.k === 'lance' ? f.hp * .5 : 0); if (!best || score > best.s) best = { f, s: score }; }
+      if (!best) continue; t.cd = 1 / L.rate; t.ang = Math.atan2(best.f.y - ty, best.f.x - tx);
+      if (t.k === 'lance') { this.damage(best.f, L.dmg); this.fx.push({ k: 'beam', x: tx, y: ty, x2: best.f.x, y2: best.f.y, t: .12, c: T.c }); HX.sfx('shot'); }
+      else this.shots.push({ k: t.k, x: tx, y: ty, tgt: best.f, dmg: L.dmg, splash: L.splash, slow: L.slow, sp: t.k === 'cannon' ? 260 : 420, c: T.c }); }
+    for (const s of this.shots) { const f = s.tgt; if (!f || f.hp <= 0) { s.dead = true; continue; } const dx = f.x - s.x, dy = f.y - s.y, d = Math.hypot(dx, dy), mv = s.sp * dt;
+      if (d <= mv + 4) { s.dead = true; if (s.k === 'cannon') { for (const o of this.foes) if (Math.hypot(o.x - f.x, o.y - f.y) <= s.splash * CS) this.damage(o, s.dmg); this.fx.push({ k: 'boom', x: f.x, y: f.y, r: s.splash * CS, t: .25 }); HX.sfx('boom'); } else { this.damage(f, s.dmg); if (s.k === 'ice') { f.slow = 1.6; f.slowF = Math.min(f.slowF, s.slow); } } }
+      else { s.x += dx / d * mv; s.y += dy / d * mv; } }
+    this.shots = this.shots.filter(s => !s.dead); this.fx = this.fx.filter(e => (e.t -= dt) > 0);
+    if (this.waveOn && !this.queue.length && !this.foes.length) { this.waveOn = false; const bonus = 20 + this.wave * 4; this.gold += bonus; HX.toast(`Onda ${this.wave} vencida! +${bonus} de ouro`, 1100); HX.sfx('coin'); if (this.wave >= this.M.waves) return this.win(); this.save(); if (UI.auto) setTimeout(() => this.startWave(), 900); }
+    UI.hud();
+  },
+  damage(f, dmg) { if (f.hp <= 0) return; const a = FOES[f.t].armor || 0; f.hp -= Math.max(dmg * .25, dmg - a); if (f.hp <= 0) { this.gold += FOES[f.t].gold; this.fx.push({ k: 'pop', x: f.x, y: f.y, t: .2, c: FOES[f.t].c }); } },
+  canBuild(c, r) { return c >= 0 && r >= 0 && c < C && r < R && !this.pathSet.has(r * C + c) && !this.towers.some(t => t.c === c && t.r === r); },
+  build(k, c, r) { const T = TOWERS[k]; if (!this.canBuild(c, r)) return false; if (this.gold < T.cost) { HX.toast('Ouro insuficiente'); return false; } this.gold -= T.cost; this.towers.push({ k, c, r, lv: 0, cd: 0, spent: T.cost }); HX.sfx('move'); this.save(); UI.hud(); return true; },
+  upgrade(t) { const T = TOWERS[t.k]; if (t.lv >= 2) return; const cost = T.up[t.lv]; if (this.gold < cost) return HX.toast('Ouro insuficiente'); this.gold -= cost; t.spent += cost; t.lv++; HX.sfx('power'); this.save(); UI.hud(); },
+  sell(t) { this.gold += Math.floor(t.spent * .6); this.towers = this.towers.filter(x => x !== t); HX.sfx('coin'); this.save(); UI.hud(); },
+  win() { this.state = 'won'; const stars = this.lives >= 18 ? 3 : this.lives >= 10 ? 2 : 1; const p = S.get('progress', { unlocked: 0, stars: {} }); p.stars[this.mi] = Math.max(p.stars[this.mi] || 0, stars); p.unlocked = Math.max(p.unlocked, Math.min(this.mi + 1, MAPS.length - 1)); S.set('progress', p); S.del('cur'); S.hub(`Mapas: ${Object.keys(p.stars).length}/${MAPS.length} vencidos`); HX.sfx('win'); setTimeout(() => UI.win(stars), 600); },
+  lose() { this.state = 'lost'; S.del('cur'); S.hub(null); HX.sfx('lose'); setTimeout(() => UI.lose(), 600); },
+  // salva entre ondas (posição de torres, ouro, vidas e onda concluída)
+  save() { if (this.state !== 'play' || this.waveOn) return; S.set('cur', { mi: this.mi, gold: this.gold, lives: this.lives, wave: this.wave, towers: this.towers.map(({ k, c, r, lv, spent }) => ({ k, c, r, lv, spent })) }); S.hub(`${this.M.n} · onda ${this.wave}/${this.M.waves} · ${this.lives} vidas`); }
+};
+const View = {
+  cv: null, x: null, k: 1, dpr: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); this.size(); this.cv.addEventListener('click', e => this.tap(e)); },
+  size() { const st = HX.$('#stage'); this.k = Math.min((st.clientWidth - 8) / W, (st.clientHeight - 64) / H); this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = W * this.k * this.dpr; this.cv.height = H * this.k * this.dpr; this.cv.style.width = W * this.k + 'px'; this.cv.style.height = H * this.k + 'px'; if (Game.M) this.draw(); },
+  tap(e) { if (HX.isOpen() || Game.state !== 'play') return; const r = this.cv.getBoundingClientRect(), c = Math.floor((e.clientX - r.left) / this.k / CS), rr = Math.floor((e.clientY - r.top) / this.k / CS);
+    const t = Game.towers.find(t => t.c === c && t.r === rr); if (t) { Game.sel = t; return UI.towerPanel(t); }
+    if (Game.canBuild(c, rr)) { Game.sel = { c, r: rr, ghost: true }; return UI.buildPanel(c, rr); }
+    HX.toast('Não dá para construir no caminho'); },
+  draw() {
+    const g = this.x, Gm = Game; if (!Gm.M) return; g.setTransform(this.k * this.dpr, 0, 0, this.k * this.dpr, 0, 0);
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) { const p = Gm.pathSet.has(r * C + c); g.fillStyle = p ? '#6b5a3c' : ((r + c) % 2 ? '#24331b' : '#28391e'); g.fillRect(c * CS, r * CS, CS, CS); if (p) { g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(c * CS, r * CS + CS - 4, CS, 4); } }
+    const st = Gm.path[0], en = Gm.path[Gm.path.length - 1]; g.fillStyle = '#3ddc84'; g.font = '800 11px Manrope'; g.textAlign = 'center'; g.fillText('ENTRADA', HX.clamp(st[0], 30, W - 30), HX.clamp(st[1], 12, H - 6)); g.fillStyle = '#e5484d'; g.fillText('BASE', HX.clamp(en[0], 20, W - 20), HX.clamp(en[1], 12, H - 6));
+    const sel = Gm.sel;
+    for (const t of Gm.towers) { const T = TOWERS[t.k], x = (t.c + .5) * CS, y = (t.r + .5) * CS;
+      g.fillStyle = '#14120e'; g.beginPath(); g.arc(x, y, 15, 0, 7); g.fill(); g.fillStyle = T.c; g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill();
+      g.save(); g.translate(x, y); g.rotate(t.ang || -Math.PI / 2); g.fillStyle = '#f4efe2'; g.fillRect(4, -2.5, t.k === 'lance' ? 14 : 10, 5); g.restore();
+      for (let k = 0; k <= t.lv; k++) { g.fillStyle = '#f1dca6'; g.fillRect(x - 8 + k * 6, y + 13, 4, 4); } }
+    if (sel) { const L = sel.ghost ? null : TOWERS[sel.k].lv[sel.lv]; const x = (sel.c + .5) * CS, y = (sel.r + .5) * CS; g.strokeStyle = '#f1dca6'; g.lineWidth = 2; g.strokeRect(sel.c * CS + 1, sel.r * CS + 1, CS - 2, CS - 2); if (L) { g.fillStyle = 'rgba(241,220,166,.1)'; g.beginPath(); g.arc(x, y, L.rng * CS, 0, 7); g.fill(); g.stroke(); } }
+    for (const f of Gm.foes) { const F = FOES[f.t]; g.fillStyle = F.c; g.beginPath(); g.arc(f.x, f.y, F.r, 0, 7); g.fill(); if (f.slow > 0) { g.strokeStyle = '#9fd2ff'; g.lineWidth = 2; g.stroke(); } if (f.t === 'armor' || f.t === 'boss') { g.strokeStyle = '#1a1408'; g.lineWidth = 2; g.beginPath(); g.arc(f.x, f.y, F.r * .55, 0, 7); g.stroke(); }
+      if (f.hp < f.max) { g.fillStyle = '#300'; g.fillRect(f.x - 11, f.y - F.r - 6, 22, 3); g.fillStyle = '#3ddc84'; g.fillRect(f.x - 11, f.y - F.r - 6, 22 * f.hp / f.max, 3); } }
+    for (const s of Gm.shots) { g.fillStyle = s.c; g.beginPath(); g.arc(s.x, s.y, s.k === 'cannon' ? 4.5 : 3, 0, 7); g.fill(); }
+    for (const e of Gm.fx) { if (e.k === 'beam') { g.strokeStyle = e.c; g.lineWidth = 3; g.globalAlpha = e.t * 8; g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(e.x2, e.y2); g.stroke(); } else if (e.k === 'boom') { g.globalAlpha = e.t * 3; g.fillStyle = '#ff9a3a'; g.beginPath(); g.arc(e.x, e.y, e.r * (1 - e.t * 2), 0, 7); g.fill(); } else { g.globalAlpha = e.t * 5; g.fillStyle = e.c; g.beginPath(); g.arc(e.x, e.y, 12 * (1 - e.t * 3), 0, 7); g.fill(); } g.globalAlpha = 1; }
+  }
+};
+const UI = {
+  auto: false,
+  init() {
+    View.init();
+    HX.$('#go').onclick = () => { if (Game.waveOn) { this.auto = !this.auto; HX.toast(this.auto ? 'Próximas ondas automáticas' : 'Ondas manuais'); return this.hud(); } Game.startWave(); };
+    HX.$('#spd').onclick = () => { Game.speed = Game.speed === 1 ? 2 : Game.speed === 2 ? 3 : 1; this.hud(); };
+    HX.$('#ps').onclick = () => this.pause(); HX.$('#menu').onclick = () => this.pause();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.05, (t - last) / 1000); last = t; Game.step(dt); View.draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } });
+    this.home();
+  },
+  hud() { if (!Game.M) return; HX.$('#gold').textContent = Game.gold; HX.$('#lives').textContent = Game.lives; HX.$('#wave').textContent = `${Game.wave}/${Game.M.waves}`; HX.$('#map').textContent = Game.mi + 1; HX.$('#spd').textContent = Game.speed + '×';
+    HX.$('#go').textContent = Game.waveOn ? (this.auto ? 'Auto: ligado' : 'Auto: desligado') : Game.wave >= Game.M.waves ? 'Fim' : `Iniciar onda ${Game.wave + 1}`; },
+  buildPanel(c, r) {
+    const c2 = HX.overlay(`<h3>Construir torre</h3><p>Ouro disponível: ${Game.gold}</p><div class="towers">${Object.entries(TOWERS).map(([k, T]) => `<button class="tw ${Game.gold < T.cost ? 'no' : ''}" data-k="${k}"><b style="color:${T.c}">${T.n}</b><small>${T.d}<br>Dano ${T.lv[0].dmg} · alcance ${T.lv[0].rng}</small><i>${T.cost} de ouro</i></button>`).join('')}</div><button class="btn" id="cl">Cancelar</button>`, { guard: false, dismiss: () => { Game.sel = null; } });
+    c2.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { if (Game.build(b.dataset.k, c, r)) { HX.close(); Game.sel = null; } });
+    HX.on(c2, '#cl', () => { HX.close(); Game.sel = null; });
+  },
+  towerPanel(t) {
+    const T = TOWERS[t.k], L = T.lv[t.lv], N = T.lv[t.lv + 1];
+    const c = HX.overlay(`<h3 style="color:${T.c}">${T.n} · nível ${t.lv + 1}</h3><div class="stats"><div><b>${L.dmg}${N ? `→${N.dmg}` : ''}</b>dano</div><div><b>${L.rng}${N ? `→${N.rng}` : ''}</b>alcance</div><div><b>${L.rate}${N ? `→${N.rate}` : ''}</b>tiros/s</div></div>${N ? `<button class="btn-primary" id="up">Melhorar · ${T.up[t.lv]} de ouro</button>` : '<p>Nível máximo</p>'}<div class="row2"><button class="btn" id="sl">Vender · +${Math.floor(t.spent * .6)}</button><button class="btn" id="cl">Fechar</button></div>`, { guard: false, dismiss: () => { Game.sel = null; } });
+    HX.on(c, '#up', () => { Game.upgrade(t); this.towerPanel(t); }); HX.on(c, '#sl', () => { Game.sell(t); HX.close(); Game.sel = null; }); HX.on(c, '#cl', () => { HX.close(); Game.sel = null; });
+  },
+  helpItems: ['Os inimigos seguem o caminho de terra da ENTRADA até a BASE. Cada um que chega tira 1 vida (o chefe tira 5). Você tem 20 vidas.', 'Toque numa casa de grama para construir uma torre. As torres atiram sozinhas em quem estiver dentro do alcance.', 'Dourada: rápida. Canhão: dano em área. Gelo: deixa os inimigos lentos. Lança: alcance longo e dano alto.', 'Toque numa torre para ver o alcance, melhorar (até o nível 3) ou vender (devolve 60%).', 'Inimigos: comum, rápido (verde), blindado (cinza, reduz o dano de tiros fracos), enxame (amarelo) e chefe (vermelho).', 'Ganhe ouro derrotando inimigos e no fim de cada onda. Vença todas as ondas para liberar o próximo mapa. Estrelas: 18+ vidas ★★★, 10+ ★★.', 'O jogo salva entre as ondas. Use 2× ou 3× para acelerar.'],
+  home() {
+    Game.state = 'idle'; const p = S.get('progress', { unlocked: 0, stars: {} }), cur = S.get('cur', null);
+    const c = HX.overlay(`<h3>Defense</h3><p>Defenda a base. Vença um mapa para liberar o próximo.</p>${cur ? `<button class="btn-primary" id="ct">Continuar ${MAPS[cur.mi].n} · onda ${cur.wave + 1}</button>` : ''}<div class="hist" style="padding:4px">${MAPS.map((M, k) => `<button class="btn" data-k="${k}" style="display:flex;width:100%;justify-content:space-between;align-items:center;margin:4px 0;${k > p.unlocked ? 'opacity:.4' : ''}"><span>${k + 1}. ${M.n}</span><small style="color:var(--muted)">${p.stars[k] ? '★'.repeat(p.stars[k]) + '☆'.repeat(3 - p.stars[k]) : k > p.unlocked ? '🔒' : M.waves + ' ondas'}</small></button>`).join('')}</div><button class="btn" id="hw">Como jogar</button>`, { guard: false });
+    HX.on(c, '#ct', () => Game.start(cur.mi, cur)); c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Vença o mapa anterior'); S.del('cur'); Game.start(k); });
+    HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => this.home()));
+  },
+  pause() { if (Game.state !== 'play') return this.home(); Game.state = 'pause'; Game.save();
+    const c = HX.overlay(`<h3>Pausa</h3><p>${Game.M.n} · onda ${Game.wave}/${Game.M.waves} · ${Game.lives} vidas</p><button class="btn-primary" id="rs">Continuar</button><div class="row2"><button class="btn" id="rt">Reiniciar mapa</button><button class="btn" id="hm">Mapas</button></div><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false });
+    HX.on(c, '#rs', () => { HX.close(); Game.state = 'play'; }); HX.on(c, '#rt', () => { S.del('cur'); Game.start(Game.mi); }); HX.on(c, '#hm', () => this.home()); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => { Game.state = 'play'; this.pause(); })); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); Game.state = 'play'; this.pause(); }); },
+  win(stars) { const last = Game.mi + 1 >= MAPS.length; const c = HX.overlay(`<h3>Base defendida!</h3><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><p>${Game.M.n} · ${Game.lives} vidas restantes</p>${last ? '<p>Você venceu todos os mapas!</p>' : '<button class="btn-primary" id="nx">Próximo mapa</button>'}<div class="row2"><button class="btn" id="rp">Jogar de novo</button><button class="btn" id="hm">Mapas</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.mi + 1)); HX.on(c, '#rp', () => Game.start(Game.mi)); HX.on(c, '#hm', () => this.home()); },
+  lose() { const c = HX.overlay(`<h3>A base caiu</h3><p>${Game.M.n} · você chegou à onda ${Game.wave} de ${Game.M.waves}.</p><button class="btn-primary" id="rp">Tentar de novo</button><button class="btn" id="hm">Mapas</button>`);
+    HX.on(c, '#rp', () => Game.start(Game.mi)); HX.on(c, '#hm', () => this.home()); }
+};
+UI.init(); HX.sw();
+window.TD = { MAPS, TOWERS, FOES, Game, View, UI, S, C, R, CS };
+</script>
+</body>
+</html>
