@@ -50,6 +50,16 @@ h2{font-size:11.5px;letter-spacing:2.6px;text-transform:uppercase;color:var(--go
 .btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid rgba(201,164,92,.45);background:var(--panel);color:var(--gold2);font:600 14px var(--sans);cursor:pointer}
 .foot{text-align:center;color:var(--faint);font-size:12px;margin-top:18px;line-height:1.6}
 .hidden{display:none!important}
+.filters{display:flex;flex-direction:column;gap:10px;margin:0 0 16px}
+.search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 12px;min-height:44px}
+.search input{flex:1;background:none;border:0;color:var(--text);font:500 15px var(--sans);outline:none;min-width:0}
+.search svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:600 13px var(--sans);cursor:pointer;white-space:nowrap}
+.chip.on{border-color:var(--gold);color:var(--gold2);background:#211d15}
+.chip b{font-weight:700;color:var(--faint);margin-left:4px}
+.empty{grid-column:1/-1;text-align:center;color:var(--faint);padding:30px 10px}
 </style>
 </head>
 <body>
@@ -65,7 +75,11 @@ h2{font-size:11.5px;letter-spacing:2.6px;text-transform:uppercase;color:var(--go
     <div class="rule"></div>
   </header>
 
-  <h2>Jogos</h2>
+  <h2 id="count">Jogos</h2>
+  <div class="filters">
+    <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="q" type="search" placeholder="Buscar jogo" autocomplete="off" enterkeyhint="search"></label>
+    <div class="chips" id="chips"></div>
+  </div>
   <main class="grid" id="catalog"></main>
 
   <div class="bar"><button class="btn hidden" id="install">Instalar H-LUX como app</button></div>
@@ -80,9 +94,9 @@ h2{font-size:11.5px;letter-spacing:2.6px;text-transform:uppercase;color:var(--go
   const hub = id => { try { return JSON.parse(localStorage.getItem('hlux.hub.' + id) || 'null'); } catch (e) { return null; } };
   const games = window.HLUX_GAMES || [];
   const cat = document.getElementById('catalog');
-  cat.innerHTML = games.map(g => {
+  const cards = games.map(g => {
     const h = hub(g.id);
-    return `<a class="card" href="${esc(g.path)}" data-game="${esc(g.id)}">
+    return { g, h, html: `<a class="card" href="${esc(g.path)}" data-game="${esc(g.id)}">
       <div class="cover" style="background-image:url('${esc(g.cover)}')">${h && h.line ? `<div class="status"><span class="pill">${esc(h.line)}</span></div>` : ''}</div>
       <div class="body">
         <div class="name"><b>${esc(g.name)}</b><small>H-LUX</small></div>
@@ -90,8 +104,25 @@ h2{font-size:11.5px;letter-spacing:2.6px;text-transform:uppercase;color:var(--go
         <p class="desc">${esc(g.description)}</p>
         <div class="tags">${(g.tags || []).map(t => `<span>${esc(t)}</span>`).join('')}</div>
         <span class="play">${h && h.line ? 'Continuar' : 'Jogar'}</span>
-      </div></a>`;
-  }).join('') + `<div class="soon">Novos jogos chegam aqui.<br>A plataforma foi feita para crescer.</div>`;
+      </div></a>` };
+  });
+  // filtros por categoria e busca (a escolha fica guardada só neste aparelho)
+  const cats = ['Todos'].concat(cards.some(c => c.h && c.h.line) ? ['Em andamento'] : [], (window.HLUX_CATS || []).filter(k => cards.some(c => (c.g.cats || []).includes(k))));
+  let sel = 'Todos'; try { sel = localStorage.getItem('hlux.catalog.filter') || 'Todos'; } catch (e) {}
+  if (!cats.includes(sel)) sel = 'Todos';
+  const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const match = (c, k) => k === 'Todos' || (k === 'Em andamento' ? !!(c.h && c.h.line) : (c.g.cats || []).includes(k));
+  const chips = document.getElementById('chips'), q = document.getElementById('q');
+  const render = () => {
+    const t = norm(q.value.trim());
+    const list = cards.filter(c => match(c, sel) && (!t || norm(c.g.name + ' ' + c.g.tagline + ' ' + c.g.description + ' ' + (c.g.tags || []).join(' ')).includes(t)));
+    cat.innerHTML = list.map(c => c.html).join('') + (list.length ? '' : '<div class="empty">Nenhum jogo encontrado.</div>') + (sel === 'Todos' && !t ? `<div class="soon">Novos jogos chegam aqui.<br>A plataforma foi feita para crescer.</div>` : '');
+    chips.innerHTML = cats.map(k => `<button class="chip ${k === sel ? 'on' : ''}" data-k="${esc(k)}">${esc(k)}<b>${cards.filter(c => match(c, k)).length}</b></button>`).join('');
+    document.getElementById('count').textContent = `Jogos · ${games.length}`;
+  };
+  chips.addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; sel = b.dataset.k; try { localStorage.setItem('hlux.catalog.filter', sel); } catch (err) {} render(); });
+  q.addEventListener('input', render);
+  render();
 
   // Instalação como app (Android/Chrome/Edge)
   let deferred = null; const ib = document.getElementById('install');

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0c0a10">
+<title>H-LUX Ludo</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0c0a10;--bg2:radial-gradient(ellipse at 50% 0%,#241c2e 0%,#0c0a10 64%);--c:24px;--c0:#e5484d;--c1:#3ccf7a;--c2:#f2c230;--c3:#3d8bff}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+.board{position:relative;display:grid;grid-template-columns:repeat(15,var(--c));grid-template-rows:repeat(15,var(--c));background:#f4eedf;border-radius:10px;box-shadow:0 0 0 3px #c9a45c,0 20px 50px rgba(0,0,0,.6);overflow:hidden;touch-action:manipulation}
+.cl{box-shadow:inset 0 0 0 .5px rgba(60,40,10,.35);position:relative}
+.cl.star::after{content:'★';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(60,40,10,.45);font-size:calc(var(--c)*.7)}
+.base{grid-row:span 6;grid-column:span 6;padding:calc(var(--c)*.9);}
+.base div{width:100%;height:100%;border-radius:calc(var(--c)*.6);background:#fbf7ec;display:grid;grid-template-columns:1fr 1fr;place-items:center;box-shadow:inset 0 2px 6px rgba(0,0,0,.2)}
+.base span{width:calc(var(--c)*1.2);height:calc(var(--c)*1.2);border-radius:50%;box-shadow:inset 0 2px 4px rgba(0,0,0,.3);opacity:.35}
+.center{grid-row:7/10;grid-column:7/10;background:conic-gradient(from -45deg,var(--c1) 0 25%,var(--c2) 0 50%,var(--c3) 0 75%,var(--c0) 0);clip-path:none;display:flex;align-items:center;justify-content:center}
+.center b{width:44%;height:44%;border-radius:50%;background:#14110c;box-shadow:0 0 0 2px #c9a45c;display:flex;align-items:center;justify-content:center;color:#f1dca6;font-family:'Cormorant Garamond',serif;font-size:calc(var(--c)*.8)}
+.tk{position:absolute;width:calc(var(--c)*.82);height:calc(var(--c)*.82);border-radius:50%;transform:translate(-50%,-50%);transition:left .16s linear,top .16s linear;z-index:3;box-shadow:0 2px 3px rgba(0,0,0,.55),inset 0 -3px 0 rgba(0,0,0,.25),inset 0 0 0 2px rgba(255,255,255,.55);pointer-events:none}
+.tk.mv{z-index:5;animation:bob .6s ease-in-out infinite alternate}
+.tk.mv::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px #fff6c8}
+@keyframes bob{to{transform:translate(-50%,-62%)}}
+.bar{display:flex;align-items:center;gap:12px;justify-content:center;min-height:64px}
+.die{width:60px;height:60px;border-radius:14px;background:linear-gradient(160deg,#fff,#e8e0cc);box-shadow:0 4px 0 #a8833f,0 8px 18px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:9px;cursor:pointer;border:0}
+.die i{width:10px;height:10px;border-radius:50%;background:#1a1408;place-self:center;visibility:hidden}
+.die.on i.v{visibility:visible}
+.die.wait{opacity:.5;cursor:default}
+.die.roll{animation:spin .45s ease-in-out}
+@keyframes spin{50%{transform:rotate(200deg) scale(.85)}}
+.die.glow{box-shadow:0 4px 0 #a8833f,0 0 0 3px #fff6c8,0 0 22px rgba(255,246,200,.6)}
+.hint{font-weight:800;color:var(--accent2);font-size:14px;min-width:150px}
+.turnbar .pl{padding:6px 7px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Lu<b>do</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar" id="tb"></div>
+  <div class="stage" id="stage"><div class="wrap"><div class="board" id="board"></div><div class="bar"><button class="die" id="die" aria-label="Rolar dado"></button><div class="hint" id="hint"></div></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Jogadas</button>
+    <button class="tool" id="t-rules"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Regras</button>
+    <button class="tool" id="t-speed"><svg class="i"><path d="M5 18 12 12 5 6zM12 18l7-6-7-6z"/></svg><span id="spd">Normal</span></button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX LUDO v1.0 — 2 a 4 participantes (humanos ou IA). Percurso de 52 casas + corredor final de 5 + centro.
+   Regras: tirar 6 joga de novo; três 6 seguidos perdem a vez; casas de saída e estrelas são seguras; chegada ao centro exige número exato.
+   Variantes: sair da base com 6 (ou 1 e 6); captura/chegada dá jogada extra (sim/não). Sem bloqueios.
+   Módulos: Board (geometria) · Rules (puras) · AI · Game · View · UI */
+const S = HX.store('ludo');
+const NAMES = ['Vermelho', 'Verde', 'Amarelo', 'Azul'], COL = ['#e5484d', '#3ccf7a', '#f2c230', '#3d8bff'];
+const Board = {
+  track: [[6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],[14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0]],
+  home: [[[7,1],[7,2],[7,3],[7,4],[7,5]], [[1,7],[2,7],[3,7],[4,7],[5,7]], [[7,13],[7,12],[7,11],[7,10],[7,9]], [[13,7],[12,7],[11,7],[10,7],[9,7]]],
+  start: [0, 13, 26, 39], safe: new Set([0, 13, 26, 39, 8, 21, 34, 47]),
+  baseSpots: [[0, 0], [0, 9], [9, 9], [9, 0]].map(([r, c]) => [[r + 1.95, c + 1.95], [r + 1.95, c + 4.05], [r + 4.05, c + 1.95], [r + 4.05, c + 4.05]]),
+  goal: [[7.5,6.9],[6.9,7.5],[7.5,8.1],[8.1,7.5]],
+  // progresso: -1 base, 0..50 percurso, 51..55 corredor, 56 chegou
+  abs(p, prog) { return prog >= 0 && prog <= 50 ? (this.start[p] + prog) % 52 : -1; },
+  cell(p, prog, k) { if (prog < 0) return this.baseSpots[p][k]; if (prog >= 56) return this.goal[p]; if (prog > 50) { const [r, c] = this.home[p][prog - 51]; return [r + .5, c + .5]; } const [r, c] = this.track[this.abs(p, prog)]; return [r + .5, c + .5]; }
+};
+const Rules = {
+  // devolve o progresso de destino ou null se o movimento é inválido
+  target(st, p, k, d, cfg) { const pr = st.pos[p][k]; if (pr >= 56) return null; if (pr < 0) return (d === 6 || (cfg.exit === '16' && d === 1)) ? 0 : null; const t = pr + d; return t > 56 ? null : t; },
+  movable(st, p, d, cfg) { const o = []; for (let k = 0; k < 4; k++) if (this.target(st, p, k, d, cfg) !== null) o.push(k); return o; },
+  // aplica; devolve {st, captured:[[q,k]], home:bool}
+  apply(st0, p, k, d, cfg) {
+    const st = { pos: st0.pos.map(a => a.slice()) }; const t = this.target(st0, p, k, d, cfg); st.pos[p][k] = t; const cap = [];
+    const a = Board.abs(p, t);
+    if (a >= 0 && !Board.safe.has(a)) for (let q = 0; q < 4; q++) if (q !== p) for (let j = 0; j < 4; j++) if (Board.abs(q, st.pos[q][j]) === a) { st.pos[q][j] = -1; cap.push([q, j]); }
+    return { st, cap, home: t === 56 };
+  },
+  done(st, p) { return st.pos[p].every(x => x >= 56); }
+};
+const AI = {
+  danger(st, p, prog) { // quantos adversários podem alcançar esta casa no próximo lance
+    const a = Board.abs(p, prog); if (a < 0 || Board.safe.has(a)) return 0; let n = 0;
+    for (let q = 0; q < 4; q++) if (q !== p && Game.active[q]) for (const pr of st.pos[q]) { if (pr < 0 || pr > 50) { if (pr < 0 && Board.start[q] === a) n += .5; continue; } const qa = Board.abs(q, pr); const dist = (a - qa + 52) % 52; if (dist >= 1 && dist <= 6 && pr + dist <= 50) n++; }
+    return n;
+  },
+  pick(st, p, d, cfg, lvl) {
+    const mv = Rules.movable(st, p, d, cfg); if (mv.length <= 1) return mv[0];
+    if (lvl === 'facil' && Math.random() < .6) return mv[Math.floor(Math.random() * mv.length)];
+    let best = -Infinity, pick = mv[0];
+    for (const k of mv) {
+      const from = st.pos[p][k], r = Rules.apply(st, p, k, d, cfg), to = r.st.pos[p][k]; let v = 0;
+      v += r.cap.length * 60; if (r.home) v += 45; if (from < 0) v += 35; if (to > 50 && from <= 50) v += 25;
+      const a = Board.abs(p, to); if (a >= 0 && Board.safe.has(a)) v += 12;
+      v += to * .4;
+      if (lvl === 'dificil') { v -= this.danger(r.st, p, to) * 28; if (from >= 0 && from <= 50) v += this.danger(st, p, from) * 22; } else v -= this.danger(r.st, p, to) * 10;
+      if (v > best) { best = v; pick = k; }
+    }
+    return pick;
+  }
+};
+const Game = {
+  cfg: null, st: null, turn: 0, die: 0, rolled: false, sixes: 0, log: [], result: null, active: [], busy: false, speed: 1,
+  kind(p) { return this.cfg.who[p]; }, // 'h' | 'ai' | 'off'
+  newGame(cfg) { HX.close(); this.cfg = cfg; this.active = cfg.who.map(w => w !== 'off'); this.st = { pos: [0, 1, 2, 3].map(() => [-1, -1, -1, -1]) }; this.turn = this.active.indexOf(true); this.die = 0; this.rolled = false; this.sixes = 0; this.log = []; this.result = null; this.busy = false; this.save(); View.render(); UI.turn(); this.next(); },
+  next() { if (this.result) return; UI.turn(); View.render(); if (this.kind(this.turn) === 'ai') { this.busy = true; setTimeout(() => { this.busy = false; this.roll(); }, 600 / this.speed); } },
+  roll() {
+    if (this.result || this.rolled || this.busy) return; this.die = this.forceDie || 1 + Math.floor(Math.random() * 6); this.forceDie = 0; this.rolled = true; HX.sfx('dice');
+    View.dieRoll();
+    const d = this.die, p = this.turn;
+    if (d === 6) this.sixes++; else this.sixes = 0;
+    if (this.sixes === 3) { this.log.push({ p, d, k: -1, note: 'três 6 seguidos: perde a vez' }); HX.toast('Três 6 seguidos: perde a vez'); return this.later(() => this.pass(), 900); }
+    const mv = Rules.movable(this.st, p, d, this.cfg);
+    if (!mv.length) { this.log.push({ p, d, k: -1, note: 'sem movimento' }); UI.hint(this.kind(p) === 'h' ? 'Nenhuma peça pode andar' : ''); return this.later(() => this.pass(d === 6), 900); }
+    this.save(); View.render(); UI.turn();
+    if (this.kind(p) === 'ai') return this.later(() => this.move(AI.pick(this.st, p, d, this.cfg, this.cfg.diff)), 550);
+    // uma única opção real (ou várias peças na mesma casa/base): anda sozinha
+    if (mv.every(k => this.st.pos[p][k] === this.st.pos[p][mv[0]])) return this.later(() => this.move(mv[0]), 450);
+    UI.hint('Escolha uma peça');
+  },
+  later(fn, ms) { this.busy = true; setTimeout(() => { this.busy = false; fn(); }, ms / this.speed); },
+  move(k) {
+    if (this.result || !this.rolled || k === undefined) return false; const p = this.turn, d = this.die;
+    if (Rules.target(this.st, p, k, d, this.cfg) === null) return false;
+    const from = this.st.pos[p][k], r = Rules.apply(this.st, p, k, d, this.cfg); this.busy = true;
+    View.walk(p, k, from, r.st.pos[p][k], () => {
+      this.st = r.st; this.busy = false; HX.sfx(r.cap.length ? 'cap' : r.home ? 'coin' : 'move');
+      this.log.push({ p, d, k, from, to: r.st.pos[p][k], cap: r.cap.map(x => x[0]), home: r.home });
+      if (r.cap.length) { HX.vibrate(30); HX.toast(`${NAMES[p]} capturou ${r.cap.map(x => NAMES[x[0]]).join(', ')}!`); }
+      if (Rules.done(this.st, p)) { this.result = { win: p }; this.record(); this.save(); View.render(); UI.turn(); return setTimeout(() => UI.end(), 700); }
+      const extra = d === 6 || (this.cfg.bonus && (r.cap.length || r.home));
+      this.pass(extra);
+    });
+    return true;
+  },
+  pass(extra) {
+    this.rolled = false; if (!extra) { this.sixes = 0; do { this.turn = (this.turn + 1) % 4; } while (!this.active[this.turn] || Rules.done(this.st, this.turn)); }
+    else HX.toast(this.kind(this.turn) === 'h' ? 'Jogue de novo!' : `${NAMES[this.turn]} joga de novo`, 1100);
+    UI.hint(''); this.save(); this.next();
+  },
+  record() { const humans = this.cfg.who.filter(w => w === 'h').length; if (!humans) return; const st = S.get('stats', { games: 0, wins: 0 }); st.games++; if (this.kind(this.result.win) === 'h') st.wins++; S.set('stats', st); },
+  save() { S.set('cur', { cfg: this.cfg, st: this.st, turn: this.turn, die: this.die, rolled: this.rolled, sixes: this.sixes, log: this.log.slice(-200), done: !!this.result }); S.hub(this.result ? null : `Em andamento · ${this.active.filter(Boolean).length} participantes · vez do ${NAMES[this.turn]}`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg || c.done) return false; Object.assign(this, { cfg: c.cfg, st: c.st, turn: c.turn, die: c.die, rolled: c.rolled, sixes: c.sixes || 0, log: c.log || [], result: null, busy: false }); this.active = this.cfg.who.map(w => w !== 'off'); return true; }
+};
+const View = {
+  tks: [],
+  init() {
+    const bd = HX.$('#board'); let h = '';
+    const baseAt = { '0,0': 0, '0,9': 1, '9,9': 2, '9,0': 3 };
+    const cellColor = (r, c) => { for (let p = 0; p < 4; p++) if (Board.home[p].some(([a, b]) => a === r && b === c)) return COL[p]; const t = Board.track.findIndex(([a, b]) => a === r && b === c); if (t >= 0) { const s = Board.start.indexOf(t); if (s >= 0) return COL[s]; } return null; };
+    for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) {
+      const bk = baseAt[r + ',' + c]; if (bk !== undefined) { h += `<div class="base" style="grid-row:${r + 1}/span 6;grid-column:${c + 1}/span 6;background:${COL[bk]}"><div>${('<span style="background:' + COL[bk] + '"></span>').repeat(4)}</div></div>`; continue; }
+      if ((r < 6 || r > 8) && (c < 6 || c > 8)) continue; if (r >= 6 && r <= 8 && c >= 6 && c <= 8) { if (r === 6 && c === 6) h += '<div class="center"><b>H</b></div>'; continue; }
+      const t = Board.track.findIndex(([a, b]) => a === r && b === c), col = cellColor(r, c);
+      h += `<div class="cl ${t >= 0 && Board.safe.has(t) && Board.start.indexOf(t) < 0 ? 'star' : ''}" style="grid-row:${r + 1};grid-column:${c + 1};${col ? 'background:' + col : ''}"></div>`;
+    }
+    bd.innerHTML = h;
+    for (let p = 0; p < 4; p++) { this.tks[p] = []; for (let k = 0; k < 4; k++) { const e = document.createElement('div'); e.className = 'tk'; e.style.background = `radial-gradient(circle at 35% 30%,#fff8,${COL[p]} 60%)`; bd.appendChild(e); this.tks[p][k] = e; } }
+    bd.addEventListener('click', e => this.tap(e));
+    HX.$('#die').innerHTML = Array.from({ length: 9 }, () => '<i></i>').join('');
+    HX.$('#die').onclick = () => { if (HX.isOpen() || Game.kind(Game.turn) !== 'h') return; if (Game.rolled) return HX.toast('Escolha uma peça para mover'); Game.roll(); };
+    new ResizeObserver(() => this.fit()).observe(HX.$('#stage')); this.fit();
+  },
+  fit() { const st = HX.$('#stage'); const c = Math.floor(Math.min((st.clientWidth - 10) / 15, (st.clientHeight - 90) / 15, 46)); document.documentElement.style.setProperty('--c', Math.max(18, c) + 'px'); this.cs = Math.max(18, c); if (Game.st) this.render(); },
+  tap(e) {
+    if (HX.isOpen() || Game.busy || !Game.rolled || Game.kind(Game.turn) !== 'h' || Game.result) return;
+    const r = HX.$('#board').getBoundingClientRect(), x = (e.clientX - r.left) / this.cs, y = (e.clientY - r.top) / this.cs, p = Game.turn;
+    const mv = Rules.movable(Game.st, p, Game.die, Game.cfg); let best = -1, bd = 1.6;
+    for (const k of mv) { const [cy, cx] = this.spot(p, k); const dd = Math.hypot(cx - x, cy - y); if (dd < bd) { bd = dd; best = k; } }
+    if (best < 0) { // toque na base inteira também serve para sair
+      const inBase = Board.baseSpots[p].some(([by, bx]) => Math.hypot(bx - x, by - y) < 3); const fromBase = mv.find(k => Game.st.pos[p][k] < 0); if (inBase && fromBase !== undefined) best = fromBase; }
+    if (best < 0) return HX.toast('Toque numa peça destacada');
+    Game.move(best);
+  },
+  spot(p, k, prog = Game.st.pos[p][k]) {
+    let [y, x] = Board.cell(p, prog, k);
+    if (prog >= 0 && prog < 56) { // várias peças na mesma casa: pequeno deslocamento
+      const same = []; for (let q = 0; q < 4; q++) for (let j = 0; j < 4; j++) { const pr = Game.st.pos[q][j]; if (pr < 0 || pr >= 56) continue; const [yy, xx] = Board.cell(q, pr, j); if (yy === y && xx === x) same.push(q * 4 + j); }
+      if (same.length > 1) { const i = same.indexOf(p * 4 + k), a = i / same.length * Math.PI * 2; y += Math.sin(a) * .2; x += Math.cos(a) * .2; }
+    }
+    if (prog >= 56) { const a = k * Math.PI / 2; y += Math.sin(a) * .18; x += Math.cos(a) * .18; }
+    return [y, x];
+  },
+  render() {
+    const mv = Game.rolled && !Game.busy && Game.kind(Game.turn) === 'h' && !Game.result ? Rules.movable(Game.st, Game.turn, Game.die, Game.cfg) : [];
+    for (let p = 0; p < 4; p++) for (let k = 0; k < 4; k++) { const e = this.tks[p][k]; e.style.display = Game.active[p] ? '' : 'none'; const [y, x] = this.spot(p, k); e.style.left = x * this.cs + 'px'; e.style.top = y * this.cs + 'px'; e.classList.toggle('mv', p === Game.turn && mv.includes(k)); }
+    this.dieFace(Game.die); const die = HX.$('#die'); die.classList.toggle('wait', Game.kind(Game.turn) !== 'h' || Game.rolled); die.classList.toggle('glow', Game.kind(Game.turn) === 'h' && !Game.rolled && !Game.result);
+    die.style.background = `linear-gradient(160deg,#fff,${COL[Game.turn]}55)`;
+  },
+  dieFace(d) { const on = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] }[d] || []; HX.$('#die').classList.toggle('on', !!d); HX.$('#die').querySelectorAll('i').forEach((e, i) => e.classList.toggle('v', on.includes(i))); },
+  dieRoll() { const d = HX.$('#die'); d.classList.remove('roll'); void d.offsetWidth; d.classList.add('roll'); this.dieFace(Game.die); },
+  walk(p, k, from, to, done) {
+    const e = this.tks[p][k], steps = []; if (from < 0) steps.push(0); else for (let s = from + 1; s <= to; s++) steps.push(s);
+    let i = 0; e.classList.remove('mv'); HX.$('#board').querySelectorAll('.tk.mv').forEach(x => x.classList.remove('mv'));
+    const tick = () => { if (i >= steps.length) return setTimeout(done, 80 / Game.speed); const [y, x] = Board.cell(p, steps[i++], k); e.style.left = x * this.cs + 'px'; e.style.top = y * this.cs + 'px'; HX.sfx('tap'); setTimeout(tick, 170 / Game.speed); };
+    tick();
+  }
+};
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  init() {
+    View.init(); Game.speed = S.get('speed', 1); HX.$('#spd').textContent = Game.speed > 1 ? 'Rápido' : 'Normal';
+    HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-rules').onclick = () => HX.help('Regras', this.helpItems()); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    HX.$('#t-speed').onclick = () => { Game.speed = Game.speed > 1 ? 1 : 2.2; S.set('speed', Game.speed); HX.$('#spd').textContent = Game.speed > 1 ? 'Rápido' : 'Normal'; };
+    addEventListener('keydown', e => { if (HX.isOpen() || Game.kind(Game.turn) !== 'h' || Game.busy) return; if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!Game.rolled) Game.roll(); } const n = +e.key; if (n >= 1 && n <= 4 && Game.rolled) Game.move(n - 1); });
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { View.render(); this.turn(); HX.toast('Partida retomada'); if (Game.kind(Game.turn) === 'ai') { if (Game.rolled) Game.later(() => Game.move(AI.pick(Game.st, Game.turn, Game.die, Game.cfg, Game.cfg.diff)), 500); else Game.next(); } else if (Game.rolled) this.hint('Escolha uma peça'); }
+    else { Game.cfg = { who: ['h', 'off', 'ai', 'off'], diff: 'medio', exit: '6', bonus: true }; Game.active = [true, false, true, false]; Game.st = { pos: [0, 1, 2, 3].map(() => [-1, -1, -1, -1]) }; this.turn(); View.render(); this.setup(); }
+  },
+  name(p, short) { const w = Game.cfg.who[p]; return w === 'ai' ? (short ? 'IA' : `IA ${NAMES[p]}`) : NAMES[p]; },
+  turn() {
+    const tb = HX.$('#tb'); tb.innerHTML = [0, 1, 2, 3].filter(p => Game.active[p]).map(p => `<div class="pl ${!Game.result && Game.turn === p ? 'on' : ''}"><span class="dot" style="background:${COL[p]}"></span><span class="nm">${this.name(p, Game.active.filter(Boolean).length > 2)}</span><span class="ct">${Game.st.pos[p].filter(x => x >= 56).length}/4</span></div>`).join('');
+  },
+  hint(t) { HX.$('#hint').textContent = t; },
+  helpItems() { const c = Game.cfg || {}; return [`Cada participante tem 4 peças na base. Para sair, é preciso tirar ${c.exit === '16' ? '1 ou 6' : '6'} no dado.`, 'Toque no dado para rolar e depois na peça destacada. Com uma única opção, a peça anda sozinha.', 'As peças andam no sentido horário pelo percurso, entram no corredor da sua cor e chegam ao centro com o número exato.', 'Tirar 6 dá direito a jogar de novo, mas três 6 seguidos fazem perder a vez.', 'Parar numa casa com peças adversárias as manda de volta para a base, exceto nas casas seguras: as de saída coloridas e as com estrela.', c.bonus ? 'Capturar uma peça ou levar uma peça ao centro também dá uma jogada extra.' : 'Capturar ou chegar ao centro não dá jogada extra nesta configuração.', 'Vence quem levar as 4 peças ao centro primeiro. Nesta versão não há bloqueios.', 'Teclado: espaço rola o dado; 1 a 4 escolhem a peça.']; },
+  setup() {
+    const pc = S.get('cfg', null), v = { p0: 'h', p1: 'off', p2: 'ai', p3: 'off', diff: 'medio', exit: '6', bonus: true };
+    if (pc) pc.who.forEach((w, i) => v['p' + i] = w), Object.assign(v, { diff: pc.diff, exit: pc.exit, bonus: pc.bonus });
+    const who = [['h', 'Humano'], ['ai', 'IA'], ['off', 'Fora']];
+    HX.setup({ title: 'Ludo', text: 'Escolha quem joga com cada cor (mínimo 2).', values: v,
+      groups: [0, 1, 2, 3].map(p => ({ key: 'p' + p, label: NAMES[p], opts: who })).concat([{ key: 'diff', label: 'Dificuldade da IA', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']] }, { key: 'exit', label: 'Sair da base com', opts: [['6', 'Só 6'], ['16', '1 ou 6']] }, { key: 'bonus', label: 'Capturar ou chegar ao centro', opts: [[true, 'Joga de novo'], [false, 'Sem bônus']] }]),
+      start: 'Começar', help: this.helpItems(),
+      onStart: x => { const cfg = { who: [x.p0, x.p1, x.p2, x.p3], diff: x.diff, exit: x.exit, bonus: x.bonus }; if (cfg.who.filter(w => w !== 'off').length < 2) { HX.toast('Escolha pelo menos 2 participantes'); return this.setup(); } S.set('cfg', cfg); Game.newGame(cfg); } });
+  },
+  hist() { const c = HX.overlay(`<h3>Jogadas</h3><div class="hist">${Game.log.length ? `<ol>${Game.log.slice(-80).map(m => `<li><b style="color:${COL[m.p]}">${NAMES[m.p]}</b> tirou ${m.d}${m.k < 0 ? ` · ${m.note}` : m.from < 0 ? ` · peça ${m.k + 1} saiu da base` : ` · peça ${m.k + 1} andou`}${m.cap && m.cap.length ? ` · capturou ${m.cap.map(q => NAMES[q]).join(', ')}` : ''}${m.home ? ' · chegou ao centro' : ''}</li>`).join('')}</ol>` : 'Nenhuma jogada ainda.'}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => Game.result ? this.end() : HX.close()); },
+  menu() { const st = S.get('stats', { games: 0, wins: 0 }); const c = HX.overlay(`<h3>Ludo</h3><div class="kv"><div><b>${st.games}</b><small>Partidas</small></div><div><b>${st.wins}</b><small>Vitórias humanas</small></div></div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hw">Regras</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#hw', () => HX.help('Regras', this.helpItems())); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); }); },
+  end() {
+    const w = Game.result.win, rank = [0, 1, 2, 3].filter(p => Game.active[p]).sort((a, b) => Game.st.pos[b].reduce((s, x) => s + Math.max(0, x), 0) - Game.st.pos[a].reduce((s, x) => s + Math.max(0, x), 0));
+    HX.sfx(Game.kind(w) === 'h' ? 'win' : 'lose'); S.hub(null);
+    const o = HX.overlay(`<h3>${NAMES[w]} vence!</h3><p>${Game.kind(w) === 'h' ? 'Todas as peças chegaram ao centro.' : 'A IA levou todas as peças ao centro.'}</p><div class="hist"><ol>${rank.map(p => `<li><b style="color:${COL[p]}">${this.name(p)}</b> · ${Game.st.pos[p].filter(x => x >= 56).length}/4 no centro</li>`).join('')}</ol></div><button class="btn-primary" id="ag">Jogar de novo</button><div class="row2"><button class="btn" id="bd">Ver tabuleiro</button><button class="btn" id="nw">Mudar participantes</button></div>`);
+    HX.on(o, '#ag', () => Game.newGame(Game.cfg)); HX.on(o, '#bd', () => HX.close()); HX.on(o, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.LD = { Board, Rules, AI, Game, View, UI, S };
+</script>
+</body>
+</html>

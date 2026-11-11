@@ -122,5 +122,65 @@ window.HLUX_GAMES = [
     id: 'flow', name: 'Flow', tagline: 'Conecte as cores',
     description: 'Ligue os pares de pontos da mesma cor sem cruzar caminhos e preencha todas as casas do tabuleiro.',
     path: 'flow/', cover: 'covers/flow.svg', accent: '#3ddc84', tags: ['Lógica', 'Caminhos', '40 fases']
+  },
+  {
+    id: 'chess', name: 'Chess', tagline: 'Xadrez clássico',
+    description: 'Todas as regras oficiais: roque, en passant, promoção, xeque-mate e empates. Contra a IA ou a dois no mesmo aparelho.',
+    path: 'chess/', cover: 'covers/chess.svg', accent: '#e9dcc0', tags: ['Tabuleiro', 'IA', '2 jogadores']
+  },
+  {
+    id: 'checkers', name: 'Checkers', tagline: 'Damas',
+    description: 'Damas brasileira ou americana, com captura obrigatória, promoção a dama, histórico e desfazer. Contra a IA ou a dois.',
+    path: 'checkers/', cover: 'covers/checkers.svg', accent: '#c47a45', tags: ['Tabuleiro', 'IA', '2 jogadores']
+  },
+  {
+    id: 'ludo', name: 'Ludo', tagline: 'Corrida de peças com dado',
+    description: 'De 2 a 4 participantes, humanos ou IA. Saia da base, capture adversários e leve as quatro peças ao centro.',
+    path: 'ludo/', cover: 'covers/ludo.svg', accent: '#f2c230', tags: ['Tabuleiro', 'Dados', 'Até 4']
+  },
+  {
+    id: 'four', name: 'Four', tagline: 'Quatro em linha',
+    description: 'Solte peças nas colunas e forme uma linha de quatro antes do adversário. IA com três níveis.',
+    path: 'four/', cover: 'covers/four.svg', accent: '#e0b14a', tags: ['Estratégia', 'IA', '2 jogadores']
+  },
+  {
+    id: 'reversi', name: 'Reversi', tagline: 'Prenda e vire as peças',
+    description: 'O clássico 8×8: cerque peças adversárias para virá-las. Jogadas válidas destacadas e IA em três níveis.',
+    path: 'reversi/', cover: 'covers/reversi.svg', accent: '#1c6b47', tags: ['Estratégia', 'IA', '2 jogadores']
+  },
+  {
+    id: 'battleship', name: 'Battleship', tagline: 'Batalha naval',
+    description: 'Posicione a frota à mão ou no automático e afunde os navios do adversário. Contra a IA ou a dois com tela de passagem.',
+    path: 'battleship/', cover: 'covers/battleship.svg', accent: '#7fb4ff', tags: ['Estratégia', 'IA', '2 jogadores']
+  },
+  {
+    id: 'backgammon', name: 'Backgammon', tagline: 'Gamão',
+    description: 'Gamão com regras oficiais: barra, bloqueios, retirada e uso obrigatório dos dados. Pontua gamão e backgammon.',
+    path: 'backgammon/', cover: 'covers/backgammon.svg', accent: '#c9a45c', tags: ['Tabuleiro', 'Dados', '2 jogadores']
+  },
+  {
+    id: 'mancala', name: 'Mancala', tagline: 'Variante Kalah',
+    description: 'Semeie as sementes, ganhe jogadas extras e capture as do adversário. Kalah com 3, 4 ou 6 sementes.',
+    path: 'mancala/', cover: 'covers/mancala.svg', accent: '#d98b5f', tags: ['Estratégia', 'IA', '2 jogadores']
+  },
+  {
+    id: 'gomoku', name: 'Gomoku', tagline: 'Cinco em linha 15×15',
+    description: 'Forme cinco pedras seguidas num tabuleiro 15×15. Toque para prever e toque de novo para confirmar.',
+    path: 'gomoku/', cover: 'covers/gomoku.svg', accent: '#d9b071', tags: ['Estratégia', 'IA', '2 jogadores']
   }
 ];
+
+/* Categorias usadas pelos filtros do catálogo (um jogo pode estar em mais de uma). */
+window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'Cartas', 'Dados', 'Palavras', 'Arcade', 'Corrida', 'Aventura', '2+ jogadores'];
+(function () {
+  const C = {
+    puzzle: ['Quebra-cabeças'], mahjong: ['Quebra-cabeças', 'Lógica'], nonogram: ['Lógica'], minefield: ['Lógica'], '2048': ['Lógica', 'Quebra-cabeças'],
+    solitaire: ['Cartas'], snake: ['Arcade'], blocks: ['Arcade', 'Quebra-cabeças'], blockudoku: ['Quebra-cabeças', 'Lógica'], woodblocks: ['Quebra-cabeças', 'Lógica'],
+    match: ['Quebra-cabeças'], bubble: ['Arcade'], merge: ['Arcade', 'Quebra-cabeças'], arrow: ['Lógica', 'Quebra-cabeças'], unblock: ['Lógica', 'Quebra-cabeças'],
+    parking: ['Lógica', 'Quebra-cabeças'], flow: ['Lógica', 'Quebra-cabeças'],
+    chess: ['Tabuleiro', 'Estratégia', '2+ jogadores'], checkers: ['Tabuleiro', 'Estratégia', '2+ jogadores'], ludo: ['Tabuleiro', 'Dados', '2+ jogadores'],
+    four: ['Tabuleiro', 'Estratégia', '2+ jogadores'], reversi: ['Tabuleiro', 'Estratégia', '2+ jogadores'], battleship: ['Estratégia', '2+ jogadores'],
+    backgammon: ['Tabuleiro', 'Dados', 'Estratégia', '2+ jogadores'], mancala: ['Tabuleiro', 'Estratégia', '2+ jogadores'], gomoku: ['Tabuleiro', 'Estratégia', '2+ jogadores']
+  };
+  window.HLUX_GAMES.forEach(g => { if (!g.cats) g.cats = C[g.id] || []; });
+})();
