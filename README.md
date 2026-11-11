@@ -6,6 +6,11 @@ Plataforma de minijogos para navegador (celular e computador), instalável como 
 |---|---|---|
 | Puzzle Studio | `puzzle/` | IndexedDB `hlux-puzzle-studio` (imagens e partidas) |
 | Mahjong | `mahjong/` | localStorage `hlux.mahjong.*` |
+| Nonogram | `nonogram/` | localStorage `hlux.nonogram.*` |
+| Minefield | `minefield/` | localStorage `hlux.minefield.*` |
+| 2048 | `2048/` | localStorage `hlux.2048.*` |
+| Solitaire | `solitaire/` | localStorage `hlux.solitaire.*` |
+| Snake | `snake/` | localStorage `hlux.snake.*` |
 
 - `index.html` — página inicial e catálogo.
 - `games.js` — registro dos jogos. Para adicionar um jogo: crie a pasta com o `index.html` dele e acrescente uma entrada.

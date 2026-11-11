@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0c1020">
+<title>H-LUX Nonogram</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c1020;--panel:#141a30;--panel2:#1b2340;--line:#2a3458;--gold:#c9a45c;--gold2:#e8cd8c;--ink:#ece7da;--text:#e8ebf5;--muted:#8f98b8;--fill:#efe6cf;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--serif:'Cormorant Garamond',Georgia,serif;--cs:28px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% 0%,#1a2347 0%,var(--bg) 62%);color:var(--text);font-family:var(--sans);overscroll-behavior:none}
+body{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+.hidden{display:none!important}
+svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.screen{position:fixed;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex}
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));flex:none}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.2px;padding:8px 4px}
+.ib{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line)}
+.title{font-family:var(--serif);font-weight:700;font-size:26px;letter-spacing:.5px}
+.title b{color:var(--gold2);font-weight:700}
+.scroll{flex:1;overflow-y:auto;padding:4px 16px calc(20px + env(safe-area-inset-bottom))}
+.wrap{max-width:760px;margin:0 auto}
+.label{font-size:11.5px;letter-spacing:2.2px;text-transform:uppercase;color:var(--gold);font-weight:800;margin:18px 2px 10px}
+.hero{text-align:center;padding:4vh 0 10px}
+.hero canvas{width:120px;height:120px;image-rendering:pixelated}
+.hero .t1{font-family:var(--serif);font-size:46px;font-weight:700;line-height:1;margin-top:8px}
+.hero .t2{font-size:11px;letter-spacing:5px;color:var(--gold);font-weight:800;margin-top:6px}
+.mi{display:flex;align-items:center;gap:14px;width:100%;min-height:60px;padding:10px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line);text-align:left;margin-bottom:10px}
+.mi b{display:block;font-size:15.5px}.mi small{color:var(--muted);font-size:12.5px}
+.mi .t{flex:1}
+.btn-primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:52px;border-radius:14px;background:linear-gradient(180deg,#e8cd8c,#b48d45);color:#16130d;font-weight:800;font-size:16px;margin-bottom:10px}
+.levels{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.lv{border-radius:14px;border:1px solid var(--line);background:var(--panel);padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:132px}
+.lv canvas{width:64px;height:64px;image-rendering:pixelated;border-radius:6px}
+.lv .q{width:64px;height:64px;border-radius:6px;display:grid;place-items:center;background:var(--panel2);color:var(--muted);font:800 24px var(--serif)}
+.lv b{font-size:13px}.lv small{font-size:11px;color:var(--muted)}
+.lv.locked{opacity:.4}.lv.next{border-color:var(--gold)}
+.seg{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.seg button{min-height:60px;border-radius:14px;border:1px solid var(--line);background:var(--panel);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.seg button small{color:var(--muted);font-size:11.5px;font-weight:600}
+.seg button.on{border-color:var(--gold);color:var(--gold2)}
+/* jogo */
+.ghud{display:flex;align-items:center;justify-content:center;gap:14px;font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums;flex:1}
+.ghud small{color:var(--muted);font-size:10.5px;margin-right:4px;font-weight:700}
+.area{flex:1;overflow:auto;display:flex;padding:8px;-webkit-overflow-scrolling:touch}
+.grid{margin:auto;display:grid;user-select:none;-webkit-user-select:none;touch-action:none}
+.cc{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:1px;padding-bottom:4px;font-weight:800;font-size:max(10.5px,calc(var(--cs) * .46));color:var(--ink);line-height:1.05}
+.rc{display:flex;justify-content:flex-end;align-items:center;gap:max(4px,calc(var(--cs) * .2));padding-right:6px;font-weight:800;font-size:max(10.5px,calc(var(--cs) * .46));color:var(--ink)}
+.cc.done,.rc.done{color:#56607f}
+.cc.hl,.rc.hl{background:rgba(201,164,92,.1)}
+.cc.err,.rc.err{color:#ff8a7a}
+.cell{width:var(--cs);height:var(--cs);background:#1c2444;border-right:1px solid #2f3a64;border-bottom:1px solid #2f3a64;position:relative}
+.cell.b5r{border-right:2px solid #6a76a8}.cell.b5b{border-bottom:2px solid #6a76a8}
+.cell.L{border-left:2px solid #6a76a8}.cell.T{border-top:2px solid #6a76a8}
+.cell.f{background:var(--fill);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.cell.x::after{content:'';position:absolute;inset:24%;background:linear-gradient(45deg,transparent 44%,#8f98b8 44%,#8f98b8 56%,transparent 56%),linear-gradient(-45deg,transparent 44%,#8f98b8 44%,#8f98b8 56%,transparent 56%)}
+.cell.hint{animation:hint 1.2s ease}
+@keyframes hint{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px #e8cd8c,0 0 16px #e8cd8c}}
+.tools{display:flex;gap:6px;padding:8px 12px max(10px,env(safe-area-inset-bottom));justify-content:center;flex-wrap:wrap}
+.tool{min-width:58px;height:54px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:700;color:var(--muted);padding:0 8px}
+.tool svg.i{color:var(--gold2)}
+.modeseg{display:flex;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.modeseg button{height:54px;padding:0 10px;display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;color:var(--muted);background:var(--panel)}
+.modeseg button.on{background:rgba(201,164,92,.16);color:var(--gold2)}
+.sw{width:18px;height:18px;border-radius:4px;background:var(--fill)}
+.ov{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,9,20,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.ovc{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+.ovc h3{margin:0;font-family:var(--serif);font-size:32px;color:var(--gold2)}
+.ovc p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.ovc canvas{align-self:center;image-rendering:pixelated;border-radius:10px;box-shadow:0 0 30px rgba(232,205,140,.25);animation:reveal .9s ease}
+@keyframes reveal{from{opacity:0;transform:scale(.6) rotate(-6deg)}to{opacity:1;transform:none}}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv div{background:var(--panel2);border-radius:10px;padding:9px 4px}
+.kv b{display:block;font-size:17px}.kv small{color:var(--muted);font-size:10.5px;text-transform:uppercase}
+.btn{min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);font-weight:700}
+#toast{position:fixed;left:50%;top:calc(max(8px,env(safe-area-inset-top)) + 58px);transform:translateX(-50%);z-index:40;background:var(--panel2);border:1px solid var(--line);padding:9px 14px;border-radius:12px;font-size:13px;font-weight:600;max-width:90vw;text-align:center}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.kpi{padding:12px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.kpi b{display:block;font-size:22px}.kpi small{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase}
+</style>
+</head>
+<body>
+<!-- início -->
+<section class="screen active" id="s-home">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a></div>
+  <div class="scroll"><div class="wrap" style="max-width:440px">
+    <div class="hero"><canvas id="logo" width="15" height="15"></canvas><div class="t1">Nono<span style="color:var(--gold2)">gram</span></div><div class="t2">H-LUX · PICROSS</div></div>
+    <button class="btn-primary hidden" id="h-cont">▶ Continuar</button>
+    <button class="mi" data-go="campaign"><span class="t"><b>Campanha</b><small id="h-camp">Desenhos para revelar</small></span>›</button>
+    <button class="mi" data-go="free"><span class="t"><b>Modo livre</b><small>Quebra-cabeças gerados por dificuldade</small></span>›</button>
+    <button class="mi" data-go="stats"><span class="t"><b>Recordes e progresso</b><small id="h-stats">Melhores tempos</small></span>›</button>
+    <p style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:16px">Os números indicam os blocos de quadrados pintados em cada linha e coluna, na ordem. Pinte os quadrados certos para revelar o desenho. Marque com ✕ os que ficam vazios.</p>
+  </div></div>
+</section>
+<!-- campanha -->
+<section class="screen" id="s-campaign">
+  <div class="top"><button class="ib" data-back><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg></button><div class="title" style="font-size:22px">Campanha</div><span style="margin-left:auto;color:var(--muted);font-weight:700;font-size:13px" id="c-prog"></span></div>
+  <div class="scroll"><div class="wrap"><div class="levels" id="levels"></div></div></div>
+</section>
+<!-- livre -->
+<section class="screen" id="s-free">
+  <div class="top"><button class="ib" data-back><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg></button><div class="title" style="font-size:22px">Modo livre</div></div>
+  <div class="scroll"><div class="wrap"><div class="label">Dificuldade</div><div class="seg" id="fdiff"></div>
+    <p style="color:var(--muted);font-size:13px;line-height:1.6">Cada partida gera um emblema simétrico novo. Todos têm solução única e podem ser resolvidos só com lógica, sem chutes.</p>
+    <button class="btn-primary" id="fgo">Gerar e jogar</button></div></div>
+</section>
+<!-- estatísticas -->
+<section class="screen" id="s-stats">
+  <div class="top"><button class="ib" data-back><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg></button><div class="title" style="font-size:22px">Recordes</div></div>
+  <div class="scroll"><div class="wrap" id="stbody"></div></div>
+</section>
+<!-- jogo -->
+<section class="screen" id="s-game">
+  <div class="top"><button class="ib" id="g-menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button>
+    <div class="ghud"><span id="g-name"></span><span><small>⏱</small><b id="g-time">0:00</b></span><span><small>DICAS</small><b id="g-hints">0</b></span></div></div>
+  <div class="area" id="area"><div class="grid" id="grid"></div></div>
+  <div class="tools">
+    <div class="modeseg"><button data-m="fill" class="on"><span class="sw"></span>Pintar</button><button data-m="x">✕ Marcar</button></div>
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica</button>
+    <button class="tool" id="t-zoom"><svg class="i"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M11 8v6M8 11h6"/></svg>Zoom</button>
+  </div>
+</section>
+<div class="ov hidden" id="ov"><div class="ovc" id="ovc"></div></div>
+<div id="toast" class="hidden"></div>
+<script>
+'use strict';
+/* H-LUX NONOGRAM v1.0 — Picross
+   Módulos: Store · Art (desenhos) · Solver (lógica de linha) · Gen (modo livre) · Game · View · Input · UI */
+const $ = s => document.querySelector(s);
+const fmt = ms => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const Store = {
+  P: 'hlux.nonogram.',
+  get(k, d) { try { const v = localStorage.getItem(this.P + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(this.P + k); } catch (e) {} },
+  hub(line) { try { line ? localStorage.setItem('hlux.hub.nonogram', JSON.stringify({ line, updated: Date.now() })) : localStorage.removeItem('hlux.hub.nonogram'); } catch (e) {} }
+};
+
+/* ---------- Art: desenhos da campanha ('#' pintado) ---------- */
+const fnArt = (n, f) => { const rows = []; for (let y = 0; y < n; y++) { let r = ''; for (let x = 0; x < n; x++) r += f(x, y, n) ? '#' : '.'; rows.push(r); } return rows; };
+const ART = [
+  { name: 'Coração', color: '#e5604f', rows: ['.#.#.', '#####', '#####', '.###.', '..#..'] },
+  { name: 'Casa', color: '#d9a441', rows: ['..#..', '.###.', '#####', '.#.#.', '.#.#.'] },
+  { name: 'Árvore', color: '#4fbf7a', rows: ['..#..', '.###.', '#####', '..#..', '.###.'] },
+  { name: 'Peixe', color: '#6fb4ff', rows: ['.##..', '####.', '#####', '####.', '.##..'] },
+  { name: 'Letra H', color: '#c9a45c', rows: ['#...#', '#...#', '#####', '#...#', '#...#'] },
+  { name: 'Gato', color: '#f0a35c', rows: ['.#......#.', '.##....##.', '.########.', '##########', '##.####.##', '##########', '###.##.###', '.###..###.', '..######..', '...####...'] },
+  { name: 'Cogumelo', color: '#e5604f', rows: ['...####...', '..######..', '.##.##.##.', '####..####', '##########', '.########.', '...#..#...', '...#..#...', '...####...', '..######..'] },
+  { name: 'Coroa', color: '#e8cd8c', rows: ['#...##...#', '##..##..##', '##.####.##', '##########', '#.##..##.#', '##########', '.########.', '.#.#..#.#.', '.########.', '..######..'] },
+  { name: 'Âncora', color: '#6fb4ff', rows: ['...####...', '...#..#...', '...####...', '.########.', '....##....', '#...##...#', '#...##...#', '##..##..##', '.########.', '...####...'] },
+  { name: 'Veleiro', color: '#f3ecdc', rows: ['....#.....', '....##....', '....###...', '....####..', '....#####.', '....#.....', '##########', '.########.', '..######..', '...####...'] },
+  { name: 'Taça', color: '#e8cd8c', rows: ['##########', '#.######.#', '#.######.#', '.########.', '..######..', '...####...', '....##....', '....##....', '..######..', '.########.'] },
+  { name: 'Lua', color: '#f0d796', rows: fnArt(15, (x, y, n) => { const c = (n - 1) / 2, a = (x - c) ** 2 + (y - c) ** 2 <= 6.6 ** 2, b = (x - c - 3.2) ** 2 + (y - c + 2.2) ** 2 <= 5.4 ** 2; return a && !b; }) },
+  { name: 'Coração grande', color: '#e5604f', rows: fnArt(15, (x, y, n) => { const X = (x - (n - 1) / 2) / 6.2, Y = -((y - (n - 1) / 2) / 6.2) + .25; return (X * X + Y * Y - 1) ** 3 - X * X * Y ** 3 <= 0; }) },
+  { name: 'Sol', color: '#f0c977', rows: fnArt(15, (x, y, n) => { const c = 7, d = Math.hypot(x - c, y - c); if (d <= 3.6) return true; if (d > 5 && d <= 7.2) { const a = Math.atan2(y - c, x - c), k = Math.round(a / (Math.PI / 4)); return Math.abs(a - k * Math.PI / 4) < .2; } return false; }) },
+  { name: 'Emblema H-LUX', color: '#c9a45c', rows: ['###############', '#.............#', '#.###.....###.#', '#.###.....###.#', '#.###.....###.#', '#.###.....###.#', '#.###########.#', '#.###########.#', '#.###########.#', '#.###.....###.#', '#.###.....###.#', '#.###.....###.#', '#.###.....###.#', '#.............#', '###############'] },
+  { name: 'Diamante', color: '#9fd8ff', rows: fnArt(20, (x, y) => { const Y = y + 2; if (Y < 4 || Y > 18) return false; const half = Y <= 7 ? 5 + (Y - 4) * 1.6 : 10 - (Y - 8) * 0.95; return Math.abs(x - 9.5) <= half; }) }
+];
+
+/* ---------- Solver: lógica de linha (determina células forçadas) ---------- */
+const Solver = {
+  clues(line) { const c = []; let run = 0; for (const v of line) { if (v === 1) run++; else if (run) { c.push(run); run = 0; } } if (run) c.push(run); return c.length ? c : [0]; },
+  // devolve nova linha com células deduzidas (-1 desconhecido, 0 vazio, 1 pintado) ou null se impossível
+  line(cells, clue) {
+    const n = cells.length, cl = clue[0] === 0 ? [] : clue, m = cl.length;
+    const memo = new Int8Array((n + 2) * (m + 1)).fill(-1);
+    const fits = (i, k) => { const L = cl[k]; if (i + L > n) return false; for (let j = i; j < i + L; j++) if (cells[j] === 0) return false; return i + L === n || cells[i + L] !== 1; };
+    const f = (i, k) => {
+      if (i > n) i = n; const key = i * (m + 1) + k; if (memo[key] >= 0) return memo[key] === 1;
+      let r;
+      if (k === m) { r = true; for (let j = i; j < n; j++) if (cells[j] === 1) { r = false; break; } }
+      else if (i >= n) r = false;
+      else r = (cells[i] !== 1 && f(i + 1, k)) || (fits(i, k) && f(i + cl[k] + 1, k + 1));
+      memo[key] = r ? 1 : 0; return r;
+    };
+    if (!f(0, 0)) return null;
+    const canF = new Uint8Array(n), canE = new Uint8Array(n), seen = new Uint8Array((n + 2) * (m + 1));
+    const stack = [[0, 0]];
+    while (stack.length) {
+      let [i, k] = stack.pop(); if (i > n) i = n; const key = i * (m + 1) + k; if (seen[key]) continue; seen[key] = 1;
+      if (k === m) { for (let j = i; j < n; j++) canE[j] = 1; continue; }
+      if (i >= n) continue;
+      if (cells[i] !== 1 && f(i + 1, k)) { canE[i] = 1; stack.push([i + 1, k]); }
+      if (fits(i, k) && f(i + cl[k] + 1, k + 1)) { for (let j = i; j < i + cl[k]; j++) canF[j] = 1; if (i + cl[k] < n) canE[i + cl[k]] = 1; stack.push([i + cl[k] + 1, k + 1]); }
+    }
+    const out = cells.slice(); for (let j = 0; j < n; j++) { if (canF[j] && !canE[j]) out[j] = 1; else if (canE[j] && !canF[j]) out[j] = 0; else if (!canF[j] && !canE[j]) return null; }
+    return out;
+  },
+  // resolve só com lógica de linha; solved=true significa solução única alcançável sem chutes
+  solve(rc, cc) {
+    const R = rc.length, C = cc.length, g = new Array(R * C).fill(-1);
+    let changed = true, guard = 0;
+    while (changed && guard++ < 200) {
+      changed = false;
+      for (let r = 0; r < R; r++) { const row = g.slice(r * C, r * C + C), o = this.line(row, rc[r]); if (!o) return { ok: false }; for (let c = 0; c < C; c++) if (o[c] !== row[c]) { g[r * C + c] = o[c]; changed = true; } }
+      for (let c = 0; c < C; c++) { const col = []; for (let r = 0; r < R; r++) col.push(g[r * C + c]); const o = this.line(col, cc[c]); if (!o) return { ok: false }; for (let r = 0; r < R; r++) if (o[r] !== col[r]) { g[r * C + c] = o[r]; changed = true; } }
+    }
+    return { ok: true, solved: g.every(v => v >= 0), grid: g };
+  },
+  cluesOf(sol, R, C) { const rc = [], cc = []; for (let r = 0; r < R; r++) rc.push(this.clues(sol.slice(r * C, r * C + C))); for (let c = 0; c < C; c++) { const col = []; for (let r = 0; r < R; r++) col.push(sol[r * C + c]); cc.push(this.clues(col)); } return { rc, cc }; }
+};
+
+/* ---------- Gen: emblemas simétricos aleatórios (modo livre), sempre com solução única ---------- */
+const FREE = { easy: { name: 'Fácil', n: 5, d: .6 }, normal: { name: 'Normal', n: 10, d: .58 }, hard: { name: 'Difícil', n: 15, d: .57 }, expert: { name: 'Especialista', n: 20, d: .56 } };
+const Gen = {
+  make(diff) {
+    const { n, d } = FREE[diff], half = Math.ceil(n / 2);
+    for (let t = 0; t < 600; t++) {
+      const sol = new Array(n * n).fill(0);
+      for (let y = 0; y < n; y++) for (let x = 0; x < half; x++) { const v = Math.random() < d ? 1 : 0; sol[y * n + x] = v; sol[y * n + (n - 1 - x)] = v; }
+      if (sol.every(v => v) || !sol.some(v => v)) continue;
+      const { rc, cc } = Solver.cluesOf(sol, n, n), r = Solver.solve(rc, cc);
+      if (r.ok && r.solved) return { name: 'Emblema ' + FREE[diff].name.toLowerCase(), color: ['#e8cd8c', '#6fb4ff', '#4fbf7a', '#e5604f', '#b49bff'][t % 5], sol, n };
+    }
+    return null;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  s: null, runStart: 0, timer: 0,
+  fromArt(idx) { const a = ART[idx], n = a.rows.length, sol = a.rows.join('').split('').map(ch => ch === '#' ? 1 : 0); return this.create({ mode: 'campaign', level: idx, name: a.name, color: a.color, sol, R: n, C: a.rows[0].length }); },
+  create(o) {
+    const { rc, cc } = Solver.cluesOf(o.sol, o.R, o.C);
+    return { ...o, rc, cc, cells: new Array(o.R * o.C).fill(0), undo: [], hints: 0, elapsed: 0, status: 'playing' }; // células: 0 vazio, 1 pintado, 2 ✕
+  },
+  rowOk(r) { const s = this.s, line = s.cells.slice(r * s.C, r * s.C + s.C).map(v => v === 1 ? 1 : 0); return Solver.clues(line).join() === s.rc[r].join(); },
+  colOk(c) { const s = this.s, line = []; for (let r = 0; r < s.R; r++) line.push(s.cells[r * s.C + c] === 1 ? 1 : 0); return Solver.clues(line).join() === s.cc[c].join(); },
+  // verificação automática: todas as linhas e colunas batem com as pistas
+  check() { const s = this.s; for (let r = 0; r < s.R; r++) if (!this.rowOk(r)) return false; for (let c = 0; c < s.C; c++) if (!this.colOk(c)) return false; return true; },
+  hint() {
+    const s = this.s, wrong = [], missing = [];
+    for (let i = 0; i < s.cells.length; i++) { const want = s.sol[i]; if (s.cells[i] === 1 && !want) wrong.push(i); else if (want && s.cells[i] !== 1) missing.push(i); }
+    const pool = wrong.length ? wrong : missing; if (!pool.length) return -1;
+    const i = pool[Math.floor(Math.random() * pool.length)];
+    s.undo.push([[i, s.cells[i]]]); s.cells[i] = s.sol[i] ? 1 : 2; s.hints++; return i;
+  },
+  elapsed() { return this.s.elapsed + (this.runStart ? performance.now() - this.runStart : 0); },
+  startTimer() { if (this.runStart) return; this.runStart = performance.now(); clearInterval(this.timer); this.timer = setInterval(() => UI.hud(), 500); },
+  stopTimer() { if (this.runStart) this.s.elapsed += performance.now() - this.runStart; this.runStart = 0; clearInterval(this.timer); },
+  save() { const s = this.s; if (!s || s.status !== 'playing') return; Store.set('game', { ...s, elapsed: this.elapsed() }); Store.hub(`Em andamento · ${s.name} ${s.R}×${s.C}`); }
+};
+
+/* ---------- View ---------- */
+const View = {
+  zoom: 1,
+  build() {
+    const s = Game.s, g = $('#grid'), maxR = Math.max(...s.rc.map(c => c.length)), maxC = Math.max(...s.cc.map(c => c.length));
+    const area = $('#area'), W = area.clientWidth - 30, H = area.clientHeight - 20;
+    // pistas com tamanho mínimo legível (≥10,5 px); a grade usa o espaço restante
+    const unit = c => Math.max(c * .62, 14.5);
+    let cs = 44; while (cs > 14 && (s.C * cs + maxR * unit(cs) + 10 > W || s.R * cs + maxC * unit(cs) * .86 + 8 > H)) cs--;
+    cs = Math.floor(cs * this.zoom);
+    document.documentElement.style.setProperty('--cs', cs + 'px');
+    g.style.gridTemplateColumns = `${Math.ceil(maxR * unit(cs) + 8)}px repeat(${s.C}, var(--cs))`;
+    g.style.gridTemplateRows = `${Math.ceil(maxC * unit(cs) * .86 + 6)}px repeat(${s.R}, var(--cs))`;
+    let h = '<div></div>';
+    for (let c = 0; c < s.C; c++) h += `<div class="cc" data-c="${c}">${s.cc[c].map(v => `<span>${v}</span>`).join('')}</div>`;
+    for (let r = 0; r < s.R; r++) {
+      h += `<div class="rc" data-r="${r}">${s.rc[r].map(v => `<span>${v}</span>`).join('')}</div>`;
+      for (let c = 0; c < s.C; c++) { let cl = 'cell'; if ((c + 1) % 5 === 0 && c + 1 < s.C) cl += ' b5r'; if ((r + 1) % 5 === 0 && r + 1 < s.R) cl += ' b5b'; if (c === 0) cl += ' L'; if (r === 0) cl += ' T'; h += `<div class="${cl}" data-i="${r * s.C + c}"></div>`; }
+    }
+    g.innerHTML = h; this.cells = [...g.querySelectorAll('.cell')]; this.rcs = [...g.querySelectorAll('.rc')]; this.ccs = [...g.querySelectorAll('.cc')];
+    this.render();
+  },
+  render() {
+    const s = Game.s;
+    this.cells.forEach((el, i) => { el.classList.toggle('f', s.cells[i] === 1); el.classList.toggle('x', s.cells[i] === 2); });
+    for (let r = 0; r < s.R; r++) this.rcs[r].classList.toggle('done', Game.rowOk(r));
+    for (let c = 0; c < s.C; c++) this.ccs[c].classList.toggle('done', Game.colOk(c));
+    UI.hud();
+  },
+  focus(i) { const s = Game.s; this.rcs.forEach((e, r) => e.classList.toggle('hl', i >= 0 && r === Math.floor(i / s.C))); this.ccs.forEach((e, c) => e.classList.toggle('hl', i >= 0 && c === i % s.C)); },
+  drawArt(cv, rows, color, px) {
+    const n = rows.length, m = rows[0].length; cv.width = m; cv.height = n; const x = cv.getContext('2d'); x.clearRect(0, 0, m, n);
+    for (let y = 0; y < n; y++) for (let k = 0; k < m; k++) if (rows[y][k] === '#') { x.fillStyle = color; x.fillRect(k, y, 1, 1); }
+    if (px) { cv.style.width = cv.style.height = px + 'px'; }
+  },
+  solRows(s, useCells) { const rows = []; for (let r = 0; r < s.R; r++) { let t = ''; for (let c = 0; c < s.C; c++) t += (useCells ? s.cells[r * s.C + c] === 1 : s.sol[r * s.C + c]) ? '#' : '.'; rows.push(t); } return rows; }
+};
+
+/* ---------- Input: tocar/arrastar pinta em linha reta; botão direito marca ✕ ---------- */
+const Input = {
+  st: null, mode: 'fill',
+  init() {
+    const g = $('#grid');
+    g.addEventListener('pointerdown', e => {
+      const el = e.target.closest('.cell'); if (!el || Game.s.status !== 'playing') return;
+      e.preventDefault(); try { g.setPointerCapture(e.pointerId); } catch (_) {}
+      const i = +el.dataset.i, s = Game.s, kind = (e.button === 2 || this.mode === 'x') ? 2 : 1;
+      const target = s.cells[i] === kind ? 0 : kind; // primeiro toque decide: pintar ou apagar
+      this.st = { i0: i, kind, target, axis: null, changes: [], done: new Set() };
+      this.apply(i); Game.startTimer();
+    });
+    g.addEventListener('pointermove', e => {
+      if (!this.st) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest && el.closest('.cell'); if (!c) return;
+      let i = +c.dataset.i; const s = Game.s, r0 = Math.floor(this.st.i0 / s.C), c0 = this.st.i0 % s.C, r = Math.floor(i / s.C), cc = i % s.C;
+      if (!this.st.axis && i !== this.st.i0) this.st.axis = r === r0 ? 'row' : cc === c0 ? 'col' : (Math.abs(cc - c0) >= Math.abs(r - r0) ? 'row' : 'col');
+      if (this.st.axis === 'row') i = r0 * s.C + cc; else if (this.st.axis === 'col') i = r * s.C + c0;
+      // preenche o caminho inteiro entre o início e o dedo
+      const a = this.st.axis === 'row' ? c0 : r0, b = this.st.axis === 'row' ? cc : r;
+      for (let k = Math.min(a, b); k <= Math.max(a, b); k++) this.apply(this.st.axis === 'row' ? r0 * s.C + k : k * s.C + c0);
+      View.focus(i);
+    });
+    const end = () => {
+      if (!this.st) return; const st = this.st; this.st = null; View.focus(-1);
+      if (st.changes.length) { Game.s.undo.push(st.changes); if (Game.s.undo.length > 300) Game.s.undo.shift(); }
+      Game.save(); if (Game.check()) { Game.stopTimer(); setTimeout(() => UI.win(), 380); } // atraso: o toque final não aciona os botões da tela de vitória
+    };
+    g.addEventListener('pointerup', end); g.addEventListener('pointercancel', end);
+    g.addEventListener('contextmenu', e => e.preventDefault());
+    document.querySelectorAll('.modeseg [data-m]').forEach(b => b.onclick = () => { this.mode = b.dataset.m; document.querySelectorAll('.modeseg button').forEach(x => x.classList.toggle('on', x === b)); });
+    window.addEventListener('keydown', e => { if (UI.cur !== 'game') return; if (e.key === 'z' || e.key === 'Z') UI.undo(); if (e.key === 'x' || e.key === 'X') document.querySelector(`.modeseg [data-m="${this.mode === 'x' ? 'fill' : 'x'}"]`).click(); });
+  },
+  apply(i) {
+    const st = this.st, s = Game.s; if (st.done.has(i)) return; st.done.add(i);
+    const cur = s.cells[i];
+    // não sobrescreve outro tipo de marca ao arrastar (ex.: pintar por cima de ✕)
+    if (st.target !== 0 && cur !== 0 && cur !== st.target) return;
+    if (st.target === 0 && cur !== st.kind) return;
+    if (cur === st.target) return;
+    st.changes.push([i, cur]); s.cells[i] = st.target;
+    const el = View.cells[i]; el.classList.toggle('f', st.target === 1); el.classList.toggle('x', st.target === 2);
+    const r = Math.floor(i / s.C), c = i % s.C; View.rcs[r].classList.toggle('done', Game.rowOk(r)); View.ccs[c].classList.toggle('done', Game.colOk(c));
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  cur: 'home', stack: [], fdiff: 'easy',
+  init() {
+    document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => this.go(b.dataset.go));
+    document.querySelectorAll('[data-back]').forEach(b => b.onclick = () => this.open(this.stack.pop() || 'home'));
+    $('#h-cont').onclick = () => { const g = Store.get('game', null); if (g) this.play(g); };
+    $('#fgo').onclick = () => this.startFree();
+    $('#t-undo').onclick = () => this.undo(); $('#t-hint').onclick = () => this.hint();
+    $('#t-zoom').onclick = () => { View.zoom = View.zoom >= 1.9 ? 1 : View.zoom + .45; View.build(); };
+    $('#g-menu').onclick = () => this.menu();
+    document.addEventListener('visibilitychange', () => { if (!Game.s || this.cur !== 'game') return; if (document.hidden) { Game.stopTimer(); Game.save(); } else if (Game.s.status === 'playing') Game.startTimer(); });
+    window.addEventListener('pagehide', () => Game.save());
+    window.addEventListener('resize', () => { if (this.cur === 'game') View.build(); });
+    document.querySelectorAll('[data-platform-link]').forEach(a => a.addEventListener('click', () => { if (Game.s) { Game.stopTimer(); Game.save(); } }));
+    Input.init(); this.open('home');
+  },
+  show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 's-' + id)); this.cur = id; },
+  go(id) { if (this.cur !== id && this.cur !== 'game') this.stack.push(this.cur); this.open(id); },
+  open(id) { this.show(id); ({ home: () => this.home(), campaign: () => this.campaign(), free: () => this.free(), stats: () => this.stats() })[id]?.(); },
+  prog() { return Store.get('progress', { done: {}, free: {} }); },
+  home() {
+    this.stack = []; const g = Store.get('game', null); $('#h-cont').classList.toggle('hidden', !g); if (g) $('#h-cont').textContent = `▶ Continuar · ${g.name} ${g.R}×${g.C}`;
+    const p = this.prog(), done = Object.keys(p.done).length; $('#h-camp').textContent = `${done} de ${ART.length} desenhos revelados`;
+    View.drawArt($('#logo'), ART[14].rows, '#c9a45c');
+  },
+  unlocked() { const p = this.prog(); let k = 0; while (k < ART.length && p.done[k]) k++; return k; }, // próximo nível disponível
+  campaign() {
+    const p = this.prog(), next = this.unlocked();
+    $('#c-prog').textContent = `${Object.keys(p.done).length}/${ART.length}`;
+    $('#levels').innerHTML = ART.map((a, k) => { const d = p.done[k], open = k <= next; const n = a.rows.length;
+      return `<button class="lv ${open ? '' : 'locked'} ${k === next ? 'next' : ''}" data-k="${k}">${d ? `<canvas data-art="${k}"></canvas>` : `<div class="q">${open ? '?' : '🔒'}</div>`}<b>${d ? a.name : 'Fase ' + (k + 1)}</b><small>${n}×${a.rows[0].length}${d ? ' · ' + fmt(d.best) : ''}</small></button>`; }).join('');
+    $('#levels').querySelectorAll('canvas[data-art]').forEach(c => { const a = ART[+c.dataset.art]; View.drawArt(c, a.rows, a.color); });
+    $('#levels').querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > next) { this.toast('Conclua a fase anterior para desbloquear'); return; } this.guard(() => this.play(Game.fromArt(k))); });
+  },
+  free() {
+    $('#fdiff').innerHTML = Object.entries(FREE).map(([k, f]) => `<button data-d="${k}" class="${k === this.fdiff ? 'on' : ''}">${f.name}<small>${f.n}×${f.n}</small></button>`).join('');
+    $('#fdiff').querySelectorAll('[data-d]').forEach(b => b.onclick = () => { this.fdiff = b.dataset.d; this.free(); });
+  },
+  startFree() {
+    this.guard(() => { const p = Gen.make(this.fdiff); if (!p) { this.toast('Não foi possível gerar agora, tente de novo'); return; }
+      this.play(Game.create({ mode: 'free', diff: this.fdiff, name: p.name, color: p.color, sol: p.sol, R: p.n, C: p.n })); });
+  },
+  guard(fn) {
+    const g = Store.get('game', null); if (!g) return fn();
+    this.overlay(`<h3>Partida em andamento</h3><p>Você tem “${g.name}” sem terminar. Começar outra descarta esse progresso.</p><button class="btn" id="cx">Continuar a atual</button><button class="btn" id="ok" style="color:#ff9c8e">Descartar e começar</button>`);
+    $('#cx').onclick = () => { this.close(); this.play(g); }; $('#ok').onclick = () => { this.close(); Store.del('game'); fn(); };
+  },
+  play(s) { Game.stopTimer(); Game.s = s; this.show('game'); $('#g-name').textContent = `${s.mode === 'campaign' ? 'Fase ' + (s.level + 1) : FREE[s.diff].name} · ${s.R}×${s.C}`; View.zoom = 1; View.build(); if (s.elapsed > 0) Game.startTimer(); Game.save(); },
+  hud() { if (!Game.s) return; $('#g-time').textContent = fmt(Game.elapsed()); $('#g-hints').textContent = Game.s.hints; $('#t-undo').disabled = !Game.s.undo.length; },
+  undo() { const s = Game.s; if (!s || s.status !== 'playing') return; const ch = s.undo.pop(); if (!ch) return; for (let k = ch.length - 1; k >= 0; k--) s.cells[ch[k][0]] = ch[k][1]; View.render(); Game.save(); },
+  hint() {
+    const s = Game.s; if (!s || s.status !== 'playing') return; Game.startTimer();
+    const i = Game.hint(); if (i < 0) { this.toast('Nada a corrigir: confira as marcações ✕'); return; }
+    View.render(); const el = View.cells[i]; el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint');
+    this.toast(s.sol[i] ? 'Este quadrado deve ser pintado' : 'Este quadrado deve ficar vazio');
+    Game.save(); if (Game.check()) { Game.stopTimer(); setTimeout(() => this.win(), 380); }
+  },
+  win() {
+    const s = Game.s; if (s.status !== 'playing') return; Game.stopTimer(); s.status = 'won';
+    const p = this.prog(); let rec = false;
+    if (s.mode === 'campaign') { const d = p.done[s.level]; rec = !d || s.elapsed < d.best; p.done[s.level] = { best: rec ? s.elapsed : d.best, hints: Math.min(s.hints, d ? d.hints : 99) }; }
+    else { const f = p.free[s.diff] || { solved: 0, best: null }; f.solved++; rec = f.best == null || (s.hints === 0 && s.elapsed < f.best); if (s.hints === 0 && rec) f.best = s.elapsed; p.free[s.diff] = f; }
+    p.total = (p.total || 0) + 1; Store.set('progress', p); Store.del('game'); Store.hub(null);
+    // revela o desenho a partir da grade do jogador (aceita qualquer solução que satisfaça as pistas)
+    const rows = View.solRows(s, true), px = Math.min(220, s.C * 14);
+    this.overlay(`<h3>Revelado!</h3><canvas id="rv"></canvas><p><b style="color:var(--text)">${s.name}</b>${rec ? ' · novo recorde!' : ''}</p><div class="kv"><div><b>${fmt(s.elapsed)}</b><small>Tempo</small></div><div><b>${s.hints}</b><small>Dicas</small></div><div><b>${s.R}×${s.C}</b><small>Tamanho</small></div></div>
+      ${s.mode === 'campaign' && s.level + 1 < ART.length ? '<button class="btn-primary" id="nx" style="margin:0">Próxima fase</button>' : s.mode === 'free' ? '<button class="btn-primary" id="nf" style="margin:0">Outro emblema</button>' : ''}<button class="btn" id="mn">Menu</button>`);
+    View.drawArt($('#rv'), rows, s.color, px);
+    const nx = $('#nx'); if (nx) nx.onclick = () => { this.close(); this.play(Game.fromArt(s.level + 1)); };
+    const nf = $('#nf'); if (nf) nf.onclick = () => { this.close(); this.fdiff = s.diff; this.startFree(); };
+    $('#mn').onclick = () => { this.close(); this.open('home'); };
+  },
+  menu() {
+    this.overlay(`<h3>Pausa</h3><p>${Game.s.name}</p><button class="btn" id="m1">Continuar</button><button class="btn" id="m2">Recomeçar este quebra-cabeça</button><button class="btn" id="m3">Salvar e voltar ao menu</button>`);
+    Game.stopTimer();
+    $('#m1').onclick = () => { this.close(); if (Game.s.elapsed > 0) Game.startTimer(); };
+    $('#m2').onclick = () => { const s = Game.s; s.cells.fill(0); s.undo = []; s.hints = 0; s.elapsed = 0; this.close(); View.render(); Game.save(); };
+    $('#m3').onclick = () => { Game.save(); this.close(); this.open('home'); };
+  },
+  stats() {
+    const p = this.prog(), done = Object.entries(p.done);
+    $('#stbody').innerHTML = `<div class="label">Progresso</div><div class="kpis"><div class="kpi"><b>${done.length}/${ART.length}</b><small>Desenhos revelados</small></div><div class="kpi"><b>${p.total || 0}</b><small>Quebra-cabeças resolvidos</small></div><div class="kpi"><b>${done.filter(([, d]) => !d.hints).length}</b><small>Sem dicas</small></div></div>
+      <div class="label">Modo livre · melhor tempo sem dicas</div><div class="kpis">${Object.entries(FREE).map(([k, f]) => { const x = p.free[k] || {}; return `<div class="kpi"><b>${x.best != null ? fmt(x.best) : '—'}</b><small>${f.name} · ${x.solved || 0} resolvidos</small></div>`; }).join('')}</div>
+      <div class="label">Campanha</div><div class="kpis">${done.map(([k, d]) => `<div class="kpi"><b>${fmt(d.best)}</b><small>${ART[k].name}${d.hints ? ' · ' + d.hints + ' dica(s)' : ''}</small></div>`).join('') || '<p style="color:var(--muted)">Nenhuma fase concluída ainda.</p>'}</div>`;
+  },
+  overlay(h) { $('#ovc').innerHTML = h; $('#ov').classList.remove('hidden'); },
+  close() { $('#ov').classList.add('hidden'); },
+  toast(t) { const e = $('#toast'); e.textContent = t; e.classList.remove('hidden'); clearTimeout(this.tt); this.tt = setTimeout(() => e.classList.add('hidden'), 1800); }
+};
+UI.init();
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {}); } catch (e) {}
+window.NG = { ART, Solver, Gen, Game, View, UI, Store };
+</script>
+</body>
+</html>

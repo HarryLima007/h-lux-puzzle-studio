@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d1014">
+<title>H-LUX Minefield</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1014;--panel:#161b22;--panel2:#1f2630;--line:#2a323d;--gold:#d9a441;--gold2:#f0c977;--text:#e9edf2;--muted:#8d97a5;--danger:#e5604f;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--serif:'Cormorant Garamond',Georgia,serif;--cs:34px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% 0%,#1b2330 0%,var(--bg) 60%);color:var(--text);font-family:var(--sans);overscroll-behavior:none}
+body{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+.hidden{display:none!important}
+svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:flex;flex-direction:column;height:100%}
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));flex:none}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.2px;padding:8px 4px}
+.title{font-family:var(--serif);font-weight:600;font-size:24px;letter-spacing:.5px;flex:1;text-align:center;margin-right:52px}
+.title b{color:var(--gold2);font-weight:600}
+.bar{display:flex;gap:6px;padding:0 12px 8px;flex:none;overflow-x:auto;scrollbar-width:none}
+.chip{flex:1;min-width:76px;min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:13px;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;padding:4px 6px;white-space:nowrap}
+.chip small{font-size:10.5px;font-weight:600;opacity:.8}
+.chip.on{border-color:var(--gold);color:var(--gold2);background:rgba(217,164,65,.08)}
+.hud{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px 8px;flex:none}
+.lcd{min-width:84px;padding:6px 12px;border-radius:12px;background:#07090c;border:1px solid var(--line);font:800 20px/1.1 ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;color:var(--gold2);text-align:center;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px;justify-content:center}
+.lcd svg{width:16px;height:16px}
+.face{width:48px;height:48px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;font-size:24px}
+.mode{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.mode button{padding:0 12px;min-height:42px;display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;color:var(--muted)}
+.mode button.on{background:rgba(217,164,65,.14);color:var(--gold2)}
+.wrapb{flex:1;overflow:auto;padding:6px 12px calc(76px + env(safe-area-inset-bottom));display:flex;-webkit-overflow-scrolling:touch}
+.board{margin:auto;display:grid;gap:2px;padding:6px;background:#07090c;border:1px solid var(--line);border-radius:14px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.c{width:var(--cs);height:var(--cs);border-radius:calc(var(--cs) * .16);background:linear-gradient(160deg,#3a4656,#283240);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.35);display:grid;place-items:center;font:800 calc(var(--cs) * .56)/1 var(--sans);color:transparent;position:relative}
+.c:hover{filter:brightness(1.12)}
+.c.o{background:#151a21;box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);filter:none}
+.c.n1{color:#6fb4ff}.c.n2{color:#6fd39a}.c.n3{color:#ff7a6b}.c.n4{color:#b49bff}.c.n5{color:#ffb15c}.c.n6{color:#4fd8d1}.c.n7{color:#f2f2f2}.c.n8{color:#a7b0bb}
+.c.f::after,.c.m::after,.c.x::after,.c.q::after{content:'';position:absolute;inset:16%;background-position:center;background-repeat:no-repeat;background-size:contain}
+.c.f::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 21V3' stroke='%23f0c977' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M7.5 3.5l11 4.5-11 4.5z' fill='%23e5604f'/%3E%3C/svg%3E")}
+.c.q::after{content:'?';inset:0;display:grid;place-items:center;color:var(--gold2);font-size:calc(var(--cs) * .5);background:none}
+.c.m::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23f0c977' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.8 2.8M16.2 16.2L19 19M5 19l2.8-2.8M16.2 7.8L19 5'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='6' fill='%23f0c977'/%3E%3Ccircle cx='10' cy='10' r='1.6' fill='%23fff8'/%3E%3C/svg%3E")}
+.c.boom{background:#7a1f17!important}
+.c.x::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23e5604f' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E")}
+.zoom{position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));display:flex;gap:6px}
+.zb{width:46px;height:46px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;font-size:22px;font-weight:700}
+.foot{position:fixed;left:12px;bottom:max(12px,env(safe-area-inset-bottom));display:flex;gap:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border-radius:14px;border:1px solid var(--line);background:var(--panel);font-weight:700}
+.btn.gold{color:var(--gold2);border-color:rgba(217,164,65,.5)}
+.btn-primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:50px;border-radius:14px;background:linear-gradient(180deg,#f0c977,#c48f2c);color:#1b1408;font-weight:800;font-size:16px}
+.ov{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(5,7,10,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.ovc{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:12px}
+.ovc h3{margin:0;font-family:var(--serif);font-size:32px;color:var(--gold2)}
+.ovc p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv div{background:var(--panel2);border-radius:10px;padding:9px 4px}
+.kv b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.kv small{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+.row2{display:flex;gap:8px}.row2 .btn{flex:1}
+.field{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left}
+.field label{font-weight:700;font-size:14px}
+.field input{width:90px;min-height:42px;border-radius:10px;border:1px solid var(--line);background:#0b0e12;color:var(--text);font:700 16px var(--sans);text-align:center}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px;text-align:left}
+.tbl td,.tbl th{padding:8px 6px;border-top:1px solid var(--line)}
+.tbl th{color:var(--muted);font-size:11px;text-transform:uppercase;border-top:0}
+#toast{position:fixed;left:50%;top:calc(max(8px,env(safe-area-inset-top)) + 60px);transform:translateX(-50%);z-index:40;background:var(--panel2);border:1px solid var(--line);padding:9px 14px;border-radius:12px;font-size:13px;font-weight:600;max-width:90vw;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Mine<b>field</b></div></div>
+  <div class="bar" id="diffs"></div>
+  <div class="hud">
+    <div class="lcd" title="Minas restantes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#f0c977"/></svg><span id="mines">010</span></div>
+    <div class="mode" id="mode"><button data-m="reveal" class="on">⛏ Abrir</button><button data-m="flag">🚩 Marcar</button></div>
+    <div class="lcd" title="Tempo"><span id="time">000</span></div>
+  </div>
+  <div class="wrapb" id="wrap"><div class="board" id="board"></div></div>
+</div>
+<div class="foot"><button class="btn gold" id="new">↻ Novo</button><button class="btn" id="recs">Recordes</button></div>
+<div class="zoom"><button class="zb" id="zout" aria-label="Diminuir">−</button><button class="zb" id="zin" aria-label="Aumentar">+</button></div>
+
+<div class="ov hidden" id="ov"><div class="ovc" id="ovc"></div></div>
+<div id="toast" class="hidden"></div>
+
+<script>
+'use strict';
+/* H-LUX MINEFIELD v1.0 — Campo Minado
+   Módulos: Store · Game (regras) · View (DOM) · Input · UI */
+const $ = s => document.querySelector(s);
+const pad3 = n => String(Math.min(999, Math.max(-99, n))).padStart(3, '0');
+const fmt = ms => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+
+/* ---------- Store (localStorage "hlux.minefield.*") ---------- */
+const Store = {
+  P: 'hlux.minefield.',
+  get(k, d) { try { const v = localStorage.getItem(this.P + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(this.P + k); } catch (e) {} },
+  hub(line) { try { line ? localStorage.setItem('hlux.hub.minefield', JSON.stringify({ line, updated: Date.now() })) : localStorage.removeItem('hlux.hub.minefield'); } catch (e) {} }
+};
+
+const DIFFS = {
+  easy: { name: 'Fácil', r: 9, c: 9, m: 10 },
+  normal: { name: 'Normal', r: 16, c: 16, m: 40 },
+  hard: { name: 'Difícil', r: 16, c: 30, m: 99 },
+  custom: { name: 'Personalizado' }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  s: null, runStart: 0, timer: 0,
+  create(diff, custom) {
+    let r, c, m;
+    if (diff === 'custom') ({ r, c, m } = custom);
+    else ({ r, c, m } = DIFFS[diff]);
+    // tabuleiro difícil em pé no celular: 30 linhas × 16 colunas (mesmas 99 minas)
+    if (diff === 'hard' && window.innerHeight > window.innerWidth) [r, c] = [c, r];
+    const n = r * c;
+    return { diff, r, c, m, mine: new Array(n).fill(0), num: new Array(n).fill(0), open: new Array(n).fill(0), flag: new Array(n).fill(0), status: 'ready', elapsed: 0, boom: -1, opened: 0 };
+  },
+  nb(i) { const s = this.s, r = Math.floor(i / s.c), c = i % s.c, out = []; for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { if (!dr && !dc) continue; const rr = r + dr, cc = c + dc; if (rr >= 0 && rr < s.r && cc >= 0 && cc < s.c) out.push(rr * s.c + cc); } return out; },
+  // minas só são colocadas depois do 1º toque: a 1ª jogada nunca é mina (e abre uma área quando possível)
+  place(first) {
+    const s = this.s, n = s.r * s.c, safe = new Set([first]);
+    if (s.m <= n - 9) this.nb(first).forEach(i => safe.add(i));
+    const cand = []; for (let i = 0; i < n; i++) if (!safe.has(i)) cand.push(i);
+    for (let k = cand.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [cand[k], cand[j]] = [cand[j], cand[k]]; }
+    cand.slice(0, s.m).forEach(i => s.mine[i] = 1);
+    for (let i = 0; i < n; i++) s.num[i] = this.nb(i).reduce((a, j) => a + s.mine[j], 0);
+  },
+  reveal(i) {
+    const s = this.s; if (s.status === 'won' || s.status === 'lost' || s.open[i] || s.flag[i] === 1) return;
+    if (s.status === 'ready') { this.place(i); s.status = 'playing'; this.startTimer(); }
+    if (s.mine[i]) { s.boom = i; this.lose(); return; }
+    // abertura em cascata (sem recursão)
+    const stack = [i];
+    while (stack.length) {
+      const k = stack.pop(); if (s.open[k] || s.flag[k] === 1) continue;
+      s.open[k] = 1; s.flag[k] = 0; s.opened++;
+      if (!s.num[k]) for (const j of this.nb(k)) if (!s.open[j] && !s.mine[j]) stack.push(j);
+    }
+    if (s.opened === s.r * s.c - s.m) this.win();
+  },
+  // tocar num número com todas as bandeiras ao redor abre os vizinhos
+  chord(i) {
+    const s = this.s; if (!s.open[i] || !s.num[i] || s.status !== 'playing') return false;
+    const nb = this.nb(i), flags = nb.filter(j => s.flag[j] === 1).length;
+    if (flags !== s.num[i]) return false;
+    for (const j of nb) if (!s.open[j] && s.flag[j] !== 1) { this.reveal(j); if (s.status === 'lost') break; }
+    return true;
+  },
+  toggleFlag(i) {
+    const s = this.s; if (s.open[i] || s.status === 'won' || s.status === 'lost') return;
+    s.flag[i] = s.flag[i] === 1 ? (UI.useQ ? 2 : 0) : s.flag[i] === 2 ? 0 : 1;
+    if (navigator.vibrate) try { navigator.vibrate(10); } catch (e) {}
+  },
+  flags() { return this.s.flag.filter(v => v === 1).length; },
+  elapsed() { return this.s.elapsed + (this.runStart ? performance.now() - this.runStart : 0); },
+  startTimer() { if (this.runStart) return; this.runStart = performance.now(); clearInterval(this.timer); this.timer = setInterval(() => View.hud(), 250); },
+  stopTimer() { if (this.runStart) this.s.elapsed += performance.now() - this.runStart; this.runStart = 0; clearInterval(this.timer); },
+  win() {
+    const s = this.s; this.stopTimer(); s.status = 'won';
+    for (let i = 0; i < s.mine.length; i++) if (s.mine[i]) s.flag[i] = 1;
+    const rec = Stats.record(s, true); Store.del('game'); Store.hub(null);
+    setTimeout(() => UI.result(true, rec), 250);
+  },
+  lose() { const s = this.s; this.stopTimer(); s.status = 'lost'; Stats.record(s, false); Store.del('game'); Store.hub(null); setTimeout(() => UI.result(false), 600); },
+  save() {
+    const s = this.s; if (!s || s.status !== 'playing') return;
+    Store.set('game', { ...s, elapsed: this.elapsed() });
+    Store.hub(`Partida em andamento · ${DIFFS[s.diff].name} · ${s.m - this.flags()} minas`);
+  }
+};
+
+/* ---------- Stats / recordes ---------- */
+const Stats = {
+  get() { return Store.get('stats', { easy: {}, normal: {}, hard: {}, custom: {} }); },
+  record(s, won) {
+    const all = this.get(), d = all[s.diff] || (all[s.diff] = {});
+    d.played = (d.played || 0) + 1; if (won) d.won = (d.won || 0) + 1;
+    let isRec = false;
+    if (won && s.diff !== 'custom' && (d.best == null || s.elapsed < d.best)) { d.best = s.elapsed; isRec = true; }
+    d.streak = won ? (d.streak || 0) + 1 : 0; d.bestStreak = Math.max(d.bestStreak || 0, d.streak);
+    Store.set('stats', all);
+    return { isRec, best: d.best };
+  }
+};
+
+/* ---------- View (DOM) ---------- */
+const View = {
+  cells: [],
+  build() {
+    const s = Game.s, b = $('#board');
+    b.style.gridTemplateColumns = `repeat(${s.c}, var(--cs))`;
+    b.innerHTML = ''; this.cells = [];
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < s.r * s.c; i++) { const d = document.createElement('div'); d.className = 'c'; d.dataset.i = i; frag.appendChild(d); this.cells.push(d); }
+    b.appendChild(frag); this.fit(); this.render();
+  },
+  fit(delta) {
+    const s = Game.s, W = $('#wrap').clientWidth - 24 - 14, H = $('#wrap').clientHeight - 6 - 76 - 14;
+    let cs = this.cs;
+    if (!delta) { const wf = (W - 2 * (s.c - 1)) / s.c, hf = (H - 2 * (s.r - 1)) / s.r; cs = Math.floor(Math.min(wf, Math.max(hf, 26))); }
+    else cs += delta;
+    cs = Math.max(22, Math.min(56, cs));
+    this.cs = cs; document.documentElement.style.setProperty('--cs', cs + 'px');
+  },
+  render() {
+    const s = Game.s, end = s.status === 'won' || s.status === 'lost';
+    for (let i = 0; i < this.cells.length; i++) {
+      let cl = 'c';
+      if (s.open[i]) { cl += ' o'; if (s.num[i]) cl += ' n' + s.num[i]; }
+      else if (end && s.mine[i] && s.status === 'lost' && s.flag[i] !== 1) cl += ' m';
+      else if (s.flag[i] === 1) cl += (end && !s.mine[i] && s.status === 'lost') ? ' x' : ' f';
+      else if (s.flag[i] === 2) cl += ' q';
+      if (i === s.boom) cl += ' m boom';
+      const el = this.cells[i];
+      if (el.className !== cl) { el.className = cl; el.textContent = s.open[i] && s.num[i] ? s.num[i] : ''; }
+    }
+    this.hud();
+  },
+  hud() {
+    const s = Game.s; $('#mines').textContent = pad3(s.m - Game.flags()); $('#time').textContent = pad3(Math.floor(Game.elapsed() / 1000));
+  }
+};
+
+/* ---------- Input: toque (toque longo = bandeira) e mouse (direito = bandeira) ---------- */
+const Input = {
+  lp: 0, lpFired: false, downI: -1, start: null,
+  init() {
+    const b = $('#board');
+    b.addEventListener('pointerdown', e => {
+      const el = e.target.closest('.c'); if (!el) return;
+      this.downI = +el.dataset.i; this.lpFired = false; this.start = [e.clientX, e.clientY];
+      if (e.pointerType === 'mouse') { if (e.button === 2) { this.act(this.downI, 'flag'); this.lpFired = true; } return; }
+      clearTimeout(this.lp);
+      this.lp = setTimeout(() => { this.lpFired = true; this.act(this.downI, UI.mode === 'flag' ? 'reveal' : 'flag'); }, 380);
+    });
+    b.addEventListener('pointermove', e => { if (this.start && Math.hypot(e.clientX - this.start[0], e.clientY - this.start[1]) > 10) { clearTimeout(this.lp); this.downI = -1; } });
+    b.addEventListener('pointerup', e => {
+      clearTimeout(this.lp); const i = this.downI; this.downI = -1; this.start = null;
+      if (i < 0 || this.lpFired || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      this.act(i, UI.mode);
+    });
+    b.addEventListener('pointercancel', () => { clearTimeout(this.lp); this.downI = -1; });
+    b.addEventListener('contextmenu', e => e.preventDefault());
+  },
+  act(i, mode) {
+    const s = Game.s; if (s.status === 'won' || s.status === 'lost') return;
+    if (s.open[i]) Game.chord(i);
+    else if (mode === 'flag') { if (s.status === 'ready') { UI.toast('Abra a primeira casa antes de marcar'); return; } Game.toggleFlag(i); }
+    else Game.reveal(i);
+    View.render(); Game.save();
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  mode: 'reveal', diff: 'easy', useQ: false,
+  init() {
+    this.diff = Store.get('diff', 'easy');
+    $('#diffs').innerHTML = Object.entries(DIFFS).map(([k, d]) => `<button class="chip" data-d="${k}">${d.name}<small>${k === 'custom' ? 'você escolhe' : `${d.r}×${d.c} · ${d.m} minas`}</small></button>`).join('');
+    $('#diffs').querySelectorAll('[data-d]').forEach(b => b.onclick = () => b.dataset.d === 'custom' ? this.customDialog() : this.newGame(b.dataset.d));
+    $('#mode').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { this.mode = b.dataset.m; $('#mode').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+    $('#new').onclick = () => this.newGame(Game.s.diff, Game.s.diff === 'custom' ? { r: Game.s.r, c: Game.s.c, m: Game.s.m } : null);
+    $('#recs').onclick = () => this.records();
+    $('#zin').onclick = () => View.fit(4); $('#zout').onclick = () => View.fit(-4);
+    window.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') $('#mode [data-m="' + (this.mode === 'flag' ? 'reveal' : 'flag') + '"]').click(); if (e.key === 'n' || e.key === 'N') $('#new').click(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && Game.s && Game.s.status === 'playing') { Game.stopTimer(); Game.save(); } else if (!document.hidden && Game.s && Game.s.status === 'playing') Game.startTimer(); });
+    window.addEventListener('pagehide', () => Game.save());
+    window.addEventListener('resize', () => { if (Game.s) View.fit(); });
+    document.querySelectorAll('[data-platform-link]').forEach(a => a.addEventListener('click', () => Game.save()));
+    Input.init();
+    const saved = Store.get('game', null);
+    if (saved && saved.status === 'playing') { Game.s = saved; this.diff = saved.diff; this.marks(); View.build(); Game.startTimer(); this.toast('Partida retomada'); }
+    else this.newGame(this.diff);
+  },
+  marks() { $('#diffs').querySelectorAll('[data-d]').forEach(b => b.classList.toggle('on', b.dataset.d === this.diff)); },
+  newGame(diff, custom) {
+    if (diff === 'custom' && !custom) custom = Store.get('custom', { r: 12, c: 12, m: 25 });
+    Game.stopTimer(); this.diff = diff; Store.set('diff', diff); this.marks();
+    Game.s = Game.create(diff, custom); Store.del('game'); Store.hub(null);
+    $('#ov').classList.add('hidden'); View.build();
+  },
+  customDialog() {
+    const c = Store.get('custom', { r: 12, c: 12, m: 25 });
+    this.overlay(`<h3>Personalizado</h3>
+      <div class="field"><label>Linhas (5–40)</label><input id="cr" type="number" inputmode="numeric" min="5" max="40" value="${c.r}"></div>
+      <div class="field"><label>Colunas (5–40)</label><input id="cc" type="number" inputmode="numeric" min="5" max="40" value="${c.c}"></div>
+      <div class="field"><label>Minas</label><input id="cm" type="number" inputmode="numeric" min="1" value="${c.m}"></div>
+      <p id="cerr" style="color:var(--danger)"></p>
+      <div class="row2"><button class="btn" id="cx">Cancelar</button><button class="btn gold" id="cok">Jogar</button></div>`);
+    $('#cx').onclick = () => $('#ov').classList.add('hidden');
+    $('#cok').onclick = () => {
+      const r = Math.round(+$('#cr').value), cc = Math.round(+$('#cc').value), m = Math.round(+$('#cm').value);
+      if (!(r >= 5 && r <= 40 && cc >= 5 && cc <= 40)) { $('#cerr').textContent = 'Linhas e colunas devem ficar entre 5 e 40.'; return; }
+      const max = r * cc - 1; if (!(m >= 1 && m <= max)) { $('#cerr').textContent = `Use de 1 a ${max} minas.`; return; }
+      Store.set('custom', { r, c: cc, m }); this.newGame('custom', { r, c: cc, m });
+    };
+  },
+  overlay(html) { $('#ovc').innerHTML = html; $('#ov').classList.remove('hidden'); },
+  result(won, rec) {
+    const s = Game.s, st = Stats.get()[s.diff] || {};
+    this.overlay(`<h3>${won ? 'Campo limpo!' : 'Boom!'}</h3><p>${won ? (rec && rec.isRec ? 'Novo recorde de tempo!' : 'Todas as minas foram encontradas.') : 'Você encontrou uma mina. Tente de novo!'}</p>
+      <div class="kv"><div><b>${fmt(s.elapsed)}</b><small>Tempo</small></div><div><b>${st.best != null ? fmt(st.best) : '—'}</b><small>Recorde</small></div><div><b>${st.won || 0}/${st.played || 0}</b><small>Vitórias</small></div></div>
+      <button class="btn-primary" id="again">↻ Jogar de novo</button><button class="btn" id="look">Ver tabuleiro</button>`);
+    $('#again').onclick = () => $('#new').click(); $('#look').onclick = () => $('#ov').classList.add('hidden');
+  },
+  records() {
+    const st = Stats.get();
+    this.overlay(`<h3>Recordes</h3><table class="tbl"><tr><th>Modo</th><th>Vitórias</th><th>Melhor</th><th>Seq.</th></tr>${Object.entries(DIFFS).map(([k, d]) => { const x = st[k] || {}; return `<tr><td><b>${d.name}</b></td><td>${x.won || 0}/${x.played || 0}</td><td>${x.best != null ? fmt(x.best) : '—'}</td><td>${x.bestStreak || 0}</td></tr>`; }).join('')}</table>
+      <p>Toque longo (ou botão direito) marca uma mina. Toque num número com todas as bandeiras ao redor para abrir os vizinhos.</p><button class="btn" id="close">Fechar</button>`);
+    $('#close').onclick = () => $('#ov').classList.add('hidden');
+  },
+  toast(t) { const e = $('#toast'); e.textContent = t; e.classList.remove('hidden'); clearTimeout(this.tt); this.tt = setTimeout(() => e.classList.add('hidden'), 1800); }
+};
+
+UI.init();
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {}); } catch (e) {}
+window.MF = { Game, View, UI, Stats, Store, DIFFS };
+</script>
+</body>
+</html>

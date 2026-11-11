@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b3a26">
+<title>H-LUX Solitaire</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--panel:rgba(5,22,14,.72);--line:rgba(201,164,92,.28);--gold:#c9a45c;--gold2:#e8cd8c;--text:#f3eedf;--muted:#b9c8bd;--red:#b3261e;--black:#16161a;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--serif:'Cormorant Garamond',Georgia,serif;--cw:80px;--ch:112px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;color:var(--text);font-family:var(--sans);overscroll-behavior:none;background:#0b3a26}
+body{overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#17734a 0%,#0e4a30 55%,#08291b 100%)}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+.hidden{display:none!important}
+svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:flex;flex-direction:column;height:100%;align-items:center}
+.top{display:flex;align-items:center;gap:8px;width:100%;max-width:820px;padding:8px 10px;padding-top:max(8px,env(safe-area-inset-top))}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.2px;padding:8px 4px}
+.title{font-family:var(--serif);font-weight:700;font-size:24px;letter-spacing:.5px}
+.title b{color:var(--gold2);font-weight:700}
+.stats{margin-left:auto;display:flex;gap:12px;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 12px}
+.stats small{color:var(--muted);font-weight:600;font-size:10.5px;margin-right:3px}
+.board{position:relative;flex:1;width:100%;max-width:820px;touch-action:none;user-select:none;-webkit-user-select:none}
+.slot{position:absolute;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw) * .1);border:1.5px dashed rgba(232,205,140,.35);display:grid;place-items:center;color:rgba(232,205,140,.45);font:700 calc(var(--cw) * .32) var(--serif)}
+.slot.stock{border-style:solid;cursor:pointer}
+.card{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw) * .1);transition:transform .2s ease;will-change:transform;cursor:pointer}
+.card.drag{transition:none}
+.card .f{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(170deg,#fffdf6,#f1ead6);border:1px solid rgba(0,0,0,.25);box-shadow:0 1px 3px rgba(0,0,0,.35);overflow:hidden}
+.card.red .f{color:var(--red)} .card.blk .f{color:var(--black)}
+.card .r{position:absolute;left:7%;top:3%;font:800 calc(var(--cw) * .26)/1 var(--sans);letter-spacing:-1px}
+.card .s1{position:absolute;left:7%;top:calc(3% + var(--cw) * .26);font-size:calc(var(--cw) * .2);line-height:1}
+.card .s2{position:absolute;right:6%;top:4%;font-size:calc(var(--cw) * .22);line-height:1}
+.card .big{position:absolute;left:0;right:0;bottom:8%;text-align:center;font-size:calc(var(--cw) * .5);line-height:1}
+.card .face{position:absolute;left:20%;right:20%;bottom:9%;height:46%;border:1.5px solid #c9a45c;border-radius:6px;display:grid;place-items:center;font:700 calc(var(--cw) * .34) var(--serif);background:linear-gradient(170deg,rgba(232,205,140,.18),rgba(201,164,92,.05))}
+.card .b{position:absolute;inset:0;border-radius:inherit;background:repeating-linear-gradient(45deg,#0d0d0f 0 6px,#17140d 6px 7px),#0d0d0f;border:1px solid #6b5626;box-shadow:inset 0 0 0 3px #0d0d0f,inset 0 0 0 4px #c9a45c,0 1px 3px rgba(0,0,0,.4);display:grid;place-items:center;color:#c9a45c;font:700 calc(var(--cw) * .38) var(--serif)}
+.card.down .f{display:none}.card:not(.down) .b{display:none}
+.card.hint .f,.card.hint .b{box-shadow:0 0 0 3px #f0d796,0 0 18px rgba(240,215,150,.8)}
+.card.shake{animation:shake .25s}
+@keyframes shake{25%{margin-left:-4px}75%{margin-left:4px}}
+.slot.hint{border-color:#f0d796;box-shadow:0 0 16px rgba(240,215,150,.7)}
+.tools{display:flex;gap:6px;padding:8px 10px max(10px,env(safe-area-inset-bottom));width:100%;max-width:820px}
+.tool{flex:1;min-height:52px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:700;color:var(--muted)}
+.tool svg.i{color:var(--gold2)}
+.tool.auto{color:#1b1408;background:linear-gradient(180deg,#e9cf8f,#b98f45);border-color:transparent}
+.tool.auto svg.i{color:#1b1408}
+.ov{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,15,9,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.ovc{width:100%;max-width:380px;background:rgba(6,26,17,.95);border:1px solid var(--line);border-radius:20px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:12px}
+.ovc h3{margin:0;font-family:var(--serif);font-size:32px;color:var(--gold2)}
+.ovc p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv div{background:rgba(255,255,255,.05);border-radius:10px;padding:9px 4px}
+.kv b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.kv small{color:var(--muted);font-size:10.5px;text-transform:uppercase}
+.seg{display:flex;gap:6px}.seg button{flex:1;min-height:46px;border-radius:12px;border:1px solid var(--line);font-weight:700;color:var(--muted)}
+.seg button.on{border-color:var(--gold2);color:var(--gold2);background:rgba(232,205,140,.1)}
+.btn{min-height:46px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-weight:700}
+.btn-primary{min-height:50px;border-radius:14px;background:linear-gradient(180deg,#e9cf8f,#b98f45);color:#1b1408;font-weight:800;font-size:16px}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px;text-align:left}.tbl td,.tbl th{padding:8px 6px;border-top:1px solid var(--line)}.tbl th{color:var(--muted);font-size:11px;border-top:0;text-transform:uppercase}
+#toast{position:fixed;left:50%;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 70px);transform:translateX(-50%);z-index:3000;background:rgba(6,26,17,.95);border:1px solid var(--line);padding:9px 14px;border-radius:12px;font-size:13px;font-weight:600;max-width:90vw;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Soli<b>taire</b></div>
+    <div class="stats"><span><small>⏱</small><b id="time">0:00</b></span><span><small>PTS</small><b id="score">0</b></span><span><small>JOG</small><b id="moves">0</b></span></div></div>
+  <div class="board" id="board"></div>
+  <div class="tools">
+    <button class="tool" id="t-new"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Novo</button>
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica</button>
+    <button class="tool auto hidden" id="t-auto"><svg class="i"><path d="M5 12l5 5L20 7"/></svg>Concluir</button>
+    <button class="tool" id="t-rec"><svg class="i"><path d="M4.5 19.5h15M7 16v-5M12 16V7M17 16v-8"/></svg>Recordes</button>
+  </div>
+</div>
+<div class="ov hidden" id="ov"><div class="ovc" id="ovc"></div></div>
+<div id="toast" class="hidden"></div>
+<script>
+'use strict';
+/* H-LUX SOLITAIRE v1.0 — Klondike
+   Módulos: Store · Rules (baralho e validações) · Game (estado, jogadas, pontos) · View · Input · UI */
+const $ = s => document.querySelector(s);
+const fmt = ms => { const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+const Store = {
+  P: 'hlux.solitaire.',
+  get(k, d) { try { const v = localStorage.getItem(this.P + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(this.P + k); } catch (e) {} },
+  hub(line) { try { line ? localStorage.setItem('hlux.hub.solitaire', JSON.stringify({ line, updated: Date.now() })) : localStorage.removeItem('hlux.hub.solitaire'); } catch (e) {} }
+};
+
+/* ---------- Rules ---------- */
+// carta = id 0..51 → naipe = floor(id/13) (0 ♠, 1 ♥, 2 ♦, 3 ♣), valor = id%13 + 1 (1=A … 13=K)
+const SUITS = ['♠', '♥', '♦', '♣'], RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const Rules = {
+  suit: id => Math.floor(id / 13), rank: id => id % 13 + 1, red: id => { const s = Math.floor(id / 13); return s === 1 || s === 2; },
+  onTableau(card, top) { return top == null ? this.rank(card) === 13 : this.red(card) !== this.red(top) && this.rank(top) === this.rank(card) + 1; },
+  onFoundation(card, pile) { if (!pile.length) return this.rank(card) === 1; const t = pile[pile.length - 1]; return this.suit(t) === this.suit(card) && this.rank(card) === this.rank(t) + 1; },
+  validRun(cards, up) { for (let k = 0; k < cards.length; k++) { if (!up[cards[k]]) return false; if (k && !this.onTableau(cards[k], cards[k - 1])) return false; } return true; }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  s: null, runStart: 0, timer: 0, hist: [],
+  deal(draw) {
+    const deck = [...Array(52).keys()];
+    for (let i = 51; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    const s = { draw, stock: [], waste: [], found: [[], [], [], []], tab: [[], [], [], [], [], [], []], up: new Array(52).fill(false), score: 0, moves: 0, elapsed: 0, passes: 0, status: 'playing', started: false };
+    for (let c = 0; c < 7; c++) for (let k = 0; k <= c; k++) { const id = deck.pop(); s.tab[c].push(id); if (k === c) s.up[id] = true; }
+    s.stock = deck; // restante, virado para baixo
+    this.s = s; this.hist = [];
+  },
+  pile(name) { const s = this.s; if (name === 'stock') return s.stock; if (name === 'waste') return s.waste; if (name[0] === 'f') return s.found[+name[1]]; return s.tab[+name[1]]; },
+  where(id) { const s = this.s; for (const n of ['stock', 'waste', 'f0', 'f1', 'f2', 'f3', 't0', 't1', 't2', 't3', 't4', 't5', 't6']) { const p = this.pile(n), k = p.indexOf(id); if (k >= 0) return { pile: n, index: k }; } return null; },
+  snap() { const s = this.s; this.hist.push(JSON.stringify({ ...s, elapsed: undefined })); if (this.hist.length > 400) this.hist.shift(); },
+  undo() {
+    if (!this.hist.length) return false;
+    const el = this.elapsed(), moves = this.s.moves;
+    this.s = JSON.parse(this.hist.pop());
+    this.s.elapsed = el; if (this.runStart) this.runStart = performance.now(); // o tempo continua correndo
+    this.s.moves = moves + 1; return true;
+  },
+  touch() { if (!this.s.started) { this.s.started = true; } if (!this.runStart) this.startTimer(); },
+  drawStock() {
+    const s = this.s; if (!s.stock.length && !s.waste.length) return false;
+    this.snap(); this.touch();
+    if (!s.stock.length) { // recicla o descarte
+      s.stock = s.waste.reverse(); s.waste = []; s.stock.forEach(id => s.up[id] = false); s.passes++;
+      s.score = Math.max(0, s.score - (s.draw === 1 ? 100 : 20)); s.moves++; return true;
+    }
+    for (let k = 0; k < s.draw && s.stock.length; k++) { const id = s.stock.pop(); s.up[id] = true; s.waste.push(id); }
+    s.moves++; return true;
+  },
+  // tenta mover a carta id (e as de cima dela, no tableau) para o monte "to"
+  canMove(id, to) {
+    const s = this.s, w = this.where(id); if (!w || w.pile === to || w.pile === 'stock' || !s.up[id]) return false;
+    const src = this.pile(w.pile), cards = src.slice(w.index);
+    if ((w.pile === 'waste' || w.pile[0] === 'f') && w.index !== src.length - 1) return false;
+    if (to[0] === 'f') return cards.length === 1 && Rules.onFoundation(id, this.pile(to));
+    if (to[0] === 't') { if (!Rules.validRun(cards, s.up)) return false; const dst = this.pile(to); return Rules.onTableau(id, dst.length ? dst[dst.length - 1] : null); }
+    return false;
+  },
+  move(id, to) {
+    if (!this.canMove(id, to)) return false;
+    const s = this.s, w = this.where(id), src = this.pile(w.pile);
+    this.snap(); this.touch();
+    const cards = src.splice(w.index); this.pile(to).push(...cards);
+    // pontuação estilo clássico
+    if (to[0] === 'f') s.score += 10; if (w.pile === 'waste' && to[0] === 't') s.score += 5; if (w.pile[0] === 'f' && to[0] === 't') s.score = Math.max(0, s.score - 15);
+    if (w.pile[0] === 't' && src.length && !s.up[src[src.length - 1]]) { s.up[src[src.length - 1]] = true; s.score += 5; }
+    s.moves++;
+    if (s.found.every(f => f.length === 13)) this.win();
+    return true;
+  },
+  // melhor destino para um toque: fundação primeiro, depois coluna útil
+  bestTarget(id) {
+    const w = this.where(id); if (!w) return null;
+    const src = this.pile(w.pile), isTop = w.index === src.length - 1;
+    if (isTop) for (let f = 0; f < 4; f++) if (this.canMove(id, 'f' + f)) return 'f' + f;
+    const opts = [];
+    for (let t = 0; t < 7; t++) { const to = 't' + t; if (!this.canMove(id, to)) continue; const empty = !this.s.tab[t].length; if (empty && w.pile[0] === 't' && w.index === 0) continue; opts.push({ to, empty }); }
+    opts.sort((a, b) => a.empty - b.empty);
+    return opts.length ? opts[0].to : null;
+  },
+  hint() {
+    const s = this.s, cand = [];
+    const tops = [...s.tab.map((p, t) => ({ p, n: 't' + t })), { p: s.waste, n: 'waste' }];
+    for (const { p } of tops) if (p.length) { const id = p[p.length - 1]; for (let f = 0; f < 4; f++) if (this.canMove(id, 'f' + f)) return { id, to: 'f' + f }; }
+    for (let t = 0; t < 7; t++) { const p = s.tab[t], k = p.findIndex(id => s.up[id]); if (k < 0) continue; const id = p[k];
+      for (let d = 0; d < 7; d++) if (d !== t && this.canMove(id, 't' + d)) { const useful = k > 0 || (s.tab[d].length > 0); if (useful) cand.push({ id, to: 't' + d, pri: k > 0 ? 3 : 1 }); } }
+    if (s.waste.length) { const id = s.waste[s.waste.length - 1]; for (let d = 0; d < 7; d++) if (this.canMove(id, 't' + d)) cand.push({ id, to: 't' + d, pri: 2 }); }
+    cand.sort((a, b) => b.pri - a.pri); if (cand.length) return cand[0];
+    if (s.stock.length || s.waste.length) return { draw: true };
+    return null;
+  },
+  canAuto() { const s = this.s; return !s.stock.length && !s.waste.length && s.tab.every(p => p.every(id => s.up[id])) && s.status === 'playing'; },
+  elapsed() { return this.s.elapsed + (this.runStart ? performance.now() - this.runStart : 0); },
+  startTimer() { if (this.runStart) return; this.runStart = performance.now(); clearInterval(this.timer); this.timer = setInterval(() => UI.hud(), 500); },
+  stopTimer() { if (this.runStart) this.s.elapsed += performance.now() - this.runStart; this.runStart = 0; clearInterval(this.timer); },
+  win() {
+    const s = this.s; this.stopTimer(); s.status = 'won';
+    const sec = s.elapsed / 1000, bonus = sec > 30 ? Math.round(700000 / sec) : 0; s.bonus = bonus; s.final = s.score + bonus;
+    const st = Stats.get(), d = st[s.draw]; d.played++; d.won++;
+    s.recTime = d.bestTime == null || s.elapsed < d.bestTime; s.recScore = s.final > (d.bestScore || 0);
+    if (s.recTime) d.bestTime = s.elapsed; if (s.recScore) d.bestScore = s.final; Store.set('stats', st);
+    Store.del('game'); Store.hub(null);
+    setTimeout(() => UI.winCard(), 450);
+  },
+  save() { const s = this.s; if (!s || s.status !== 'playing') return; Store.set('game', { ...s, elapsed: this.elapsed() }); if (s.started) Store.hub(`Em andamento · ${s.found.reduce((a, f) => a + f.length, 0)}/52 nas fundações`); }
+};
+const Stats = { get() { const z = () => ({ played: 0, won: 0, bestTime: null, bestScore: 0 }); const st = Store.get('stats', null) || { 1: z(), 3: z() }; return st; } };
+
+/* ---------- View ---------- */
+const View = {
+  els: [], g: null, hl: null,
+  init() {
+    const b = $('#board');
+    b.innerHTML = ['stock', 'waste', 'f0', 'f1', 'f2', 'f3', 't0', 't1', 't2', 't3', 't4', 't5', 't6'].map(n => `<div class="slot ${n === 'stock' ? 'stock' : ''}" data-slot="${n}">${n === 'stock' ? '↻' : n[0] === 'f' ? 'A' : n[0] === 't' ? 'K' : ''}</div>`).join('');
+    for (let id = 0; id < 52; id++) {
+      const r = Rules.rank(id), su = SUITS[Rules.suit(id)], d = document.createElement('div');
+      d.className = 'card ' + (Rules.red(id) ? 'red' : 'blk'); d.dataset.id = id;
+      d.innerHTML = `<div class="f"><span class="r">${RANKS[r - 1]}</span><span class="s1">${su}</span><span class="s2">${su}</span>${r > 10 ? `<div class="face">${RANKS[r - 1]}${su}</div>` : `<span class="big">${su}</span>`}</div><div class="b">H</div>`;
+      b.appendChild(d); this.els.push(d);
+    }
+  },
+  geom() {
+    const b = $('#board'), W = b.clientWidth, H = b.clientHeight;
+    const gap = Math.max(4, Math.round(W * 0.012));
+    let cw = (W - gap * 8) / 7; cw = Math.min(cw, 96, (H - gap * 3) / (1.4 * 3.4));
+    const ch = cw * 1.4, left = (W - (cw * 7 + gap * 6)) / 2;
+    document.documentElement.style.setProperty('--cw', cw + 'px'); document.documentElement.style.setProperty('--ch', ch + 'px');
+    const col = i => left + i * (cw + gap), tabY = gap + ch + gap * 2.2;
+    this.g = { W, H, gap, cw, ch, col, tabY };
+    return this.g;
+  },
+  slotPos(n) { const { col, gap, tabY } = this.g; if (n === 'stock') return [col(0), gap]; if (n === 'waste') return [col(1), gap]; if (n[0] === 'f') return [col(3 + +n[1]), gap]; return [col(+n[1]), tabY]; },
+  render() {
+    const s = Game.s, g = this.geom(); const pos = new Array(52);
+    document.querySelectorAll('[data-slot]').forEach(e => { const [x, y] = this.slotPos(e.dataset.slot); e.style.transform = `translate(${x}px,${y}px)`; e.style.left = '0'; e.style.top = '0'; });
+    let z = 1;
+    const place = (id, x, y) => { pos[id] = [x, y, z++]; };
+    { const [x, y] = this.slotPos('stock'); s.stock.forEach((id, k) => place(id, x - Math.min(k, 6) * .4, y - Math.min(k, 6) * .4)); }
+    { const [x, y] = this.slotPos('waste'), n = s.waste.length, fan = s.draw === 3 ? g.cw * .26 : 0, vis = s.draw === 3 ? 3 : 1;
+      s.waste.forEach((id, k) => { const off = Math.max(0, k - (n - vis)); place(id, x + off * fan, y); }); }
+    for (let f = 0; f < 4; f++) { const [x, y] = this.slotPos('f' + f); s.found[f].forEach(id => place(id, x, y)); }
+    const availH = g.H - g.tabY - g.ch - 6;
+    for (let t = 0; t < 7; t++) {
+      const p = s.tab[t], [x, y0] = this.slotPos('t' + t);
+      const downs = p.filter(id => !s.up[id]).length, ups = p.length - downs;
+      let dOff = g.ch * .11, uOff = g.ch * .27; const need = downs * dOff + Math.max(0, ups - 1) * uOff;
+      if (need > availH && ups > 1) uOff = Math.max(g.ch * .14, (availH - downs * dOff) / (ups - 1));
+      let y = y0; p.forEach(id => { place(id, x, y); y += s.up[id] ? uOff : dOff; });
+    }
+    for (let id = 0; id < 52; id++) {
+      const el = this.els[id], [x, y, zz] = pos[id];
+      el.style.transform = `translate(${x}px,${y}px)`; el.style.zIndex = zz; el.classList.toggle('down', !s.up[id]);
+      el.dataset.x = x; el.dataset.y = y;
+    }
+    $('#t-auto').classList.toggle('hidden', !Game.canAuto());
+    $('#t-undo').disabled = !Game.hist.length || s.status !== 'playing';
+    UI.hud();
+  },
+  highlight(h) {
+    document.querySelectorAll('.hint').forEach(e => e.classList.remove('hint')); clearTimeout(this.hlt);
+    if (!h) return;
+    if (h.draw) {
+      $('[data-slot="stock"]').classList.add('hint');
+      if (Game.s.stock.length) this.els[Game.s.stock[Game.s.stock.length - 1]].classList.add('hint');
+    } else { this.els[h.id].classList.add('hint'); const dst = Game.pile(h.to); (dst.length ? this.els[dst[dst.length - 1]] : $(`[data-slot="${h.to}"]`)).classList.add('hint'); }
+    this.hlt = setTimeout(() => this.highlight(null), 1600);
+  },
+  shake(id) { const e = this.els[id]; e.classList.remove('shake'); void e.offsetWidth; e.classList.add('shake'); },
+  // monte sob o ponto (x,y) do tabuleiro, usando a área de cada coluna
+  pileAt(x, y) {
+    const g = this.g, s = Game.s;
+    for (let f = 0; f < 4; f++) { const [px, py] = this.slotPos('f' + f); if (x >= px - g.gap / 2 && x <= px + g.cw + g.gap / 2 && y >= py - g.gap && y <= py + g.ch + g.gap) return 'f' + f; }
+    for (let t = 0; t < 7; t++) {
+      const [px, py] = this.slotPos('t' + t), p = s.tab[t]; let bottom = py + g.ch;
+      if (p.length) bottom = +this.els[p[p.length - 1]].dataset.y + g.ch;
+      if (x >= px - g.gap / 2 && x <= px + g.cw + g.gap / 2 && y >= py - g.gap && y <= bottom + g.ch * .6) return 't' + t;
+    }
+    return null;
+  }
+};
+
+/* ---------- Input: toque/clique (move automático) e arrastar-e-soltar ---------- */
+const Input = {
+  d: null,
+  init() {
+    const b = $('#board');
+    b.addEventListener('pointerdown', e => {
+      if (Game.s.status !== 'playing' || UI.busy) return;
+      const slot = e.target.closest('[data-slot="stock"]'), card = e.target.closest('.card');
+      const r = b.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      if (slot && !card) { this.d = { stockTap: true }; return; }
+      if (!card) return;
+      const id = +card.dataset.id, w = Game.where(id);
+      if (w.pile === 'stock') { this.d = { stockTap: true }; return; }
+      if (!Game.s.up[id]) return;
+      const src = Game.pile(w.pile); if ((w.pile === 'waste' || w.pile[0] === 'f') && w.index !== src.length - 1) return;
+      const ids = src.slice(w.index);
+      try { b.setPointerCapture(e.pointerId); } catch (_) {}
+      this.d = { id, ids, x0: x, y0: y, moved: false, base: ids.map(i => [+View.els[i].dataset.x, +View.els[i].dataset.y]) };
+    });
+    b.addEventListener('pointermove', e => {
+      const d = this.d; if (!d || d.stockTap) return;
+      const r = b.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, dx = x - d.x0, dy = y - d.y0;
+      if (!d.moved && Math.hypot(dx, dy) < 7) return;
+      d.moved = true;
+      d.ids.forEach((i, k) => { const el = View.els[i]; el.classList.add('drag'); el.style.zIndex = 1000 + k; el.style.transform = `translate(${d.base[k][0] + dx}px,${d.base[k][1] + dy}px)`; });
+      d.cx = d.base[0][0] + dx + View.g.cw / 2; d.cy = d.base[0][1] + dy + View.g.ch / 3;
+    });
+    const end = e => {
+      const d = this.d; this.d = null; if (!d) return;
+      if (d.stockTap) { if (Game.drawStock()) UI.after(); return; }
+      d.ids.forEach(i => View.els[i].classList.remove('drag'));
+      if (!d.moved) { // toque: jogada automática
+        const to = Game.bestTarget(d.id);
+        if (to) { Game.move(d.id, to); UI.after(); } else { View.shake(d.id); View.render(); }
+        return;
+      }
+      const to = View.pileAt(d.cx, d.cy);
+      if (to && Game.move(d.id, to)) UI.after(); else View.render();
+    };
+    b.addEventListener('pointerup', end);
+    b.addEventListener('pointercancel', () => { this.d = null; View.render(); });
+    window.addEventListener('keydown', e => { if (e.key === 'z' || e.key === 'Z') UI.undo(); if (e.key === 'h' || e.key === 'H') UI.hint(); if (e.key === ' ' && Game.s.status === 'playing') { e.preventDefault(); if (Game.drawStock()) UI.after(); } });
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  busy: false,
+  init() {
+    View.init(); Input.init();
+    $('#t-new').onclick = () => this.newDialog(); $('#t-undo').onclick = () => this.undo(); $('#t-hint').onclick = () => this.hint();
+    $('#t-auto').onclick = () => this.auto(); $('#t-rec').onclick = () => this.records();
+    window.addEventListener('resize', () => View.render());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { Game.stopTimer(); Game.save(); } else if (Game.s.status === 'playing' && Game.s.started) Game.startTimer(); });
+    window.addEventListener('pagehide', () => Game.save());
+    document.querySelectorAll('[data-platform-link]').forEach(a => a.addEventListener('click', () => { Game.stopTimer(); Game.save(); }));
+    const saved = Store.get('game', null);
+    if (saved && saved.status === 'playing') { Game.s = saved; Game.hist = []; View.render(); if (saved.started) Game.startTimer(); this.toast('Partida retomada'); }
+    else { Game.deal(Store.get('draw', 1)); View.render(); }
+  },
+  after() { View.highlight(null); View.render(); Game.save(); },
+  undo() { if (Game.s.status !== 'playing') return; if (Game.undo()) { Game.s.score = Math.max(0, Game.s.score); this.after(); } },
+  hint() {
+    if (Game.s.status !== 'playing') return;
+    const h = Game.hint(); if (!h) { this.toast('Sem jogadas disponíveis. Tente desfazer ou começar outra partida.'); return; }
+    if (h.draw) this.toast(Game.s.stock.length ? 'Compre uma carta do monte' : 'Vire o descarte de volta para o monte');
+    View.highlight(h);
+  },
+  async auto() {
+    if (!Game.canAuto()) return; this.busy = true;
+    while (Game.s.status === 'playing') {
+      let moved = false;
+      for (const p of Game.s.tab) { if (!p.length) continue; const id = p[p.length - 1]; for (let f = 0; f < 4; f++) if (Game.move(id, 'f' + f)) { moved = true; break; } if (moved) break; }
+      if (!moved) break; View.render(); await new Promise(r => setTimeout(r, 90));
+    }
+    this.busy = false; this.after();
+  },
+  hud() { const s = Game.s; $('#time').textContent = fmt(Game.elapsed()); $('#score').textContent = s.score; $('#moves').textContent = s.moves; },
+  overlay(html) { $('#ovc').innerHTML = html; $('#ov').classList.remove('hidden'); },
+  close() { $('#ov').classList.add('hidden'); },
+  newDialog() {
+    let draw = Store.get('draw', 1);
+    this.overlay(`<h3>Nova partida</h3><p>Escolha quantas cartas comprar do monte por vez.</p><div class="seg" id="dsel"><button data-d="1">Comprar 1</button><button data-d="3">Comprar 3</button></div>${Game.s.started && Game.s.status === 'playing' ? '<p style="color:#ffb4a8">A partida atual será contada como não concluída.</p>' : ''}<button class="btn-primary" id="go">Distribuir cartas</button><button class="btn" id="cx">Cancelar</button>`);
+    const mark = () => $('#dsel').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.d === draw)); mark();
+    $('#dsel').querySelectorAll('button').forEach(b => b.onclick = () => { draw = +b.dataset.d; mark(); });
+    $('#cx').onclick = () => this.close();
+    $('#go').onclick = () => {
+      const s = Game.s; if (s.started && s.status === 'playing') { const st = Stats.get(); st[s.draw].played++; Store.set('stats', st); }
+      Game.stopTimer(); Store.set('draw', draw); Game.deal(draw); Store.del('game'); Store.hub(null); this.close(); View.render();
+    };
+  },
+  winCard() {
+    const s = Game.s, d = Stats.get()[s.draw];
+    this.overlay(`<h3>Vitória!</h3><p>Compra de ${s.draw} · ${s.moves} jogadas${s.recTime ? ' · novo melhor tempo!' : ''}${s.recScore ? ' · novo recorde!' : ''}</p><div class="kv"><div><b>${fmt(s.elapsed)}</b><small>Tempo</small></div><div><b>${s.final}</b><small>Pontos</small></div><div><b>${d.won}</b><small>Vitórias</small></div></div><p style="font-size:12px">${s.score} pontos + bônus de tempo ${s.bonus}</p><button class="btn-primary" id="go">Nova partida</button><button class="btn" id="cx">Ver mesa</button>`);
+    $('#go').onclick = () => this.newDialog(); $('#cx').onclick = () => this.close();
+  },
+  records() {
+    const st = Stats.get();
+    this.overlay(`<h3>Recordes</h3><table class="tbl"><tr><th>Modo</th><th>Vitórias</th><th>Melhor tempo</th><th>Recorde</th></tr>${[1, 3].map(k => { const d = st[k]; return `<tr><td><b>Comprar ${k}</b></td><td>${d.won}/${d.played}</td><td>${d.bestTime != null ? fmt(d.bestTime) : '—'}</td><td>${d.bestScore || '—'}</td></tr>`; }).join('')}</table><p>Toque numa carta para movê-la automaticamente, ou arraste. Pontos: +10 fundação, +5 descarte→coluna, +5 virar carta, −15 fundação→coluna, ${'−100/−20'} ao reciclar o monte.</p><button class="btn" id="cx">Fechar</button>`);
+    $('#cx').onclick = () => this.close();
+  },
+  toast(t) { const e = $('#toast'); e.textContent = t; e.classList.remove('hidden'); clearTimeout(this.tt); this.tt = setTimeout(() => e.classList.add('hidden'), 2200); }
+};
+UI.init();
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {}); } catch (e) {}
+window.SOL = { Rules, Game, View, UI, Stats, Store };
+</script>
+</body>
+</html>

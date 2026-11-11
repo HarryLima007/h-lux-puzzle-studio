@@ -1,7 +1,7 @@
 {
   "name": "H-LUX",
   "short_name": "H-LUX",
-  "description": "Coleção de minijogos H-LUX: Puzzle Studio, Mahjong e mais. Funciona offline.",
+  "description": "Coleção de minijogos H-LUX: Puzzle Studio, Mahjong, Nonogram, Minefield, 2048, Solitaire e Snake. Funciona offline.",
   "lang": "pt-BR",
   "id": "./",
   "start_url": "./",
@@ -18,6 +18,8 @@
   ],
   "shortcuts": [
     { "name": "Puzzle Studio", "url": "puzzle/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Mahjong", "url": "mahjong/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Mahjong", "url": "mahjong/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Solitaire", "url": "solitaire/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Nonogram", "url": "nonogram/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

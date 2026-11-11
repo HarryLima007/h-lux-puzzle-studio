@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+<defs><radialGradient id="bg" cx=".5" cy=".35" r=".85"><stop offset="0" stop-color="#17734a"/><stop offset="1" stop-color="#08291b"/></radialGradient>
+<linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffdf6"/><stop offset="1" stop-color="#efe7d2"/></linearGradient>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1dca6"/><stop offset="1" stop-color="#a8833f"/></linearGradient>
+<pattern id="bk" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="#0d0d0f"/><rect width="1.5" height="10" fill="#3a3020"/></pattern></defs>
+<rect width="640" height="400" fill="url(#bg)"/>
+<g font-family="Georgia,serif" font-weight="700">
+<g transform="translate(160 110) rotate(-14)"><rect width="120" height="168" rx="12" fill="url(#bk)" stroke="#c9a45c" stroke-width="3"/><text x="60" y="100" text-anchor="middle" font-size="44" fill="#c9a45c">H</text></g>
+<g transform="translate(232 92) rotate(-4)"><rect width="120" height="168" rx="12" fill="url(#c)" stroke="#0004"/><text x="12" y="34" font-size="28" fill="#16161a">A</text><text x="14" y="58" font-size="22" fill="#16161a">♠</text><text x="60" y="130" text-anchor="middle" font-size="64" fill="#16161a">♠</text></g>
+<g transform="translate(306 96) rotate(6)"><rect width="120" height="168" rx="12" fill="url(#c)" stroke="#0004"/><text x="12" y="34" font-size="28" fill="#b3261e">K</text><text x="14" y="58" font-size="22" fill="#b3261e">♥</text><rect x="28" y="70" width="64" height="80" rx="8" fill="none" stroke="#c9a45c" stroke-width="2"/><text x="60" y="124" text-anchor="middle" font-size="38" fill="#b3261e">K♥</text></g>
+<g transform="translate(382 112) rotate(16)"><rect width="120" height="168" rx="12" fill="url(#c)" stroke="#0004"/><text x="12" y="34" font-size="28" fill="#b3261e">Q</text><text x="14" y="58" font-size="22" fill="#b3261e">♦</text><rect x="28" y="70" width="64" height="80" rx="8" fill="none" stroke="#c9a45c" stroke-width="2"/><text x="60" y="124" text-anchor="middle" font-size="38" fill="#b3261e">Q♦</text></g></g>
+<rect x="18" y="18" width="604" height="364" rx="20" fill="none" stroke="url(#g)" stroke-opacity=".45" stroke-width="1.5"/>
+</svg>

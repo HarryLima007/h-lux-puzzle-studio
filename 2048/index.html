@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0c">
+<title>H-LUX 2048</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0b0c;--panel:#151517;--panel2:#1d1c1a;--line:#2b2924;--gold:#c9a45c;--gold2:#e8cd8c;--text:#ece8e1;--muted:#9a948b;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--serif:'Cormorant Garamond',Georgia,serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% -10%,#211d15 0%,var(--bg) 60%);color:var(--text);font-family:var(--sans);overscroll-behavior:none}
+body{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:disabled{opacity:.35;cursor:default}
+.hidden{display:none!important}
+svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:flex;flex-direction:column;align-items:center;height:100%;padding:max(8px,env(safe-area-inset-top)) 14px max(12px,env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;width:100%;max-width:520px}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.2px;padding:8px 4px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;width:100%;max-width:520px;margin:6px 0 10px}
+.logo{font-family:var(--serif);font-weight:700;font-size:54px;line-height:.9;background:linear-gradient(180deg,#f3dfa9,#b48d45);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo small{display:block;font-family:var(--sans);font-size:10px;letter-spacing:4px;color:var(--muted);-webkit-text-fill-color:var(--muted);font-weight:800;margin-top:6px}
+.scores{display:flex;gap:6px}
+.sc{min-width:78px;padding:7px 10px;border-radius:12px;background:var(--panel);border:1px solid var(--line);text-align:center}
+.sc small{display:block;font-size:10px;letter-spacing:1.4px;color:var(--muted);font-weight:800}
+.sc b{font-size:19px;font-variant-numeric:tabular-nums}
+.sc .plus{position:absolute;font-size:14px;color:var(--gold2);font-weight:800;animation:up .7s ease forwards;pointer-events:none}
+@keyframes up{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-26px)}}
+.bar{display:flex;gap:6px;width:100%;max-width:520px;margin-bottom:12px}
+.chip{flex:1;min-height:40px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:13px;color:var(--muted)}
+.chip.on{border-color:var(--gold);color:var(--gold2);background:rgba(201,164,92,.08)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:14px}
+.btn.gold{color:var(--gold2);border-color:rgba(201,164,92,.5)}
+.boardwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;min-height:0}
+.board{position:relative;background:#16140f;border:1px solid #3a3426;border-radius:16px;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.cell{position:absolute;border-radius:10px;background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}
+.tile{position:absolute;left:0;top:0;border-radius:10px;display:grid;place-items:center;font-weight:800;font-variant-numeric:tabular-nums;transition:transform 110ms ease-in-out;will-change:transform}
+.tile .in{width:100%;height:100%;border-radius:10px;display:grid;place-items:center}
+.tile.new .in{animation:pop .18s ease .06s backwards}
+.tile.merged .in{animation:merge .2s ease}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes merge{0%{transform:scale(1)}50%{transform:scale(1.16)}100%{transform:scale(1)}}
+.v2 .in{background:#f3ecdc;color:#3a3326}.v4 .in{background:#eadcb8;color:#3a3326}.v8 .in{background:#e3c584;color:#2b2416}
+.v16 .in{background:#d8b064;color:#211a0c}.v32 .in{background:#c9994a;color:#1b1408}.v64 .in{background:#b07f2f;color:#fff6e0}
+.v128 .in{background:#3a3326;color:#f0d796;box-shadow:inset 0 0 0 2px #c9a45c}.v256 .in{background:#2a2419;color:#f3dfa9;box-shadow:inset 0 0 0 2px #e0c27e,0 0 14px rgba(201,164,92,.25)}
+.v512 .in{background:#151209;color:#f6e3ad;box-shadow:inset 0 0 0 2px #f0d796,0 0 20px rgba(201,164,92,.35)}
+.v1024 .in{background:linear-gradient(160deg,#1a1508,#0b0905);color:#f8e7b5;box-shadow:inset 0 0 0 3px #f0d796,0 0 26px rgba(232,205,140,.45)}
+.v2048 .in{background:linear-gradient(160deg,#f6e3ad,#c9a45c 55%,#8f6b2e);color:#140f05;box-shadow:0 0 34px rgba(232,205,140,.7)}
+.vbig .in{background:linear-gradient(160deg,#0b0b0c,#2a2419);color:#fff;box-shadow:inset 0 0 0 3px #fff3cf,0 0 30px rgba(255,243,207,.6)}
+.tools{display:flex;gap:8px;width:100%;max-width:520px;margin-top:12px}
+.tools .btn{flex:1}
+.help{color:var(--muted);font-size:12px;text-align:center;margin-top:8px}
+.ov{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-radius:16px;background:rgba(11,11,12,.78);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);text-align:center;padding:20px;animation:fade .3s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.ov h3{margin:0;font-family:var(--serif);font-size:42px;color:var(--gold2)}
+.ov p{margin:0;color:var(--muted)}
+.ov .row{display:flex;gap:8px}
+.btn-primary{min-height:48px;padding:0 20px;border-radius:12px;background:linear-gradient(180deg,#d8b66d,#b48d45);color:#16130d;font-weight:800}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a></div>
+  <div class="head">
+    <div class="logo">2048<small>H-LUX</small></div>
+    <div class="scores"><div class="sc" style="position:relative"><small>PONTOS</small><b id="score">0</b></div><div class="sc"><small>RECORDE</small><b id="best">0</b></div></div>
+  </div>
+  <div class="bar" id="sizes"></div>
+  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <div class="tools"><button class="btn" id="undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer <span id="ucount"></span></button><button class="btn gold" id="new"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Novo jogo</button></div>
+  <div class="help">Deslize o dedo no tabuleiro ou use as setas / WASD.</div>
+</div>
+<script>
+'use strict';
+/* H-LUX 2048 v1.0 — Módulos: Store · Engine (regras puras) · View (animações) · Input · UI */
+const $ = s => document.querySelector(s);
+
+/* ---------- Store ---------- */
+const Store = {
+  P: 'hlux.2048.',
+  get(k, d) { try { const v = localStorage.getItem(this.P + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); } catch (e) {} },
+  hub(line) { try { line ? localStorage.setItem('hlux.hub.2048', JSON.stringify({ line, updated: Date.now() })) : localStorage.removeItem('hlux.hub.2048'); } catch (e) {} }
+};
+const SIZES = { 3: { name: '3×3', goal: 512 }, 4: { name: 'Clássico 4×4', goal: 2048 }, 5: { name: '5×5', goal: 2048 }, 6: { name: '6×6', goal: 4096 } };
+const UNDO_MAX = 3; // desfazer limitado para manter o desafio
+
+/* ---------- Engine: regras puras sobre uma grade de valores ---------- */
+const Engine = {
+  // move a grade; devolve {grid, gained, moves:[{from,to,merge}], moved}
+  move(grid, n, dir) {
+    const out = new Array(n * n).fill(0), moves = []; let gained = 0, moved = false;
+    for (let line = 0; line < n; line++) {
+      const idx = [];
+      for (let k = 0; k < n; k++) {
+        let r, c;
+        if (dir === 'left') { r = line; c = k; } else if (dir === 'right') { r = line; c = n - 1 - k; }
+        else if (dir === 'up') { r = k; c = line; } else { r = n - 1 - k; c = line; }
+        idx.push(r * n + c);
+      }
+      let w = 0, lastMergeable = -1;
+      for (const from of idx) {
+        const v = grid[from]; if (!v) continue;
+        if (lastMergeable >= 0 && out[idx[lastMergeable]] === v) {
+          const to = idx[lastMergeable]; out[to] = v * 2; gained += v * 2; moves.push({ from, to, merge: true }); lastMergeable = -1; moved = true;
+        } else {
+          const to = idx[w]; out[to] = v; if (to !== from) moved = true; moves.push({ from, to, merge: false }); lastMergeable = w; w++;
+        }
+      }
+    }
+    return { grid: out, gained, moves, moved };
+  },
+  empty(grid) { const e = []; grid.forEach((v, i) => { if (!v) e.push(i); }); return e; },
+  canMove(grid, n) {
+    if (grid.some(v => !v)) return true;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const v = grid[r * n + c]; if ((c + 1 < n && grid[r * n + c + 1] === v) || (r + 1 < n && grid[(r + 1) * n + c] === v)) return true; }
+    return false;
+  },
+  spawn(grid) { const e = this.empty(grid); if (!e.length) return -1; const i = e[Math.floor(Math.random() * e.length)]; grid[i] = Math.random() < 0.9 ? 2 : 4; return i; }
+};
+
+/* ---------- Game state ---------- */
+const Game = {
+  s: null, busy: false,
+  fresh(n) { const g = new Array(n * n).fill(0); Engine.spawn(g); Engine.spawn(g); return { n, grid: g, score: 0, won: false, keep: false, over: false, undo: [], undosLeft: UNDO_MAX, moves: 0 }; },
+  best() { return (Store.get('best', {})[this.s.n]) || 0; },
+  setBest() { const b = Store.get('best', {}); if (this.s.score > (b[this.s.n] || 0)) { b[this.s.n] = this.s.score; Store.set('best', b); } },
+  save() { Store.set('game_' + this.s.n, this.s); Store.set('size', this.s.n); this.hub(); },
+  hub() { const s = this.s, mx = Math.max(...s.grid); Store.hub(s.over || !s.moves ? null : `Em andamento · ${SIZES[s.n].name} · maior peça ${mx} · ${s.score} pts`); },
+  step(dir) {
+    const s = this.s; if (!s || this.busy || s.over || (s.won && !s.keep)) return;
+    const r = Engine.move(s.grid, s.n, dir); if (!r.moved) { View.nudge(dir); return; }
+    s.undo.push({ grid: s.grid.slice(), score: s.score }); if (s.undo.length > 10) s.undo.shift();
+    s.grid = r.grid; s.score += r.gained; s.moves++;
+    const spawned = Engine.spawn(s.grid);
+    this.setBest();
+    View.animate(r.moves, spawned, r.gained);
+    const goal = SIZES[s.n].goal;
+    if (!s.won && s.grid.some(v => v >= goal)) { s.won = true; setTimeout(() => UI.win(), 260); }
+    if (!Engine.canMove(s.grid, s.n)) { s.over = true; setTimeout(() => UI.over(), 320); }
+    this.save();
+  },
+  undo() {
+    const s = this.s; if (!s.undo.length || s.undosLeft <= 0) return;
+    const u = s.undo.pop(); s.grid = u.grid; s.score = u.score; s.over = false; s.undosLeft--;
+    UI.hideOv(); View.rebuild(); this.save();
+  }
+};
+
+/* ---------- View ---------- */
+const View = {
+  tiles: new Map(), // posição → elemento
+  geom: null,
+  layout() {
+    const n = Game.s.n, wrap = document.querySelector('.boardwrap');
+    const S = Math.floor(Math.min(wrap.clientWidth, wrap.clientHeight, 520));
+    const gap = Math.max(6, Math.round(S * 0.028)), cell = (S - gap * (n + 1)) / n;
+    this.geom = { S, gap, cell };
+    const b = $('#board'); b.style.width = b.style.height = S + 'px';
+    b.querySelectorAll('.cell').forEach(e => e.remove());
+    for (let i = 0; i < n * n; i++) { const d = document.createElement('div'); d.className = 'cell'; const [x, y] = this.xy(i); Object.assign(d.style, { width: cell + 'px', height: cell + 'px', transform: `translate(${x}px,${y}px)` }); b.prepend(d); }
+  },
+  xy(i) { const n = Game.s.n, { gap, cell } = this.geom; return [gap + (i % n) * (cell + gap), gap + Math.floor(i / n) * (cell + gap)]; },
+  tile(v, i, cls) {
+    const { cell } = this.geom, d = document.createElement('div'), [x, y] = this.xy(i);
+    d.className = `tile ${v > 2048 ? 'vbig' : 'v' + v} ${cls || ''}`;
+    const digits = String(v).length, fs = cell * (digits <= 2 ? .46 : digits === 3 ? .38 : digits === 4 ? .3 : .25);
+    Object.assign(d.style, { width: cell + 'px', height: cell + 'px', fontSize: fs + 'px', transform: `translate(${x}px,${y}px)` });
+    d.innerHTML = `<div class="in">${v}</div>`; $('#board').appendChild(d); return d;
+  },
+  rebuild() {
+    $('#board').querySelectorAll('.tile').forEach(e => e.remove()); this.tiles.clear();
+    Game.s.grid.forEach((v, i) => { if (v) this.tiles.set(i, this.tile(v, i)); });
+    UI.hud();
+  },
+  animate(moves, spawned, gained) {
+    Game.busy = true;
+    const merged = new Set();
+    for (const m of moves) {
+      const el = this.tiles.get(m.from); if (!el) continue;
+      const [x, y] = this.xy(m.to); el.style.transform = `translate(${x}px,${y}px)`; el.style.zIndex = m.merge ? 1 : 2;
+      if (m.merge) merged.add(m.to);
+    }
+    setTimeout(() => {
+      // reconstrói a partir da grade (fonte da verdade) marcando fusões e a peça nova
+      $('#board').querySelectorAll('.tile').forEach(e => e.remove()); this.tiles.clear();
+      Game.s.grid.forEach((v, i) => { if (v) this.tiles.set(i, this.tile(v, i, i === spawned ? 'new' : merged.has(i) ? 'merged' : '')); });
+      Game.busy = false; UI.hud(gained);
+    }, 115);
+  },
+  nudge() { const b = $('#board'); b.animate && b.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'translateX(0)' }], { duration: 160 }); }
+};
+
+/* ---------- Input: deslize, teclado ---------- */
+const Input = {
+  init() {
+    window.addEventListener('keydown', e => {
+      const k = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down', A: 'left', D: 'right', W: 'up', S: 'down' }[e.key];
+      if (k) { e.preventDefault(); Game.step(k); }
+      if (e.key === 'z' || e.key === 'Z') Game.undo();
+    });
+    let st = null; const area = document.body;
+    area.addEventListener('pointerdown', e => { if (e.target.closest('button,a')) return; st = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+    area.addEventListener('pointerup', e => {
+      if (!st) return; const dx = e.clientX - st.x, dy = e.clientY - st.y; st = null;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 28) return;
+      Game.step(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    });
+    area.addEventListener('pointercancel', () => { st = null; });
+    document.addEventListener('touchmove', e => { if (e.target.closest('.board')) e.preventDefault(); }, { passive: false });
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    $('#sizes').innerHTML = Object.entries(SIZES).map(([n, s]) => `<button class="chip" data-n="${n}">${s.name}</button>`).join('');
+    $('#sizes').querySelectorAll('[data-n]').forEach(b => b.onclick = () => this.open(+b.dataset.n));
+    $('#new').onclick = () => this.newGame();
+    $('#undo').onclick = () => Game.undo();
+    window.addEventListener('resize', () => { if (Game.s) { View.layout(); View.rebuild(); } });
+    Input.init();
+    this.open(Store.get('size', 4));
+  },
+  open(n) {
+    this.hideOv();
+    Game.s = Store.get('game_' + n, null) || Game.fresh(n);
+    if (Game.s.undosLeft == null) Game.s.undosLeft = UNDO_MAX;
+    $('#sizes').querySelectorAll('[data-n]').forEach(b => b.classList.toggle('on', +b.dataset.n === n));
+    View.layout(); View.rebuild(); Game.save();
+    if (Game.s.over) this.over();
+  },
+  newGame() { Game.s = Game.fresh(Game.s.n); this.hideOv(); View.rebuild(); Game.save(); },
+  hud(gained) {
+    const s = Game.s; $('#score').textContent = s.score; $('#best').textContent = Math.max(Game.best(), s.score);
+    $('#undo').disabled = !s.undo.length || s.undosLeft <= 0; $('#ucount').textContent = `(${s.undosLeft})`;
+    if (gained) { const p = document.createElement('span'); p.className = 'plus'; p.textContent = '+' + gained; $('#score').parentNode.appendChild(p); setTimeout(() => p.remove(), 700); }
+  },
+  ov(html) { this.hideOv(); const d = document.createElement('div'); d.className = 'ov'; d.innerHTML = html; $('#board').appendChild(d); return d; },
+  hideOv() { document.querySelectorAll('.ov').forEach(e => e.remove()); },
+  win() {
+    const d = this.ov(`<h3>${SIZES[Game.s.n].goal}!</h3><p>Você alcançou a peça ${SIZES[Game.s.n].goal}.</p><div class="row"><button class="btn-primary" id="keep">Continuar jogando</button><button class="btn" id="nw">Novo jogo</button></div>`);
+    d.querySelector('#keep').onclick = () => { Game.s.keep = true; this.hideOv(); Game.save(); };
+    d.querySelector('#nw').onclick = () => this.newGame();
+  },
+  over() {
+    const best = Game.best(), rec = Game.s.score >= best && Game.s.score > 0;
+    const d = this.ov(`<h3>Fim de jogo</h3><p>${Game.s.score} pontos${rec ? ' · novo recorde!' : ''}</p><div class="row"><button class="btn-primary" id="nw">Jogar de novo</button>${Game.s.undo.length && Game.s.undosLeft > 0 ? '<button class="btn" id="un">Desfazer</button>' : ''}</div>`);
+    d.querySelector('#nw').onclick = () => this.newGame(); const un = d.querySelector('#un'); if (un) un.onclick = () => Game.undo();
+    Store.hub(null);
+  }
+};
+
+UI.init();
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {}); } catch (e) {}
+window.G2048 = { Engine, Game, View, UI, Store };
+</script>
+</body>
+</html>

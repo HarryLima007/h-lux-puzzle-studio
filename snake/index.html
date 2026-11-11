@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#050807">
+<title>H-LUX Snake</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050807;--panel:#0e1512;--line:#1f2d27;--gold:#c9a45c;--gold2:#e8cd8c;--green:#3fd68a;--text:#e6efe9;--muted:#86a094;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--serif:'Cormorant Garamond',Georgia,serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% 0%,#0f2219 0%,var(--bg) 62%);color:var(--text);font-family:var(--sans);overscroll-behavior:none}
+body{overflow:hidden;touch-action:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.hidden{display:none!important}
+svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:flex;flex-direction:column;align-items:center;height:100%;padding:max(8px,env(safe-area-inset-top)) 12px max(10px,env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;width:100%;max-width:560px;gap:8px}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.2px;padding:8px 4px}
+.title{flex:1;text-align:center;font-family:var(--serif);font-weight:700;font-size:26px;letter-spacing:1px;margin-right:52px}
+.title b{color:var(--green);font-weight:700}
+.hud{display:flex;gap:8px;width:100%;max-width:560px;margin:4px 0 8px}
+.sc{flex:1;padding:6px 10px;border-radius:12px;background:var(--panel);border:1px solid var(--line);text-align:center}
+.sc small{display:block;font-size:10px;letter-spacing:1.4px;color:var(--muted);font-weight:800}
+.sc b{font-size:19px;font-variant-numeric:tabular-nums}
+.ib{width:46px;border-radius:12px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center}
+.speeds{display:flex;gap:6px;width:100%;max-width:560px;margin-bottom:8px}
+.chip{flex:1;min-height:38px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:13px;color:var(--muted)}
+.chip.on{border-color:var(--green);color:var(--green);background:rgba(63,214,138,.08)}
+.stage{flex:1;width:100%;display:flex;align-items:center;justify-content:center;min-height:0;position:relative}
+canvas{display:block;border-radius:14px;border:1px solid #234235;box-shadow:0 0 0 1px rgba(201,164,92,.15),0 20px 50px rgba(0,0,0,.6)}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{max-width:340px;width:100%;text-align:center;background:rgba(8,14,11,.92);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:10px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.card h3{margin:0;font-family:var(--serif);font-size:34px;color:var(--gold2)}
+.card p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.btn-primary{min-height:50px;border-radius:14px;background:linear-gradient(180deg,#5fe6a2,#2fb070);color:#03130a;font-weight:800;font-size:16px}
+.pad{display:grid;grid-template-columns:repeat(3,62px);grid-template-rows:repeat(2,52px);gap:6px;margin-top:10px}
+.pad button{border-radius:14px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;color:var(--green)}
+.pad button:active{background:#173326}
+.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}
+.help{color:var(--muted);font-size:12px;margin-top:6px;text-align:center}
+@media (hover:hover) and (pointer:fine){.pad{display:none}}
+@media (max-height:520px) and (orientation:landscape){.pad{position:fixed;right:14px;bottom:14px;margin:0}.help{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Sna<b>ke</b></div></div>
+  <div class="hud"><div class="sc"><small>PONTOS</small><b id="score">0</b></div><div class="sc"><small>RECORDE</small><b id="best">0</b></div><div class="sc"><small>TAMANHO</small><b id="len">3</b></div><button class="ib" id="pause" aria-label="Pausar"><svg class="i" id="pi"><path d="M9 5.5v13M15 5.5v13"/></svg></button></div>
+  <div class="speeds" id="speeds"></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas><div class="ov" id="ov"><div class="card" id="card"></div></div></div>
+  <div class="pad" id="pad">
+    <button class="up" data-d="up" aria-label="Cima"><svg class="i"><path d="M6 15l6-6 6 6"/></svg></button>
+    <button class="left" data-d="left" aria-label="Esquerda"><svg class="i"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button class="down" data-d="down" aria-label="Baixo"><svg class="i"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button class="right" data-d="right" aria-label="Direita"><svg class="i"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+  <div class="help">Setas/WASD · deslize no tabuleiro · Espaço pausa</div>
+</div>
+<script>
+'use strict';
+/* H-LUX SNAKE v1.0 — Módulos: Store · Engine (grade e regras) · Render · Input · UI */
+const $ = s => document.querySelector(s);
+const Store = {
+  P: 'hlux.snake.',
+  get(k, d) { try { const v = localStorage.getItem(this.P + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); } catch (e) {} },
+  hub(line) { try { localStorage.setItem('hlux.hub.snake', JSON.stringify({ line, updated: Date.now() })); } catch (e) {} }
+};
+const SPEEDS = { slow: { name: 'Lento', ms: 170 }, normal: { name: 'Normal', ms: 125 }, fast: { name: 'Rápido', ms: 88 } };
+const N = 20, MIN_MS = 55, DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }, OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
+
+/* ---------- Engine ---------- */
+const Engine = {
+  s: null,
+  reset(speed) {
+    const mid = Math.floor(N / 2);
+    this.s = { speed, body: [[mid - 1, mid], [mid - 2, mid], [mid - 3, mid]], dir: 'right', queue: [], food: null, bonus: null, score: 0, eaten: 0, ms: SPEEDS[speed].ms, state: 'ready', grow: 0 };
+    this.spawn();
+  },
+  free() { const occ = new Set(this.s.body.map(([x, y]) => x + ',' + y)); if (this.s.food) occ.add(this.s.food.join()); const f = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!occ.has(x + ',' + y)) f.push([x, y]); return f; },
+  spawn() { const f = this.free(); this.s.food = f.length ? f[Math.floor(Math.random() * f.length)] : null; },
+  turn(d) { const s = this.s; const last = s.queue.length ? s.queue[s.queue.length - 1] : s.dir; if (d !== last && d !== OPP[last] && s.queue.length < 3) s.queue.push(d); },
+  // um passo da simulação; devolve 'dead' em colisão
+  step(now) {
+    const s = this.s; if (s.queue.length) s.dir = s.queue.shift();
+    const [dx, dy] = DIRS[s.dir], [hx, hy] = s.body[0], nx = hx + dx, ny = hy + dy;
+    if (nx < 0 || ny < 0 || nx >= N || ny >= N) return 'dead';
+    const tailMoves = s.grow === 0;
+    for (let k = 0; k < s.body.length - (tailMoves ? 1 : 0); k++) if (s.body[k][0] === nx && s.body[k][1] === ny) return 'dead';
+    s.body.unshift([nx, ny]);
+    if (s.grow > 0) s.grow--; else s.body.pop();
+    if (s.food && nx === s.food[0] && ny === s.food[1]) {
+      s.score += 10; s.eaten++; s.grow += 1; s.ms = Math.max(MIN_MS, s.ms * 0.975); this.spawn();
+      if (s.eaten % 6 === 0 && !s.bonus) { const f = this.free(); if (f.length) s.bonus = { p: f[Math.floor(Math.random() * f.length)], until: now + 5500 }; }
+      return 'ate';
+    }
+    if (s.bonus && nx === s.bonus.p[0] && ny === s.bonus.p[1]) { s.score += 50; s.grow += 2; s.bonus = null; return 'bonus'; }
+    if (s.bonus && now > s.bonus.until) s.bonus = null;
+    return 'ok';
+  }
+};
+
+/* ---------- Render ---------- */
+const Render = {
+  cv: null, x: null, cell: 20, dpr: 1, flash: 0,
+  init() { this.cv = $('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe($('#stage')); },
+  size() {
+    const st = $('#stage'), S = Math.floor(Math.min(st.clientWidth, st.clientHeight, 640) / N) * N;
+    this.cell = S / N; this.dpr = Math.min(devicePixelRatio || 1, 2);
+    this.cv.width = S * this.dpr; this.cv.height = S * this.dpr; this.cv.style.width = this.cv.style.height = S + 'px'; this.draw(performance.now());
+  },
+  draw(now) {
+    const x = this.x, c = this.cell, s = Engine.s; if (!s) return;
+    x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    x.fillStyle = '#07100c'; x.fillRect(0, 0, c * N, c * N);
+    x.fillStyle = 'rgba(63,214,138,.045)';
+    for (let y = 0; y < N; y++) for (let i = 0; i < N; i++) if ((i + y) % 2) x.fillRect(i * c, y * c, c, c);
+    // comida
+    if (s.food) { const [fx, fy] = s.food, pulse = 1 + Math.sin(now / 180) * .06; x.fillStyle = '#e8cd8c'; x.shadowColor = 'rgba(232,205,140,.7)'; x.shadowBlur = c * .6; x.beginPath(); x.arc(fx * c + c / 2, fy * c + c / 2, c * .32 * pulse, 0, Math.PI * 2); x.fill(); x.shadowBlur = 0; }
+    if (s.bonus) { const [bx, by] = s.bonus.p, left = (s.bonus.until - now) / 5500; x.save(); x.translate(bx * c + c / 2, by * c + c / 2); x.rotate(now / 400); x.fillStyle = '#f6e3ad'; x.shadowColor = '#f6e3ad'; x.shadowBlur = c; x.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? c * .2 : c * .46, a = k / 10 * Math.PI * 2; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.fill(); x.restore(); x.shadowBlur = 0; x.fillStyle = 'rgba(246,227,173,.6)'; x.fillRect(bx * c, by * c + c - 3, c * Math.max(0, left), 3); }
+    // cobra
+    const L = s.body.length;
+    s.body.forEach(([bx, by], k) => {
+      const t = k / Math.max(1, L - 1), g = Math.round(214 - t * 90), pad = c * (k === 0 ? .06 : .1);
+      x.fillStyle = k === 0 ? '#5ff0a6' : `rgb(${Math.round(63 - t * 30)},${g},${Math.round(138 - t * 50)})`;
+      const r = c * .28; const px = bx * c + pad, py = by * c + pad, w = c - pad * 2;
+      x.beginPath(); x.roundRect ? x.roundRect(px, py, w, w, r) : x.rect(px, py, w, w); x.fill();
+    });
+    if (L) { // olhos
+      const [hx, hy] = s.body[0], [dx, dy] = DIRS[s.dir], cx = hx * c + c / 2, cy = hy * c + c / 2;
+      x.fillStyle = '#04110a'; for (const sd of [-1, 1]) { x.beginPath(); x.arc(cx + dx * c * .18 + dy * sd * c * .18, cy + dy * c * .18 - dx * sd * c * .18, c * .08, 0, Math.PI * 2); x.fill(); }
+    }
+    if (this.flash > now) { x.fillStyle = `rgba(229,96,79,${(this.flash - now) / 400 * .45})`; x.fillRect(0, 0, c * N, c * N); }
+    x.strokeStyle = 'rgba(201,164,92,.35)'; x.lineWidth = 1; x.strokeRect(.5, .5, c * N - 1, c * N - 1);
+  }
+};
+
+/* ---------- Loop ---------- */
+const Loop = {
+  raf: 0, acc: 0, last: 0,
+  start() { cancelAnimationFrame(this.raf); this.last = performance.now(); this.acc = 0; this.raf = requestAnimationFrame(t => this.tick(t)); },
+  stop() { cancelAnimationFrame(this.raf); this.raf = 0; },
+  tick(t) {
+    const s = Engine.s; this.raf = requestAnimationFrame(tt => this.tick(tt));
+    if (s.state === 'playing') {
+      this.acc += Math.min(250, t - this.last);
+      while (this.acc >= s.ms && s.state === 'playing') {
+        this.acc -= s.ms; const r = Engine.step(t);
+        if (r === 'dead') UI.gameOver(); else if (r !== 'ok') { UI.hud(); if (navigator.vibrate && r === 'bonus') try { navigator.vibrate(15); } catch (e) {} }
+      }
+    }
+    this.last = t; Render.draw(t);
+  }
+};
+
+/* ---------- Input ---------- */
+const Input = {
+  init() {
+    window.addEventListener('keydown', e => {
+      const d = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' }[e.key];
+      if (d) { e.preventDefault(); this.dir(d); }
+      if (e.key === ' ' || e.key === 'p' || e.key === 'P' || e.key === 'Escape') { e.preventDefault(); UI.togglePause(); }
+      if (e.key === 'Enter' && Engine.s.state !== 'playing' && Engine.s.state !== 'paused') UI.play();
+    });
+    let st = null; const stage = $('#stage');
+    stage.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; st = [e.clientX, e.clientY]; });
+    stage.addEventListener('pointermove', e => {
+      if (!st) return; const dx = e.clientX - st[0], dy = e.clientY - st[1];
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > 22) { this.dir(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); st = [e.clientX, e.clientY]; }
+    });
+    stage.addEventListener('pointerup', () => { st = null; }); stage.addEventListener('pointercancel', () => { st = null; });
+    $('#pad').querySelectorAll('[data-d]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); this.dir(b.dataset.d); }));
+  },
+  dir(d) { const s = Engine.s; if (s.state === 'ready') UI.play(d); else if (s.state === 'playing') Engine.turn(d); }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  speed: 'normal',
+  init() {
+    this.speed = Store.get('speed', 'normal');
+    $('#speeds').innerHTML = Object.entries(SPEEDS).map(([k, v]) => `<button class="chip" data-s="${k}">${v.name}</button>`).join('');
+    $('#speeds').querySelectorAll('[data-s]').forEach(b => b.onclick = () => { if (Engine.s.state === 'playing') return; this.speed = b.dataset.s; Store.set('speed', this.speed); this.ready(); });
+    $('#pause').onclick = () => this.togglePause();
+    document.addEventListener('visibilitychange', () => { if (document.hidden && Engine.s.state === 'playing') this.togglePause(); });
+    window.addEventListener('blur', () => { if (Engine.s.state === 'playing') this.togglePause(); });
+    Render.init(); Input.init(); this.ready(); Loop.start();
+  },
+  best() { return Store.get('best', {})[this.speed] || 0; },
+  ready() {
+    Engine.reset(this.speed);
+    $('#speeds').querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === this.speed));
+    this.card(`<h3>Snake</h3><p>Velocidade <b>${SPEEDS[this.speed].name}</b>. A cobra acelera a cada alimento. Estrelas douradas valem 50 pontos.</p><button class="btn-primary" id="go">Começar</button><p style="font-size:12px">Toque em começar, deslize ou use as setas.</p>`);
+    $('#go').onclick = () => this.play(); this.hud();
+  },
+  play(d) {
+    const s = Engine.s; if (s.state === 'over') { this.ready(); }
+    Engine.s.state = 'playing'; if (d) Engine.turn(d); $('#ov').classList.add('hidden'); Loop.acc = 0; this.pauseIcon();
+  },
+  togglePause() {
+    const s = Engine.s;
+    if (s.state === 'playing') { s.state = 'paused'; this.card(`<h3>Pausado</h3><p>${s.score} pontos · tamanho ${s.body.length}</p><button class="btn-primary" id="go">Continuar</button>`); $('#go').onclick = () => this.togglePause(); }
+    else if (s.state === 'paused') { s.state = 'playing'; Loop.last = performance.now(); $('#ov').classList.add('hidden'); }
+    this.pauseIcon();
+  },
+  pauseIcon() { $('#pi').innerHTML = Engine.s.state === 'paused' ? '<path d="M8 5.5v13l10.5-6.5z"/>' : '<path d="M9 5.5v13M15 5.5v13"/>'; },
+  gameOver() {
+    const s = Engine.s; s.state = 'over'; Render.flash = performance.now() + 400;
+    if (navigator.vibrate) try { navigator.vibrate([30, 40, 30]); } catch (e) {}
+    const b = Store.get('best', {}), rec = s.score > (b[this.speed] || 0); if (rec) { b[this.speed] = s.score; Store.set('best', b); }
+    const st = Store.get('stats', { games: 0, foods: 0 }); st.games++; st.foods += s.eaten; Store.set('stats', st);
+    Store.hub(`Recorde ${Math.max(...Object.values(Store.get('best', { x: 0 })))} pts`);
+    setTimeout(() => { this.card(`<h3>Fim de jogo</h3><p>${s.score} pontos · tamanho ${s.body.length}${rec ? '<br><b style="color:var(--gold2)">Novo recorde!</b>' : ''}</p><button class="btn-primary" id="go">Jogar de novo</button>`); $('#go').onclick = () => { this.ready(); this.play(); }; this.hud(); }, 450);
+  },
+  card(html) { $('#card').innerHTML = html; $('#ov').classList.remove('hidden'); },
+  hud() { const s = Engine.s; $('#score').textContent = s.score; $('#best').textContent = Math.max(this.best(), s.state === 'over' ? 0 : s.score); $('#len').textContent = s.body.length + s.grow; }
+};
+UI.init();
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {}); } catch (e) {}
+window.SNK = { Engine, UI, Store, Loop };
+</script>
+</body>
+</html>

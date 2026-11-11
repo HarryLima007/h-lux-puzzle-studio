@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+<defs><radialGradient id="bg" cx=".5" cy=".3" r=".85"><stop offset="0" stop-color="#2a2419"/><stop offset="1" stop-color="#0b0b0c"/></radialGradient>
+<linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6e3ad"/><stop offset=".55" stop-color="#c9a45c"/><stop offset="1" stop-color="#8f6b2e"/></linearGradient>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1dca6"/><stop offset="1" stop-color="#a8833f"/></linearGradient></defs>
+<rect width="640" height="400" fill="url(#bg)"/>
+<g transform="translate(180 50)" font-family="Manrope,Arial,sans-serif" font-weight="800" text-anchor="middle">
+<rect width="290" height="290" rx="18" fill="#16140f" stroke="#3a3426"/>
+<g transform="translate(12 12)">
+<rect x="0" y="0" width="60" height="60" rx="9" fill="#f3ecdc"/><text x="30" y="40" font-size="26" fill="#3a3326">2</text>
+<rect x="68" y="0" width="60" height="60" rx="9" fill="#eadcb8"/><text x="98" y="40" font-size="26" fill="#3a3326">4</text>
+<rect x="136" y="0" width="60" height="60" rx="9" fill="#e3c584"/><text x="166" y="40" font-size="26" fill="#2b2416">8</text>
+<rect x="204" y="0" width="60" height="60" rx="9" fill="#d8b064"/><text x="234" y="40" font-size="24" fill="#211a0c">16</text>
+<rect x="0" y="68" width="60" height="60" rx="9" fill="#c9994a"/><text x="30" y="108" font-size="24" fill="#1b1408">32</text>
+<rect x="68" y="68" width="60" height="60" rx="9" fill="#b07f2f"/><text x="98" y="108" font-size="24" fill="#fff6e0">64</text>
+<rect x="136" y="68" width="60" height="60" rx="9" fill="#3a3326" stroke="#c9a45c" stroke-width="2"/><text x="166" y="106" font-size="20" fill="#f0d796">128</text>
+<rect x="204" y="68" width="60" height="60" rx="9" fill="rgba(255,255,255,.04)"/>
+<rect x="0" y="136" width="128" height="128" rx="12" fill="url(#gg)"/><text x="64" y="216" font-size="44" fill="#140f05">2048</text>
+<rect x="136" y="136" width="60" height="60" rx="9" fill="rgba(255,255,255,.04)"/><rect x="204" y="136" width="60" height="60" rx="9" fill="#f3ecdc"/><text x="234" y="176" font-size="26" fill="#3a3326">2</text>
+<rect x="136" y="204" width="60" height="60" rx="9" fill="rgba(255,255,255,.04)"/><rect x="204" y="204" width="60" height="60" rx="9" fill="rgba(255,255,255,.04)"/></g></g>
+<rect x="18" y="18" width="604" height="364" rx="20" fill="none" stroke="url(#g)" stroke-opacity=".35" stroke-width="1.5"/>
+</svg>

@@ -1,12 +1,14 @@
 // H-LUX — service worker da plataforma (offline para todos os jogos).
 // Ao publicar uma nova versão, altere VERSION: o cache antigo é apagado
 // automaticamente; os dados dos jogos (IndexedDB/localStorage) não são tocados.
-const VERSION = 'hlux-v2.0.0';
+const VERSION = 'hlux-v2.1.0';
 const CORE = [
   './', './index.html', './games.js', './manifest.webmanifest',
-  './covers/puzzle.svg', './covers/mahjong.svg',
+  './covers/puzzle.svg', './covers/mahjong.svg', './covers/nonogram.svg', './covers/minefield.svg', './covers/2048.svg', './covers/solitaire.svg', './covers/snake.svg',
   './puzzle/', './puzzle/index.html',
   './mahjong/', './mahjong/index.html',
+  './nonogram/', './nonogram/index.html', './minefield/', './minefield/index.html', './2048/', './2048/index.html',
+  './solitaire/', './solitaire/index.html', './snake/', './snake/index.html',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png'
 ];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
