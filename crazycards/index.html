@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0a10">
+<title>H-LUX Crazy Cards</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0b0a10;--bg2:radial-gradient(ellipse at 50% 30%,#2a2238 0%,#0b0a10 66%);--cw:62px;--ch:92px;--g0:#e0b14a;--g1:#e5484d;--g2:#2fbf71;--g3:#3d8bff}
+.table{display:flex;flex-direction:column;width:100%;height:100%;gap:8px}
+.opps{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.opp{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;font-weight:700;min-width:96px}
+.opp.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 16px rgba(201,164,92,.25)}
+.opp .mini{width:16px;height:22px;border-radius:3px;background:linear-gradient(160deg,#1d1828,#0f0d15);box-shadow:inset 0 0 0 1px #c9a45c}
+.opp b{color:var(--accent2);font-variant-numeric:tabular-nums}
+.mid{flex:1;display:flex;align-items:center;justify-content:center;gap:22px;position:relative;min-height:calc(var(--ch) + 30px)}
+.pile{position:relative;width:var(--cw);height:var(--ch)}
+.dir{position:absolute;inset:-34px;border-radius:50%;border:2px dashed rgba(201,164,92,.25);pointer-events:none;animation:rot 12s linear infinite}
+.dir.rev{animation-direction:reverse}@keyframes rot{to{transform:rotate(360deg)}}
+.colorbadge{position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:800;letter-spacing:1px;white-space:nowrap;padding:3px 9px;border-radius:999px;color:#111}
+.card{width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.16);position:relative;flex:none;background:#14121b;box-shadow:inset 0 0 0 2px var(--c,#c9a45c),0 4px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;cursor:pointer;transition:transform .15s}
+.card .gem{width:72%;height:58%;border-radius:50%/42%;background:var(--c);transform:rotate(-18deg);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+.card .gem span{transform:rotate(18deg);font-size:calc(var(--cw)*.42);color:#14121b;font-weight:900;letter-spacing:-1px}
+.card .gem span.sym{font-size:calc(var(--cw)*.36)}
+.card .tl,.card .br{position:absolute;font-size:calc(var(--cw)*.2);color:var(--c)}
+.card .tl{left:5px;top:4px}.card .br{right:5px;bottom:4px;transform:rotate(180deg)}
+.card.wild{--c:#c9a45c;background:conic-gradient(from 45deg,var(--g0) 0 25%,var(--g1) 0 50%,var(--g2) 0 75%,var(--g3) 0) padding-box}
+.card.wild .gem{background:#14121b;box-shadow:inset 0 0 0 2px #c9a45c}.card.wild .gem span{color:#f1dca6}
+.card.back{background:radial-gradient(circle at 50% 40%,#2b2338,#14111c);box-shadow:inset 0 0 0 2px #c9a45c,0 4px 10px rgba(0,0,0,.5)}
+.card.back::after{content:'H';font-family:'Cormorant Garamond',serif;font-size:calc(var(--cw)*.6);color:#c9a45c}
+.hand{display:flex;justify-content:center;padding:14px 8px 4px;overflow-x:auto;overflow-y:visible;scrollbar-width:none;min-height:calc(var(--ch) + 22px)}
+.hand::-webkit-scrollbar{display:none}
+.hand .card{margin-left:var(--ov,-18px)}.hand .card:first-child{margin-left:0}
+.hand .card.ok{transform:translateY(-10px)}
+.hand .card.no{filter:brightness(.55)}
+.bar{display:flex;gap:8px;justify-content:center;align-items:center;min-height:44px}
+.bar .btn{width:auto;min-height:42px;padding:0 16px}
+.msg{font-size:13px;font-weight:800;color:var(--accent2);text-align:center;min-height:18px}
+.colors{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.colors button{min-height:64px;border-radius:14px;border:0;font-weight:800;font-size:15px;color:#14121b}
+.cover{position:fixed;inset:0;background:#0b0a10;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+.cover h2{font-family:'Cormorant Garamond',serif;color:var(--accent2);font-size:30px;margin:0}
+#hx-toast{top:calc(max(10px,env(safe-area-inset-top)) + 110px);bottom:auto}
+.fly{position:fixed;z-index:40;pointer-events:none;transition:transform .32s ease}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Crazy <b>Cards</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="stage" id="stage"><div class="table"><div class="opps" id="opps"></div><div class="mid"><div class="pile" id="draw"></div><div class="pile" id="disc"><div class="dir" id="dirr"></div></div></div><div class="msg" id="msg"></div><div class="bar" id="bar"></div><div class="hand" id="hand"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-sort"><svg class="i"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg>Ordenar</button>
+    <button class="tool" id="t-log"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Jogadas</button>
+    <button class="tool" id="t-rules"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Regras</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX CRAZY CARDS v1.0 — jogo original de descarte por cor e número, com identidade H-LUX.
+   Baralho (108): 4 cores (Ouro, Rubi, Esmeralda, Safira) com 0 (×1), 1–9 (×2), Pula (×2), Inverte (×2), +2 (×2);
+   8 coringas: Troca-cor (×4) e Troca-cor +4 (×4). Regras configuráveis: acumular +2/+4, comprar até poder jogar.
+   Módulos: Rules (puras) · AI · Game · View · UI */
+const S = HX.store('crazycards');
+const CN = ['Ouro', 'Rubi', 'Esmeralda', 'Safira'], CC = ['#e0b14a', '#e5484d', '#2fbf71', '#3d8bff'];
+const SYM = { skip: '⊘', rev: '⇄', d2: '+2', wild: '✦', d4: '+4' };
+const Rules = {
+  deck() { const d = []; let id = 0; for (let c = 0; c < 4; c++) { d.push({ id: id++, c, t: 'n', v: 0 }); for (let v = 1; v <= 9; v++) for (let k = 0; k < 2; k++) d.push({ id: id++, c, t: 'n', v }); for (const t of ['skip', 'rev', 'd2']) for (let k = 0; k < 2; k++) d.push({ id: id++, c, t }); } for (let k = 0; k < 4; k++) { d.push({ id: id++, c: -1, t: 'wild' }); d.push({ id: id++, c: -1, t: 'd4' }); } return d; },
+  wild: k => k.t === 'wild' || k.t === 'd4',
+  playable(k, top, color, pending, cfg) {
+    if (pending) return cfg.stack && ((k.t === 'd2' && top.t === 'd2') || k.t === 'd4');
+    if (this.wild(k)) return true; if (k.c === color) return true;
+    return top.t === 'n' ? k.t === 'n' && k.v === top.v : k.t === top.t;
+  },
+  points: k => k.t === 'n' ? k.v : Rules.wild(k) ? 50 : 20,
+  label: k => k.t === 'n' ? String(k.v) : SYM[k.t],
+  name: k => (k.t === 'n' ? k.v : { skip: 'Pula', rev: 'Inverte', d2: '+2', wild: 'Troca-cor', d4: 'Troca-cor +4' }[k.t]) + (Rules.wild(k) ? '' : ' ' + CN[k.c])
+};
+const AI = {
+  pick(hand, top, color, pending, cfg, lvl, nextCount) {
+    const ok = hand.filter(k => Rules.playable(k, top, color, pending, cfg)); if (!ok.length) return null;
+    if (lvl === 'facil') return ok[Math.floor(Math.random() * ok.length)];
+    const cnt = [0, 0, 0, 0]; hand.forEach(k => k.c >= 0 && cnt[k.c]++);
+    const sc = k => { let v = 0;
+      if (Rules.wild(k)) v -= 30; // guarda coringas
+      if (k.t === 'n') v += 10 + k.v * .5; else v += 14;
+      if (k.c >= 0) v += cnt[k.c] * 3;
+      if (lvl === 'dificil' && nextCount <= 2 && (k.t === 'd2' || k.t === 'd4' || k.t === 'skip')) v += 60; // ataca quem está perto de vencer
+      if (lvl === 'dificil' && hand.length <= 2 && Rules.wild(k)) v += 40;
+      return v; };
+    return ok.sort((a, b) => sc(b) - sc(a))[0];
+  },
+  color(hand) { const cnt = [0, 0, 0, 0]; hand.forEach(k => k.c >= 0 && (cnt[k.c] += k.t === 'n' ? 1 : 1.3)); let b = 0; for (let c = 1; c < 4; c++) if (cnt[c] > cnt[b]) b = c; return cnt[b] ? b : Math.floor(Math.random() * 4); }
+};
+const Game = {
+  cfg: null, deck: [], disc: [], hands: [], turn: 0, dir: 1, color: 0, pending: 0, drew: null, result: null, busy: false, log: [], scores: [], viewer: 0,
+  n() { return this.hands.length; },
+  isAI(p) { return this.cfg.who[p] === 'ai'; },
+  humans() { return this.cfg.who.filter(w => w === 'h').length; },
+  newRound(cfg, keep) {
+    HX.close(); this.cfg = cfg; const N = cfg.who.length; if (!keep || this.scores.length !== N) this.scores = Array(N).fill(0);
+    this.deck = HX.shuffle(Rules.deck()); this.hands = Array.from({ length: N }, () => []); for (let k = 0; k < cfg.hand; k++) for (let p = 0; p < N; p++) this.hands[p].push(this.deck.pop());
+    let first; do { first = this.deck.pop(); if (Rules.wild(first)) { this.deck.unshift(first); first = null; } } while (!first);
+    this.disc = [first]; this.color = first.c; this.dir = 1; this.turn = 0; this.pending = 0; this.drew = null; this.result = null; this.busy = false; this.log = [{ t: `Carta inicial: ${Rules.name(first)}` }];
+    this.viewer = this.cfg.who.indexOf('h'); if (this.viewer < 0) this.viewer = 0;
+    // efeito da carta inicial
+    if (first.t === 'skip') { this.turn = this.next(0); this.log.push({ t: `${UI.nm(0)} é pulado` }); }
+    else if (first.t === 'rev') { if (N === 2) this.turn = 1; else this.dir = -1; }
+    else if (first.t === 'd2') { this.pending = 2; }
+    this.save(); this.begin();
+  },
+  next(p = this.turn, dir = this.dir) { return (p + dir + this.n()) % this.n(); },
+  get top() { return this.disc[this.disc.length - 1]; },
+  refill() { if (this.deck.length) return; const top = this.disc.pop(); this.deck = HX.shuffle(this.disc.map(k => k)); this.disc = [top]; HX.toast('Monte refeito com o descarte'); },
+  give(p, n) { const got = []; for (let k = 0; k < n; k++) { this.refill(); if (!this.deck.length) break; const c = this.deck.pop(); this.hands[p].push(c); got.push(c); } return got; },
+  begin() { // início de vez: troca de tela entre humanos e IA joga sozinha
+    if (this.result) return; this.drew = null;
+    if (!this.isAI(this.turn) && this.humans() > 1 && this.viewer !== this.turn) { View.render(); return UI.cover(`Vez de ${UI.nm(this.turn)}`, 'Passe o aparelho. Os outros jogadores não devem olhar as cartas.', () => { this.viewer = this.turn; this.begin(); }); }
+    if (!this.isAI(this.turn)) this.viewer = this.turn;
+    View.render(); UI.msg(this.isAI(this.turn) ? `${UI.nm(this.turn)} está jogando…` : this.pending ? `Você precisa comprar ${this.pending} ou responder com outro +${this.cfg.stack ? '' : '…'}` : 'Sua vez');
+    if (this.pending && !this.isAI(this.turn) && !this.hands[this.turn].some(k => Rules.playable(k, this.top, this.color, this.pending, this.cfg))) UI.msg(`Sem resposta: compre ${this.pending}`);
+    if (this.isAI(this.turn)) { this.busy = true; setTimeout(() => { this.busy = false; this.aiTurn(); }, 700 / UI.speed); }
+  },
+  aiTurn() {
+    if (this.result) return; const p = this.turn, h = this.hands[p];
+    let k = AI.pick(h, this.top, this.color, this.pending, this.cfg, this.cfg.diff, this.hands[this.next()].length);
+    if (!k) { const got = this.drawFor(p); if (this.pending === 0 && got && Rules.playable(got, this.top, this.color, 0, this.cfg)) { k = got; } else return this.endTurn(); }
+    this.play(p, k, Rules.wild(k) ? AI.color(h.filter(x => x !== k)) : null);
+  },
+  // humano toca numa carta
+  tryPlay(k) {
+    const p = this.turn; if (this.isAI(p) || this.busy || this.result || HX.isOpen()) return;
+    if (this.drew && k !== this.drew) return HX.toast('Você só pode jogar a carta que acabou de comprar ou passar');
+    if (!Rules.playable(k, this.top, this.color, this.pending, this.cfg)) { HX.sfx('hit'); return HX.toast(this.pending ? `Responda com +2/+4 ou compre ${this.pending}` : 'Essa carta não combina com a cor nem com o símbolo'); }
+    if (Rules.wild(k)) return UI.pickColor(c => this.play(p, k, c));
+    this.play(p, k, null);
+  },
+  play(p, k, color) {
+    const h = this.hands[p]; h.splice(h.indexOf(k), 1); this.disc.push(k); this.color = Rules.wild(k) ? color : k.c; HX.sfx('move');
+    this.log.push({ p, t: `${UI.nm(p)} jogou ${Rules.name(k)}${Rules.wild(k) ? ' → ' + CN[color] : ''}` });
+    View.fly(p, k);
+    if (!h.length) return this.win(p);
+    if (h.length === 1) { HX.toast(`${UI.nm(p)}: última carta!`); HX.sfx('coin'); }
+    let skip = false;
+    if (k.t === 'skip') skip = true;
+    else if (k.t === 'rev') { if (this.n() === 2) skip = true; else this.dir *= -1; }
+    else if (k.t === 'd2') this.pending += 2;
+    else if (k.t === 'd4') this.pending += 4;
+    if (this.pending && !this.cfg.stack) { // sem acúmulo: o próximo compra e perde a vez
+      const v = this.next(), n = this.pending; this.give(v, n); this.pending = 0; this.log.push({ p: v, t: `${UI.nm(v)} comprou ${n} e perdeu a vez` }); HX.toast(`${UI.nm(v)} compra ${n}`); this.turn = this.next(v); this.save(); return this.after();
+    }
+    if (skip) { const v = this.next(); this.log.push({ p: v, t: `${UI.nm(v)} foi pulado` }); this.turn = this.next(v); } else this.turn = this.next();
+    this.save(); this.after();
+  },
+  after() { View.render(); setTimeout(() => this.begin(), 420 / UI.speed); },
+  // comprar: com +2/+4 pendente compra tudo e perde a vez; senão compra 1 (ou até poder jogar)
+  drawFor(p) {
+    if (this.pending) { const n = this.pending; this.give(p, n); this.pending = 0; this.log.push({ p, t: `${UI.nm(p)} comprou ${n}` }); HX.sfx('dice'); return null; }
+    let got = null; const until = this.cfg.draw === 'ate';
+    do { got = this.give(p, 1)[0]; if (!got) break; } while (until && !Rules.playable(got, this.top, this.color, 0, this.cfg) && this.deck.length + this.disc.length > 1);
+    this.log.push({ p, t: `${UI.nm(p)} comprou` }); HX.sfx('dice'); return got;
+  },
+  humanDraw() {
+    const p = this.turn; if (this.isAI(p) || this.busy || this.result) return; if (this.drew) return HX.toast('Jogue a carta comprada ou passe');
+    const had = this.pending; const got = this.drawFor(p);
+    if (had) return this.endTurn();
+    if (got && Rules.playable(got, this.top, this.color, 0, this.cfg)) { this.drew = got; View.render(); UI.msg('Você pode jogar a carta comprada ou passar'); }
+    else { View.render(); UI.msg('A carta comprada não serve'); this.busy = true; setTimeout(() => { this.busy = false; this.endTurn(); }, 700); }
+  },
+  endTurn() { this.drew = null; this.turn = this.next(); this.save(); this.after(); },
+  win(p) {
+    const pts = this.hands.reduce((s, h, q) => q === p ? s : s + h.reduce((a, k) => a + Rules.points(k), 0), 0); this.scores[p] += pts;
+    this.result = { win: p, pts }; this.log.push({ p, t: `${UI.nm(p)} venceu a rodada (+${pts})` });
+    if (this.humans()) { const st = S.get('stats', { rounds: 0, wins: 0 }); st.rounds++; if (!this.isAI(p)) st.wins++; S.set('stats', st); }
+    S.del('cur'); S.hub(null); View.render(); HX.sfx(this.isAI(p) && this.humans() ? 'lose' : 'win'); const R = this.result; setTimeout(() => { if (this.result === R) UI.end(); }, 900);
+  },
+  save() { if (this.result) return; S.set('cur', { cfg: this.cfg, deck: this.deck, disc: this.disc, hands: this.hands, turn: this.turn, dir: this.dir, color: this.color, pending: this.pending, scores: this.scores, log: this.log.slice(-60) }); S.hub(`Em andamento · ${this.n()} jogadores · você tem ${this.hands[Math.max(0, this.cfg.who.indexOf('h'))].length} cartas`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg) return false; Object.assign(this, { cfg: c.cfg, deck: c.deck, disc: c.disc, hands: c.hands, turn: c.turn, dir: c.dir, color: c.color, pending: c.pending, scores: c.scores, log: c.log || [], result: null, drew: null, busy: false }); this.viewer = this.humans() > 1 ? -1 : this.cfg.who.indexOf('h'); return true; }
+};
+const View = {
+  card(k, cls = '') { if (!k) return `<div class="card back ${cls}"></div>`; const w = Rules.wild(k), col = w ? '' : `--c:${CC[k.c]}`, lab = Rules.label(k), sym = k.t !== 'n' ? 'sym' : '';
+    return `<div class="card ${w ? 'wild' : ''} ${cls}" style="${col}" data-id="${k.id}"><span class="tl">${lab}</span><div class="gem"><span class="${sym}">${lab}</span></div><span class="br">${lab}</span></div>`; },
+  fit() { const st = HX.$('#stage'); const H = st.clientHeight, W = st.clientWidth; const ch = Math.max(70, Math.min(140, Math.floor((H - 190) / 2.3))); const cw = Math.round(ch * .68); document.documentElement.style.setProperty('--cw', cw + 'px'); document.documentElement.style.setProperty('--ch', ch + 'px'); this.W = W; this.cw = cw; },
+  render() {
+    if (!Game.hands.length) return; this.fit();
+    HX.$('#opps').innerHTML = Game.hands.map((h, p) => `<div class="opp ${!Game.result && Game.turn === p ? 'on' : ''}"><span class="mini"></span><span>${HX.esc(UI.nm(p))}</span><b>${h.length}</b>${Game.scores[p] ? `<small style="color:var(--muted)">${Game.scores[p]} pts</small>` : ''}</div>`).join('');
+    HX.$('#draw').innerHTML = View.card(null) + `<div class="colorbadge" style="background:#2a2433;color:var(--accent2)">${Game.deck.length}</div>`;
+    HX.$('#disc').innerHTML = `<div class="dir ${Game.dir < 0 ? 'rev' : ''}"></div>` + View.card(Game.top) + `<div class="colorbadge" style="background:${CC[Game.color]}">${CN[Game.color]}${Game.pending ? ' · +' + Game.pending : ''}</div>`;
+    const v = Game.viewer, show = v >= 0 && !Game.isAI(v) ? Game.hands[v] : [], myTurn = !Game.result && Game.turn === v && !Game.isAI(v) && !Game.busy;
+    const n = show.length, ov = n > 1 ? Math.min(-6, Math.max(-this.cw * .72, (this.W - 20 - this.cw) / (n - 1) - this.cw)) : 0;
+    HX.$('#hand').style.setProperty('--ov', ov + 'px');
+    HX.$('#hand').innerHTML = show.map(k => View.card(k, myTurn ? (Rules.playable(k, Game.top, Game.color, Game.pending, Game.cfg) && (!Game.drew || Game.drew === k) ? 'ok' : 'no') : '')).join('');
+    HX.$('#hand').style.justifyContent = n * (this.cw + ov) > this.W ? 'flex-start' : 'center';
+    HX.$('#bar').innerHTML = myTurn ? (Game.drew ? '<button class="btn" id="pass">Passar</button>' : `<button class="btn" id="drw">${Game.pending ? 'Comprar ' + Game.pending : 'Comprar'}</button>`) : '';
+    HX.on(HX.$('#bar'), '#drw', () => Game.humanDraw()); HX.on(HX.$('#bar'), '#pass', () => Game.endTurn());
+  },
+  fly(p, k) { const d = HX.$('#disc').getBoundingClientRect(); const el = document.createElement('div'); el.className = 'fly'; el.innerHTML = this.card(k); const from = !Game.isAI(p) && p === Game.viewer ? HX.$('#hand').getBoundingClientRect() : HX.$('#opps').getBoundingClientRect(); el.style.left = (from.left + from.width / 2 - this.cw / 2) + 'px'; el.style.top = (from.top) + 'px'; document.body.appendChild(el); requestAnimationFrame(() => { el.style.transform = `translate(${d.left - (from.left + from.width / 2 - this.cw / 2)}px,${d.top - from.top}px)`; }); setTimeout(() => el.remove(), 360); }
+};
+const UI = {
+  speed: 1,
+  init() {
+    HX.$('#hand').addEventListener('click', e => { const c = e.target.closest('.card'); if (!c) return; const v = Game.viewer, k = Game.hands[v] && Game.hands[v].find(x => x.id === +c.dataset.id); if (k) Game.tryPlay(k); });
+    HX.$('#draw').addEventListener('click', () => Game.humanDraw());
+    HX.$('#t-sort').onclick = () => { const v = Game.viewer; if (v < 0 || !Game.hands[v]) return; Game.hands[v].sort((a, b) => (a.c - b.c) || ((a.t === 'n' ? a.v : 20) - (b.t === 'n' ? b.v : 20))); View.render(); };
+    HX.$('#t-log').onclick = () => { const c = HX.overlay(`<h3>Jogadas</h3><div class="hist"><ol>${Game.log.slice(-60).map(l => `<li>${HX.esc(l.t)}</li>`).join('')}</ol></div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => HX.close()); };
+    HX.$('#t-rules').onclick = () => HX.help('Regras', this.helpItems()); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    new ResizeObserver(() => View.render()).observe(HX.$('#stage'));
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { HX.toast('Partida retomada'); Game.begin(); } else this.setup();
+  },
+  nm(p) { const w = Game.cfg.who[p]; if (w === 'ai') return `IA ${p + 1}`; return Game.humans() > 1 ? `Jogador ${p + 1}` : 'Você'; },
+  msg(t) { HX.$('#msg').textContent = t; },
+  helpItems() { const c = Game.cfg || { stack: false, draw: 'um', hand: 7 }; return ['Cada jogador começa com ' + (c.hand || 7) + ' cartas. Na sua vez, jogue uma carta da mesma cor ou do mesmo número/símbolo da carta do topo.', 'Cartas especiais: ⊘ Pula (o próximo perde a vez), ⇄ Inverte (troca o sentido; com 2 jogadores funciona como Pula), +2 (o próximo compra 2).', 'Coringas: ✦ Troca-cor (você escolhe a nova cor) e +4 (escolhe a cor e o próximo compra 4). Podem ser jogados a qualquer momento.', c.stack ? 'Acúmulo ligado: quem recebe +2 pode responder com outro +2 ou +4, e a conta passa adiante somada.' : 'Acúmulo desligado: quem recebe +2/+4 compra e perde a vez.', c.draw === 'ate' ? 'Sem carta para jogar, você compra até achar uma que sirva e pode jogá-la.' : 'Sem carta para jogar, compre uma. Se ela servir, pode jogá-la; senão a vez passa.', 'Vence a rodada quem ficar sem cartas. Ganha os pontos das cartas dos outros: números pelo valor, especiais 20 e coringas 50.', 'Com mais de uma pessoa no mesmo aparelho, uma tela de passagem esconde as cartas entre as vezes.']; },
+  setup() {
+    const pc = S.get('cfg', null), v = { p1: 'ai', p2: 'ai', p3: 'off', diff: 'medio', stack: false, draw: 'um', hand: 7 };
+    if (pc) { pc.who.slice(1).forEach((w, i) => v['p' + (i + 1)] = w); for (let i = pc.who.length; i < 4; i++) v['p' + i] = 'off'; Object.assign(v, { diff: pc.diff, stack: pc.stack, draw: pc.draw, hand: pc.hand }); }
+    HX.setup({ title: 'Crazy Cards', text: 'Você é o Jogador 1. Escolha os adversários.', values: v,
+      groups: [1, 2, 3].map(p => ({ key: 'p' + p, label: `Jogador ${p + 1}`, opts: [['ai', 'IA'], ['h', 'Humano'], ['off', 'Fora']] })).concat([{ key: 'diff', label: 'Dificuldade da IA', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']] }, { key: 'stack', label: 'Acumular +2/+4', opts: [[false, 'Não'], [true, 'Sim']] }, { key: 'draw', label: 'Sem jogada', opts: [['um', 'Compra 1'], ['ate', 'Compra até servir']] }, { key: 'hand', label: 'Cartas iniciais', opts: [[5, '5'], [7, '7'], [9, '9']] }]),
+      start: 'Distribuir cartas', help: this.helpItems(),
+      onStart: x => { const who = ['h', x.p1, x.p2, x.p3].filter(w => w !== 'off'); if (who.length < 2) { HX.toast('Escolha pelo menos um adversário'); return this.setup(); } const cfg = { who, diff: x.diff, stack: x.stack, draw: x.draw, hand: x.hand }; S.set('cfg', cfg); Game.newRound(cfg); } });
+  },
+  pickColor(cb) { const c = HX.overlay(`<h3>Escolha a cor</h3><div class="colors">${CN.map((n, i) => `<button data-c="${i}" style="background:${CC[i]}">${n}</button>`).join('')}</div>`, { guard: false }); c.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { HX.close(); cb(+b.dataset.c); }); },
+  cover(title, text, go) { HX.close(); const d = document.createElement('div'); d.className = 'cover'; d.innerHTML = `<h2>${title}</h2><p>${text}</p><button class="btn-primary" style="max-width:320px">Mostrar minhas cartas</button>`; document.body.appendChild(d); d.querySelector('button').onclick = () => { d.remove(); go(); }; },
+  menu() { const st = S.get('stats', { rounds: 0, wins: 0 }); const c = HX.overlay(`<h3>Crazy Cards</h3><div class="kv"><div><b>${st.rounds}</b><small>Rodadas</small></div><div><b>${st.wins}</b><small>Vitórias</small></div><div><b>${Game.scores.length ? Math.max(...Game.scores) : 0}</b><small>Maior placar</small></div></div><button class="btn-primary" id="cl">Continuar</button><button class="btn" id="nw">Nova partida</button><div class="row2"><button class="btn" id="sp">Velocidade: ${this.speed > 1 ? 'rápida' : 'normal'}</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#cl', () => HX.close()); HX.on(c, '#nw', () => this.setup()); HX.on(c, '#sp', () => { this.speed = this.speed > 1 ? 1 : 2.5; this.menu(); }); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); }); },
+  end() {
+    const r = Game.result, me = !Game.isAI(r.win);
+    const c = HX.overlay(`<h3>${Game.humans() === 1 ? (me ? 'Você venceu a rodada!' : `${this.nm(r.win)} venceu`) : `${this.nm(r.win)} venceu!`}</h3><p>+${r.pts} pontos pelas cartas dos adversários</p><div class="hist"><ol>${Game.hands.map((h, p) => `<li>${HX.esc(this.nm(p))}: ${Game.scores[p]} pts${h.length ? ` · ficou com ${h.length} carta${h.length > 1 ? 's' : ''}` : ''}</li>`).join('')}</ol></div><button class="btn-primary" id="ag">Próxima rodada</button><div class="row2"><button class="btn" id="bd">Ver mesa</button><button class="btn" id="nw">Mudar jogadores</button></div>`);
+    HX.on(c, '#ag', () => Game.newRound(Game.cfg, true)); HX.on(c, '#bd', () => HX.close()); HX.on(c, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.CR = { Rules, AI, Game, View, UI, S };
+</script>
+</body>
+</html>
