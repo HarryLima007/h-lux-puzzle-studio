@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a1210">
+<title>H-LUX Domino</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0a1210;--bg2:radial-gradient(ellipse at 50% 30%,#163329 0%,#0a1210 66%);--u:22px;--hu:30px}
+.table{display:flex;flex-direction:column;width:100%;height:100%;gap:6px}
+.opps{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.opp{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;font-weight:700}
+.opp.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 16px rgba(201,164,92,.25)}
+.opp b{color:var(--accent2)}
+.board{flex:1;position:relative;border-radius:16px;background:radial-gradient(ellipse at 50% 40%,#1d4a39,#0f2a20);box-shadow:inset 0 0 0 2px rgba(201,164,92,.4);overflow:hidden;min-height:150px}
+.t{position:absolute;display:flex;background:linear-gradient(160deg,#fbf6ea,#e2d7bf);border-radius:calc(var(--u)*.18);box-shadow:0 2px 4px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.2)}
+.t.h{width:calc(var(--u)*2);height:var(--u);flex-direction:row}
+.t.v{width:var(--u);height:calc(var(--u)*2);flex-direction:column}
+.t .hf{flex:1;position:relative}
+.t.h .hf+.hf{box-shadow:inset 1px 0 0 rgba(0,0,0,.35)}.t.v .hf+.hf{box-shadow:inset 0 1px 0 rgba(0,0,0,.35)}
+.t svg{position:absolute;inset:8%;width:84%;height:84%}
+.t.new{box-shadow:0 0 0 2px #f1dca6,0 2px 6px rgba(0,0,0,.5)}
+.end{position:absolute;border-radius:6px;border:2px dashed #f1dca6;background:rgba(241,220,166,.15);cursor:pointer;animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pulse{to{background:rgba(241,220,166,.35)}}
+.hand{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:6px 4px 2px;min-height:calc(var(--hu)*2 + 12px)}
+.hand .t{position:relative;--u:var(--hu);cursor:pointer;transition:transform .15s}
+.hand .t.ok{transform:translateY(-6px);box-shadow:0 0 0 2px #c9a45c,0 4px 8px rgba(0,0,0,.5)}
+.hand .t.no{filter:brightness(.55)}
+.hand .t.sel{transform:translateY(-12px);box-shadow:0 0 0 3px #f1dca6,0 6px 12px rgba(0,0,0,.5)}
+.bar{display:flex;gap:8px;justify-content:center;align-items:center;min-height:40px}
+.bar .btn{width:auto;min-height:40px;padding:0 16px}
+.msg{font-size:13px;font-weight:800;color:var(--accent2);text-align:center;min-height:18px}
+.cover{position:fixed;inset:0;background:#0a1210;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+.cover h2{font-family:'Cormorant Garamond',serif;color:var(--accent2);font-size:30px;margin:0}
+#hx-toast{top:calc(max(10px,env(safe-area-inset-top)) + 110px);bottom:auto}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Domi<b>no</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="stage" id="stage"><div class="table"><div class="opps" id="opps"></div><div class="board" id="board"></div><div class="msg" id="msg"></div><div class="bar" id="bar"></div><div class="hand" id="hand"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-log"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Jogadas</button>
+    <button class="tool" id="t-score"><svg class="i"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Placar</button>
+    <button class="tool" id="t-rules"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Regras</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX DOMINO v1.0 — dominó duplo-seis (28 peças). Modalidades: COMPRA (sem jogada, compra do monte até poder jogar)
+   e BLOQUEIO (sem jogada, passa). 2 a 4 jogadores, humanos ou IA. Partida até a meta de pontos.
+   Quem bate soma os pontos das mãos adversárias; no jogo trancado vence quem tem menos pontos na mão.
+   Módulos: Rules (puras) · AI · Game · View · UI */
+const S = HX.store('domino');
+const Rules = {
+  set() { const s = []; for (let a = 0; a <= 6; a++) for (let b = a; b <= 6; b++) s.push([a, b]); return s; },
+  pips: t => t[0] + t[1],
+  // jogadas possíveis de uma peça: lados onde encaixa
+  sides(t, ends) { if (!ends) return ['L']; const o = []; if (t[0] === ends[0] || t[1] === ends[0]) o.push('L'); if (t[0] === ends[1] || t[1] === ends[1]) o.push('R'); return o; },
+  canPlay(hand, ends) { return hand.some(t => this.sides(t, ends).length); },
+  // coloca; devolve a peça orientada e as novas pontas
+  place(chain, ends, t, side) {
+    if (!ends) return { tile: [t[0], t[1]], ends: [t[0], t[1]], side: 'L' };
+    if (side === 'L') { const tile = t[1] === ends[0] ? [t[0], t[1]] : [t[1], t[0]]; return { tile, ends: [tile[0], ends[1]], side }; }
+    const tile = t[0] === ends[1] ? [t[0], t[1]] : [t[1], t[0]]; return { tile, ends: [ends[0], tile[1]], side };
+  }
+};
+const AI = {
+  pick(hand, ends, lvl, memo) {
+    const opts = []; hand.forEach(t => Rules.sides(t, ends).forEach(s => opts.push({ t, s }))); if (!opts.length) return null;
+    if (lvl === 'facil') return opts[Math.floor(Math.random() * opts.length)];
+    const count = n => hand.filter(t => t[0] === n || t[1] === n).length;
+    const sc = o => { let v = Rules.pips(o.t) * 2 + (o.t[0] === o.t[1] ? 6 : 0);
+      const ne = ends ? Rules.place([], ends, o.t, o.s).ends : [o.t[0], o.t[1]];
+      v += (count(ne[0]) + count(ne[1])) * 2; // mantém pontas que eu consigo continuar
+      if (lvl === 'dificil' && memo) { for (const e of ne) if (memo.has(e)) v += 9; } // números que o próximo não tem
+      return v; };
+    return opts.sort((a, b) => sc(b) - sc(a))[0];
+  }
+};
+const Game = {
+  cfg: null, hands: [], bone: [], chain: [], ends: null, turn: 0, passes: 0, result: null, scores: [], log: [], viewer: 0, busy: false, last: -1, lacks: [], sel: null, starter: -1, roundNo: 0,
+  n() { return this.hands.length; }, isAI(p) { return this.cfg.who[p] === 'ai'; }, humans() { return this.cfg.who.filter(w => w === 'h').length; },
+  newMatch(cfg) { this.cfg = cfg; this.scores = Array(cfg.who.length).fill(0); this.roundNo = 0; this.starter = -1; this.newRound(); },
+  newRound() {
+    HX.close(); const N = this.cfg.who.length; const set = HX.shuffle(Rules.set()); this.hands = Array.from({ length: N }, () => set.splice(0, 7)); this.bone = set; this.chain = []; this.ends = null; this.passes = 0; this.result = null; this.log = []; this.last = -1; this.sel = null; this.lacks = Array.from({ length: N }, () => []); this.roundNo++;
+    // primeira rodada: começa quem tem a maior dupla (ou a peça mais alta); depois, quem venceu a anterior
+    if (this.starter < 0) { let best = -1; this.hands.forEach((h, p) => h.forEach(t => { const v = t[0] === t[1] ? 100 + t[0] : t[0] + t[1]; if (v > best) { best = v; this.turn = p; } })); }
+    else this.turn = this.starter;
+    this.viewer = this.humans() > 1 ? -1 : this.cfg.who.indexOf('h');
+    this.log.push({ t: `Rodada ${this.roundNo}: começa ${UI.nm(this.turn)}` }); this.save(); this.begin();
+  },
+  begin() {
+    if (this.result) return; this.sel = null;
+    if (!this.isAI(this.turn) && this.humans() > 1 && this.viewer !== this.turn) { View.render(); return UI.cover(`Vez de ${UI.nm(this.turn)}`, 'Passe o aparelho. Os outros jogadores não devem olhar as peças.', () => { this.viewer = this.turn; this.begin(); }); }
+    View.render();
+    if (this.isAI(this.turn)) { UI.msg(`${UI.nm(this.turn)} está jogando…`); this.busy = true; return setTimeout(() => { this.busy = false; this.aiTurn(); }, 800); }
+    const h = this.hands[this.turn];
+    if (!Rules.canPlay(h, this.ends)) UI.msg(this.cfg.mode === 'compra' && this.bone.length ? 'Sem jogada: compre do monte' : 'Sem jogada: passe a vez'); else UI.msg(this.chain.length ? 'Sua vez: toque numa peça destacada' : 'Sua vez: escolha a primeira peça');
+  },
+  aiTurn() {
+    const p = this.turn; let o = AI.pick(this.hands[p], this.ends, this.cfg.diff, this.oppLacks(p));
+    while (!o && this.cfg.mode === 'compra' && this.bone.length) { this.draw(p); o = AI.pick(this.hands[p], this.ends, this.cfg.diff, this.oppLacks(p)); }
+    if (!o) return this.pass(p);
+    this.play(p, o.t, o.s);
+  },
+  oppLacks(p) { const nx = (p + 1) % this.n(); return new Set(this.lacks[nx]); },
+  draw(p) { const t = this.bone.pop(); this.hands[p].push(t); this.log.push({ p, t: `${UI.nm(p)} comprou uma peça` }); HX.sfx('dice'); return t; },
+  humanDraw() { const p = this.turn; if (this.isAI(p) || this.busy || this.result) return; if (Rules.canPlay(this.hands[p], this.ends)) return HX.toast('Você tem jogada possível'); if (this.cfg.mode !== 'compra' || !this.bone.length) return HX.toast('Não há compra nesta modalidade'); this.draw(p); this.save(); this.begin(); },
+  pass(p) {
+    if (this.ends) this.lacks[p] = [...new Set(this.lacks[p].concat(this.ends))];
+    this.passes++; this.log.push({ p, t: `${UI.nm(p)} passou` }); HX.toast(`${UI.nm(p)} passou`); HX.sfx('tap');
+    if (this.passes >= this.n()) return this.blocked();
+    this.turn = (p + 1) % this.n(); this.save(); setTimeout(() => this.begin(), 350);
+  },
+  humanPass() { const p = this.turn; if (this.isAI(p) || this.busy || this.result) return; if (Rules.canPlay(this.hands[p], this.ends)) return HX.toast('Você tem jogada possível'); if (this.cfg.mode === 'compra' && this.bone.length) return HX.toast('Compre do monte antes de passar'); this.pass(p); },
+  tap(i) {
+    const p = this.turn; if (this.isAI(p) || this.busy || this.result || HX.isOpen() || p !== this.viewer) return; const t = this.hands[p][i], sides = Rules.sides(t, this.ends);
+    if (!sides.length) { HX.sfx('hit'); return HX.toast('Essa peça não encaixa em nenhuma ponta'); }
+    if (sides.length === 1 || (this.ends && this.ends[0] === this.ends[1] && t[0] !== t[1] && false)) return this.play(p, t, sides[0]);
+    // encaixa nos dois lados: se o resultado é igual, joga direto; senão pede o lado
+    const a = Rules.place(this.chain, this.ends, t, 'L').ends.slice().sort().join(), b = Rules.place(this.chain, this.ends, t, 'R').ends.slice().sort().join();
+    if (a === b) return this.play(p, t, 'R');
+    this.sel = i; View.render(); UI.msg('Toque na ponta onde quer colocar a peça');
+  },
+  play(p, t, side) {
+    const h = this.hands[p]; h.splice(h.indexOf(t), 1); const r = Rules.place(this.chain, this.ends, t, side); this.ends = r.ends;
+    if (!this.chain.length) this.chain.push({ tile: r.tile, p }); else if (side === 'L') this.chain.unshift({ tile: r.tile, p }); else this.chain.push({ tile: r.tile, p });
+    this.last = side === 'L' ? 0 : this.chain.length - 1; this.passes = 0; this.sel = null;
+    this.log.push({ p, t: `${UI.nm(p)} jogou ${t[0]}|${t[1]} ${this.chain.length > 1 ? (side === 'L' ? 'à esquerda' : 'à direita') : ''}` }); HX.sfx('move'); HX.vibrate(8);
+    if (!h.length) return this.finish(p, 'bateu');
+    this.turn = (p + 1) % this.n(); this.save(); View.render(); setTimeout(() => this.begin(), 380);
+  },
+  blocked() {
+    const tot = this.hands.map(h => h.reduce((s, t) => s + Rules.pips(t), 0)); const min = Math.min(...tot); const w = tot.indexOf(min);
+    if (tot.filter(x => x === min).length > 1) { this.result = { win: -1, pts: 0, why: 'trancado e empatado' }; this.log.push({ t: 'Jogo trancado e empatado: ninguém pontua' }); return this.endRound(); }
+    this.finish(w, 'trancou');
+  },
+  finish(w, why) { const pts = this.hands.reduce((s, h, q) => q === w ? s : s + h.reduce((a, t) => a + Rules.pips(t), 0), 0); this.scores[w] += pts; this.result = { win: w, pts, why }; this.starter = w; this.log.push({ p: w, t: `${UI.nm(w)} ${why === 'bateu' ? 'bateu' : 'venceu o jogo trancado'} (+${pts})` }); this.endRound(); },
+  endRound() {
+    const champ = this.scores.findIndex(s => s >= this.cfg.goal); this.result.match = champ;
+    if (champ >= 0 && this.humans()) { const st = S.get('stats', { matches: 0, wins: 0 }); st.matches++; if (!this.isAI(champ)) st.wins++; S.set('stats', st); }
+    if (champ >= 0) { S.del('cur'); S.hub(null); } else this.save();
+    View.render(true); HX.sfx(this.result.win >= 0 && this.isAI(this.result.win) && this.humans() === 1 ? 'lose' : 'win'); const R = this.result; setTimeout(() => { if (this.result === R) UI.end(); }, 1000);
+  },
+  save() { S.set('cur', { cfg: this.cfg, hands: this.hands, bone: this.bone, chain: this.chain, ends: this.ends, turn: this.turn, passes: this.passes, scores: this.scores, log: this.log.slice(-60), lacks: this.lacks, starter: this.starter, roundNo: this.roundNo, result: this.result }); S.hub(this.result && this.result.match >= 0 ? null : `Em andamento · ${this.cfg.mode === 'compra' ? 'Compra' : 'Bloqueio'} · placar ${this.scores.join('×')}`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg) return false; Object.assign(this, { cfg: c.cfg, hands: c.hands, bone: c.bone, chain: c.chain, ends: c.ends, turn: c.turn, passes: c.passes, scores: c.scores, log: c.log || [], lacks: c.lacks || [], starter: c.starter, roundNo: c.roundNo || 1, result: c.result || null, busy: false, sel: null }); this.viewer = this.humans() > 1 ? -1 : this.cfg.who.indexOf('h'); return true; }
+};
+const PIPS = { 0: [], 1: [[50, 50]], 2: [[25, 25], [75, 75]], 3: [[25, 25], [50, 50], [75, 75]], 4: [[25, 25], [75, 25], [25, 75], [75, 75]], 5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]], 6: [[25, 22], [75, 22], [25, 50], [75, 50], [25, 78], [75, 78]] };
+const View = {
+  half(n, rot) { return `<div class="hf"><svg viewBox="0 0 100 100"${rot ? ' style="transform:rotate(90deg)"' : ''}>${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="10" fill="${n === 6 ? '#7b2e22' : '#1a1408'}"/>`).join('')}</svg></div>`; },
+  tile(a, b, dir, cls = '', style = '') { return `<div class="t ${dir} ${cls}" style="${style}">${this.half(a, dir === 'h')}${this.half(b, dir === 'h')}</div>`; },
+  // corrente em zigue-zague: linhas da esquerda para a direita, depois da direita para a esquerda
+  layout(W, H) {
+    const ch = Game.chain; if (!ch.length) return { u: Math.min(36, W / 8), items: [] };
+    for (let u = Math.min(40, W / 6); u >= 9; u -= 1) {
+      const items = []; let x = u * .4, y = u * .5, dir = 1, rowH = u * 2.2, ok = true;
+      for (const c of ch) { const dbl = c.tile[0] === c.tile[1], w = dbl ? u : u * 2;
+        if (dir > 0 ? x + w > W - u * .4 : x - w < u * .4) { y += rowH; dir = -dir; x = dir > 0 ? u * .4 : W - u * .4; if (y + u * 2 > H) { ok = false; break; } }
+        const left = dir > 0 ? x : x - w; items.push({ c, dbl, x: left, y: dbl ? y - u * .5 : y, rev: dir < 0 }); x += dir * (w + u * .08); }
+      if (ok) { // centraliza verticalmente
+        const top = Math.min(...items.map(i => i.y)), bot = Math.max(...items.map(i => i.y + (i.dbl ? u * 2 : u))); const dy = (H - (bot - top)) / 2 - top; items.forEach(i => i.y += dy);
+        if (items.every(i => !i.rev)) { const l = Math.min(...items.map(i => i.x)), r = Math.max(...items.map(i => i.x + (i.dbl ? u : u * 2))); const dx = (W - (r - l)) / 2 - l; items.forEach(i => i.x += dx); }
+        return { u, items };
+      }
+    }
+    return { u: 9, items: [] };
+  },
+  render(reveal) {
+    if (!Game.hands.length) return;
+    HX.$('#opps').innerHTML = Game.hands.map((h, p) => `<div class="opp ${!Game.result && Game.turn === p ? 'on' : ''}">${HX.esc(UI.nm(p))} <b>${h.length}</b>${Game.scores[p] ? `<small style="color:var(--muted)">${Game.scores[p]}/${Game.cfg.goal}</small>` : ''}</div>`).join('') + `<div class="opp">Monte <b>${Game.bone.length}</b></div>`;
+    const bd = HX.$('#board'), W = bd.clientWidth, H = bd.clientHeight, L = this.layout(W, H), u = L.u;
+    bd.style.setProperty('--u', u + 'px');
+    let html = L.items.map((it, k) => { const [a, b] = it.rev ? [it.c.tile[1], it.c.tile[0]] : it.c.tile; return this.tile(a, b, it.dbl ? 'v' : 'h', k === Game.last ? 'new' : '', `left:${it.x}px;top:${it.y}px`); }).join('');
+    const v = Game.viewer, myTurn = !Game.result && v === Game.turn && !Game.isAI(v) && !Game.busy;
+    if (myTurn && Game.sel !== null && L.items.length) { const a = L.items[0], z = L.items[L.items.length - 1], s = u * 1.4;
+      const ex = it => it.rev ? it.x - s - 2 : it.x + (it.dbl ? u : u * 2) + 2; const sx = it => it.rev ? it.x + (it.dbl ? u : u * 2) + 2 : it.x - s - 2;
+      html += `<div class="end" data-s="L" style="left:${Math.max(0, Math.min(W - s, sx(a)))}px;top:${a.y + (a.dbl ? u * .5 : 0) - u * .2}px;width:${s}px;height:${u * 1.4}px"></div><div class="end" data-s="R" style="left:${Math.max(0, Math.min(W - s, ex(z)))}px;top:${z.y + (z.dbl ? u * .5 : 0) - u * .2}px;width:${s}px;height:${u * 1.4}px"></div>`; }
+    if (!L.items.length) html = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(241,220,166,.5);font-weight:700;font-size:13px">A mesa está vazia</div>`;
+    bd.innerHTML = html;
+    bd.querySelectorAll('.end').forEach(e => e.onclick = () => { const h = Game.hands[Game.turn]; Game.play(Game.turn, h[Game.sel], e.dataset.s); });
+    const show = reveal ? null : v >= 0 && !Game.isAI(v) ? Game.hands[v] : null;
+    const hu = Math.max(20, Math.min(36, Math.floor((HX.$('#stage').clientWidth - 16) / Math.max(7, (show || []).length) / 1.25)));
+    HX.$('#hand').style.setProperty('--hu', hu + 'px');
+    HX.$('#hand').innerHTML = (show || []).map((t, i) => this.tile(t[0], t[1], 'v', myTurn ? (Game.sel === i ? 'sel' : Rules.sides(t, Game.ends).length ? 'ok' : 'no') : '', '').replace('class="t', `data-i="${i}" class="t`)).join('') ||
+      (reveal ? Game.hands.map((h, p) => h.length ? `<div style="font-size:12px;color:var(--muted);width:100%;text-align:center">${HX.esc(UI.nm(p))}: ${h.map(t => t.join('|')).join('  ')} (${h.reduce((s, t) => s + Rules.pips(t), 0)} pts)</div>` : '').join('') : '');
+    const canDraw = myTurn && !Rules.canPlay(Game.hands[v], Game.ends);
+    if (Game.result) { HX.$('#bar').innerHTML = '<button class="btn" id="res">Ver resultado</button>'; HX.on(HX.$('#bar'), '#res', () => UI.end()); return; }
+    HX.$('#bar').innerHTML = canDraw ? (Game.cfg.mode === 'compra' && Game.bone.length ? '<button class="btn" id="drw">Comprar do monte</button>' : '<button class="btn" id="pss">Passar a vez</button>') : (myTurn && Game.sel !== null ? '<button class="btn" id="cnl">Cancelar</button>' : '');
+    HX.on(HX.$('#bar'), '#drw', () => Game.humanDraw()); HX.on(HX.$('#bar'), '#pss', () => Game.humanPass()); HX.on(HX.$('#bar'), '#cnl', () => { Game.sel = null; this.render(); Game.begin(); });
+  }
+};
+const UI = {
+  init() {
+    HX.$('#hand').addEventListener('click', e => { const t = e.target.closest('[data-i]'); if (t) Game.tap(+t.dataset.i); });
+    HX.$('#t-log').onclick = () => { const c = HX.overlay(`<h3>Jogadas</h3><div class="hist"><ol>${Game.log.map(l => `<li>${HX.esc(l.t)}</li>`).join('')}</ol></div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => HX.close()); };
+    HX.$('#t-score').onclick = () => { const c = HX.overlay(`<h3>Placar</h3><p>Meta: ${Game.cfg.goal} pontos · rodada ${Game.roundNo}</p><div class="hist"><ol>${Game.scores.map((s, p) => `<li>${HX.esc(this.nm(p))}: ${s}</li>`).join('')}</ol></div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => HX.close()); };
+    HX.$('#t-rules').onclick = () => HX.help('Regras', this.helpItems()); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    new ResizeObserver(() => View.render()).observe(HX.$('#stage'));
+    HX.life({ onHide: () => Game.cfg && !(Game.result && Game.result.match >= 0) && Game.save() });
+    if (Game.load()) { HX.toast('Partida retomada'); if (Game.result) { View.render(true); UI.end(); } else Game.begin(); } else this.setup();
+  },
+  nm(p) { if (!Game.cfg) return ''; if (Game.cfg.who[p] === 'ai') return `IA ${p + 1}`; return Game.humans() > 1 ? `Jogador ${p + 1}` : 'Você'; },
+  msg(t) { HX.$('#msg').textContent = t; },
+  helpItems() { const c = Game.cfg || { mode: 'compra', goal: 100 }; return ['Dominó com 28 peças (do 0|0 ao 6|6). Cada jogador recebe 7 peças.', 'Na primeira rodada começa quem tem a maior dupla; nas seguintes, quem venceu a anterior.', 'Na sua vez, encaixe uma peça numa das duas pontas da mesa: o número encostado precisa ser igual. Toque na peça; se ela servir nas duas pontas, toque depois na ponta desejada.', c.mode === 'compra' ? 'Modalidade COMPRA: sem jogada possível, compre do monte até conseguir jogar. Com o monte vazio, passe a vez.' : 'Modalidade BLOQUEIO: sem jogada possível, passe a vez. As peças que sobram não são usadas.', 'A rodada acaba quando alguém bate (fica sem peças) ou quando o jogo tranca (ninguém consegue jogar).', 'Quem bate ganha a soma dos pontos das peças dos adversários. No jogo trancado, vence quem tem menos pontos na mão e ganha a soma dos outros.', `Vence a partida quem chegar primeiro a ${c.goal || 100} pontos.`]; },
+  setup() {
+    const pc = S.get('cfg', null), v = { p1: 'ai', p2: 'off', p3: 'off', diff: 'medio', mode: 'compra', goal: 100 };
+    if (pc) { pc.who.slice(1).forEach((w, i) => v['p' + (i + 1)] = w); for (let i = pc.who.length; i < 4; i++) v['p' + i] = 'off'; Object.assign(v, { diff: pc.diff, mode: pc.mode, goal: pc.goal }); }
+    HX.setup({ title: 'Domino', text: 'Você é o Jogador 1. Escolha os adversários e a modalidade.', values: v,
+      groups: [1, 2, 3].map(p => ({ key: 'p' + p, label: `Jogador ${p + 1}`, opts: [['ai', 'IA'], ['h', 'Humano'], ['off', 'Fora']] })).concat([{ key: 'mode', label: 'Modalidade', opts: [['compra', 'Compra'], ['bloqueio', 'Bloqueio']] }, { key: 'diff', label: 'Dificuldade da IA', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']] }, { key: 'goal', label: 'Meta da partida', opts: [[50, '50'], [100, '100'], [150, '150']] }]),
+      start: 'Distribuir peças', help: this.helpItems(),
+      onStart: x => { const who = ['h', x.p1, x.p2, x.p3].filter(w => w !== 'off'); if (who.length < 2) { HX.toast('Escolha pelo menos um adversário'); return this.setup(); } const cfg = { who, diff: x.diff, mode: x.mode, goal: x.goal }; S.set('cfg', cfg); Game.newMatch(cfg); } });
+  },
+  cover(title, text, go) { HX.close(); const d = document.createElement('div'); d.className = 'cover'; d.innerHTML = `<h2>${title}</h2><p>${text}</p><button class="btn-primary" style="max-width:320px">Mostrar minhas peças</button>`; document.body.appendChild(d); d.querySelector('button').onclick = () => { d.remove(); go(); }; },
+  menu() { const st = S.get('stats', { matches: 0, wins: 0 }); const c = HX.overlay(`<h3>Domino</h3><div class="kv"><div><b>${st.matches}</b><small>Partidas</small></div><div><b>${st.wins}</b><small>Vitórias</small></div></div><button class="btn-primary" id="cl">Continuar</button><button class="btn" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hw">Regras</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#cl', () => HX.close()); HX.on(c, '#nw', () => this.setup()); HX.on(c, '#hw', () => HX.help('Regras', this.helpItems())); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); }); },
+  end() {
+    const r = Game.result, m = r.match >= 0;
+    const head = r.win < 0 ? 'Jogo trancado empatado' : m ? `${this.nm(r.match)} venceu a partida!` : `${this.nm(r.win)} ${r.why === 'bateu' ? 'bateu!' : 'venceu o jogo trancado'}`;
+    const c = HX.overlay(`<h3>${head}</h3><p>${r.win >= 0 ? `+${r.pts} pontos nesta rodada` : 'Ninguém pontua nesta rodada'}</p><div class="hist"><ol>${Game.scores.map((s, p) => `<li>${HX.esc(this.nm(p))}: ${s}/${Game.cfg.goal}</li>`).join('')}</ol></div><button class="btn-primary" id="ag">${m ? 'Nova partida' : 'Próxima rodada'}</button><div class="row2"><button class="btn" id="bd">Ver mesa</button><button class="btn" id="nw">Mudar jogadores</button></div>`);
+    HX.on(c, '#ag', () => m ? Game.newMatch(Game.cfg) : Game.newRound()); HX.on(c, '#bd', () => HX.close()); HX.on(c, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.DM = { Rules, AI, Game, View, UI, S };
+</script>
+</body>
+</html>
