@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0e0a12">
+<title>H-LUX Memory</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0e0a12;--bg2:radial-gradient(ellipse at 50% 0%,#2a1d33 0%,#0e0a12 64%);--w:70px;--h:90px}
+.grid{display:grid;gap:8px;perspective:900px;touch-action:manipulation}
+.card{width:var(--w);height:var(--h);position:relative;transform-style:preserve-3d;transition:transform .38s cubic-bezier(.4,.2,.2,1);cursor:pointer}
+.card.up,.card.got{transform:rotateY(180deg)}
+.card .f,.card .b{position:absolute;inset:0;border-radius:12px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
+.card .b{background:radial-gradient(circle at 50% 40%,#2b2333,#16111c);box-shadow:inset 0 0 0 2px #c9a45c,0 6px 14px rgba(0,0,0,.45)}
+.card .b::after{content:'H';font-family:'Cormorant Garamond',serif;font-weight:700;font-size:calc(var(--w)*.42);color:#c9a45c;opacity:.85}
+.card .f{transform:rotateY(180deg);background:linear-gradient(160deg,#fbf6ea,#e7dcc3);box-shadow:inset 0 0 0 2px #c9a45c,0 6px 14px rgba(0,0,0,.45);font-size:calc(var(--w)*.55)}
+.card .f svg{width:70%;height:70%}
+.card.got .f{box-shadow:inset 0 0 0 3px #f1dca6,0 0 16px rgba(241,220,166,.45);animation:got .5s}
+@keyframes got{50%{transform:rotateY(180deg) scale(1.08)}}
+.card.got{opacity:.8}
+.card.miss .f{box-shadow:inset 0 0 0 3px #d9534f}
+.card.peek .f{box-shadow:inset 0 0 0 3px #6fb7ff}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Mem<b>ory</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc"><small>Pares</small><b id="pairs">0/0</b></div><div class="sc"><small>Jogadas</small><b id="moves">0</b></div><div class="sc"><small>Tempo</small><b id="time">0:00</b></div></div>
+  <div class="stage" id="stage"><div class="grid" id="grid"></div></div>
+  <div class="tools">
+    <button class="tool" id="t-pause"><svg class="i"><path d="M9 6v12M15 6v12"/></svg>Pausa</button>
+    <button class="tool" id="t-restart"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Reiniciar</button>
+    <button class="tool" id="t-levels"><svg class="i"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2"/></svg>Fases</button>
+    <button class="tool" id="t-theme"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/></svg><span id="thn">Tema</span></button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX MEMORY v1.0 — encontre os pares. Campanha de 15 fases (6 a 18 pares) + modo livre.
+   Temas: Joias e Símbolos (desenhos SVG próprios), Natureza e Comidas (emojis do sistema).
+   Módulos: Themes · Game · View · UI */
+const S = HX.store('memory');
+const GEM = ['#e5484d', '#3ccf7a', '#3d8bff', '#f2c230', '#c86bff', '#ff8c2e', '#2fe0e0', '#ff6fb5', '#a0522d', '#8a6bff', '#6a8f2a', '#d4af37'];
+const SHAPES = [
+  c => `<polygon points="50,6 92,40 50,94 8,40" fill="${c}"/><polygon points="50,6 70,40 50,94 30,40" fill="#fff" opacity=".25"/>`,
+  c => `<circle cx="50" cy="50" r="40" fill="${c}"/><circle cx="38" cy="36" r="12" fill="#fff" opacity=".35"/>`,
+  c => `<polygon points="50,6 61,38 95,38 67,58 78,92 50,72 22,92 33,58 5,38 39,38" fill="${c}"/>`,
+  c => `<path d="M50 88 12 50a22 22 0 0 1 38-30 22 22 0 0 1 38 30z" fill="${c}"/>`,
+  c => `<polygon points="50,6 90,28 90,72 50,94 10,72 10,28" fill="${c}"/><polygon points="50,24 72,36 72,64 50,76 28,64 28,36" fill="#fff" opacity=".22"/>`,
+  c => `<rect x="14" y="14" width="72" height="72" rx="10" fill="${c}" transform="rotate(12 50 50)"/>`,
+  c => `<path d="M50 8 L90 86 H10Z" fill="${c}"/>`,
+  c => `<path d="M30 10h40l20 30-40 52-40-52z" fill="${c}"/><path d="M10 40h80" stroke="#fff" stroke-opacity=".35" stroke-width="4"/>`,
+  c => `<path d="M50 6c10 24 20 30 44 44-24 14-34 20-44 44-10-24-20-30-44-44 24-14 34-20 44-44z" fill="${c}"/>`
+];
+const Themes = {
+  joias: { n: 'Joias', items: Array.from({ length: 24 }, (_, k) => ({ svg: SHAPES[k % SHAPES.length](GEM[(k * 5) % GEM.length]) })) },
+  simbolos: { n: 'Símbolos', items: ['M20 50h60M50 20v60', 'M25 25l50 50M75 25 25 75', 'M50 15a35 35 0 1 0 .1 0', 'M20 80 50 20 80 80z', 'M20 20h60v60H20z', 'M50 12 88 50 50 88 12 50z', 'M15 50q17-30 35 0t35 0', 'M20 30h60M20 50h60M20 70h60', 'M30 20v60M50 20v60M70 20v60', 'M50 15v70M15 50h70M25 25l50 50M75 25 25 75', 'M20 75 40 25l20 40 20-30', 'M50 20a30 30 0 1 1-30 30', 'M25 50a25 25 0 0 1 50 0 25 25 0 0 1-50 0M50 25v50', 'M20 20 80 80M20 50h30v30', 'M35 15h30v20h20v30H65v20H35V65H15V35h20z', 'M50 15 60 40h25L65 55l8 27-23-16-23 16 8-27-20-15h25z', 'M20 50h20l10-25 10 50 10-25h10', 'M30 30h40v40H30zM15 15l15 15M85 15 70 30M15 85l15-15M85 85 70 70'].map((d, k) => ({ svg: `<path d="${d}" fill="none" stroke="${['#1d1a14', '#7b2e22', '#1f4f8f', '#2f6b3a'][k % 4]}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>` })) },
+  natureza: { n: 'Natureza', items: '🌸 🌻 🌵 🍀 🍁 🌙 ⭐ ☀️ 🌈 ❄️ 🔥 🌊 🐝 🦋 🐞 🐢 🐬 🦊 🐼 🦁 🐸 🦉 🐙 🌴'.split(' ').map(e => ({ e })) },
+  comidas: { n: 'Comidas', items: '🍎 🍌 🍇 🍉 🍓 🍒 🍍 🥝 🥥 🥑 🌽 🥕 🍕 🍔 🍟 🌮 🍩 🍪 🧁 🍫 🍿 🧀 🥐 🍰'.split(' ').map(e => ({ e })) }
+};
+const LEVELS = [[6, 4], [6, 4], [8, 4], [8, 4], [10, 5], [10, 5], [10, 4], [12, 6], [12, 6], [12, 4], [15, 6], [15, 5], [18, 6], [18, 6], [18, 6]].map(([p, c], k) => ({ pairs: p, cols: c, theme: ['joias', 'natureza', 'simbolos', 'comidas'][k % 4], peek: k < 4 ? 1200 : 0 }));
+const Game = {
+  lv: 0, free: null, deck: [], up: [], got: [], moves: 0, misses: 0, timer: HX.timer(), lock: false, done: false, paused: false, theme: 'joias', seen: new Set(),
+  get L() { return this.free || LEVELS[this.lv]; },
+  start(lv, free, resume) {
+    HX.close(); this.lv = lv; this.free = free || null; const L = this.L; this.theme = (free && free.theme) || S.get('theme', null) || L.theme;
+    const sv = resume && S.get('cur', null);
+    if (sv) { Object.assign(this, { deck: sv.deck, got: sv.got, moves: sv.moves, misses: sv.misses, theme: sv.theme }); this.seen = new Set(sv.seen || []); }
+    else { const items = HX.shuffle([...Themes[this.theme].items.keys()]).slice(0, L.pairs); this.deck = HX.shuffle(items.concat(items)); this.got = []; this.moves = 0; this.misses = 0; this.seen = new Set(); }
+    this.up = []; this.lock = false; this.done = false; this.paused = false; this.timer = HX.timer(); if (sv) this.timer.set(sv.ms);
+    View.build(); UI.hud(); this.save();
+    if (!sv && L.peek) { this.lock = true; View.peek(true); setTimeout(() => { View.peek(false); this.lock = false; this.timer.start(() => UI.clock()); }, L.peek); }
+    else this.timer.start(() => UI.clock());
+  },
+  flip(i) {
+    if (this.lock || this.done || this.paused || this.up.includes(i) || this.got.includes(i)) return;
+    this.up.push(i); HX.sfx('tap'); View.state();
+    if (this.up.length < 2) return;
+    this.moves++; const [a, b] = this.up; this.lock = true;
+    if (this.deck[a] === this.deck[b]) { setTimeout(() => { this.got.push(a, b); this.up = []; this.lock = false; HX.sfx('coin'); HX.vibrate(12); View.state(); UI.hud(); this.save(); if (this.got.length === this.deck.length) this.win(); }, 300); }
+    else { if (this.seen.has(a) || this.seen.has(b)) this.misses++; this.seen.add(a); this.seen.add(b); View.miss(a, b); setTimeout(() => { this.up = []; this.lock = false; View.state(); UI.hud(); this.save(); }, 850); }
+    UI.hud();
+  },
+  stars() { const p = this.L.pairs, m = this.moves; return m <= Math.ceil(p * 1.6) ? 3 : m <= Math.ceil(p * 2.3) ? 2 : 1; },
+  win() {
+    this.done = true; this.timer.stop(); const secs = Math.round(this.timer.ms / 1000), L = this.L, stars = this.stars();
+    const score = Math.max(50, L.pairs * 100 - Math.max(0, this.moves - L.pairs) * 12 - secs * 2);
+    const key = this.free ? 'free' + L.pairs : 'lv' + this.lv; const rec = S.get('records', {}); const old = rec[key];
+    const best = !old || score > old.score; rec[key] = { score: Math.max(score, old ? old.score : 0), moves: old ? Math.min(old.moves, this.moves) : this.moves, secs: old ? Math.min(old.secs, secs) : secs }; S.set('records', rec);
+    if (!this.free) { const p = S.get('progress', { unlocked: 0, stars: {} }); p.stars[this.lv] = Math.max(p.stars[this.lv] || 0, stars); p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length - 1)); S.set('progress', p); S.hub(`Fase ${p.unlocked + 1} de ${LEVELS.length}`); } else S.hub(null);
+    S.del('cur'); HX.sfx('win'); setTimeout(() => UI.win(score, secs, stars, best), 500);
+  },
+  pause(on) { if (this.done) return; this.paused = on; if (on) this.timer.stop(); else this.timer.start(() => UI.clock()); View.state(); },
+  save() { if (this.done) return; S.set('cur', { lv: this.lv, free: this.free, deck: this.deck, got: this.got, moves: this.moves, misses: this.misses, ms: this.timer.ms, theme: this.theme, seen: [...this.seen] }); S.hub(`${this.free ? 'Modo livre' : 'Fase ' + (this.lv + 1)} · ${this.got.length / 2}/${this.deck.length / 2} pares`); }
+};
+const View = {
+  build() {
+    const g = HX.$('#grid'), L = Game.L, n = Game.deck.length, T = Themes[Game.theme];
+    const land = innerWidth > innerHeight; let cols = L.cols; if (land) cols = Math.min(n, Math.ceil(n / Math.max(2, Math.floor(n / (L.cols + 2))))); const rows = Math.ceil(n / cols);
+    g.style.gridTemplateColumns = `repeat(${cols},var(--w))`;
+    g.innerHTML = Game.deck.map((id, i) => { const it = T.items[id]; return `<div class="card" data-i="${i}"><div class="b"></div><div class="f">${it.svg ? `<svg viewBox="0 0 100 100">${it.svg}</svg>` : it.e}</div></div>`; }).join('');
+    g.onclick = e => { const c = e.target.closest('.card'); if (c && !HX.isOpen()) Game.flip(+c.dataset.i); };
+    this.cols = cols; this.rows = rows; this.fit(); this.state(); HX.$('#thn').textContent = T.n;
+  },
+  fit() { const st = HX.$('#stage'); if (!this.cols) return; const w = Math.floor(Math.min((st.clientWidth - 12 - (this.cols - 1) * 8) / this.cols, ((st.clientHeight - 12 - (this.rows - 1) * 8) / this.rows) / 1.28, 120)); document.documentElement.style.setProperty('--w', Math.max(38, w) + 'px'); document.documentElement.style.setProperty('--h', Math.round(Math.max(38, w) * 1.28) + 'px'); },
+  state() { HX.$('#grid').querySelectorAll('.card').forEach(c => { const i = +c.dataset.i; c.classList.toggle('up', Game.up.includes(i) && !Game.paused); c.classList.toggle('got', Game.got.includes(i)); c.classList.remove('miss'); }); HX.$('#grid').style.filter = Game.paused ? 'blur(10px)' : ''; },
+  miss(a, b) { for (const i of [a, b]) { const c = HX.$('#grid').children[i]; c.classList.add('miss'); } HX.sfx('hit'); },
+  peek(on) { HX.$('#grid').querySelectorAll('.card').forEach(c => { c.classList.toggle('up', on); c.classList.toggle('peek', on); }); if (on) HX.toast('Memorize as cartas!', 1100); }
+};
+const UI = {
+  init() {
+    HX.$('#t-pause').onclick = () => { if (Game.done) return; Game.pause(true); const c = HX.overlay(`<h3>Pausa</h3><p>As cartas ficam escondidas enquanto o jogo está pausado.</p><button class="btn-primary" id="rs">Continuar</button>`, { guard: false }); HX.on(c, '#rs', () => { HX.close(); Game.pause(false); }); };
+    HX.$('#t-restart').onclick = () => { S.del('cur'); Game.start(Game.lv, Game.free); };
+    HX.$('#t-levels').onclick = () => this.levels(); HX.$('#menu').onclick = () => this.levels(); HX.$('#t-theme').onclick = () => this.themes();
+    new ResizeObserver(() => View.fit()).observe(HX.$('#stage')); addEventListener('resize', () => Game.deck.length && View.build());
+    HX.life({ onHide: () => { if (!Game.done && !Game.paused) Game.timer.stop(); Game.save(); }, onShow: () => { if (!Game.done && !Game.paused && !HX.isOpen() && !Game.lock) Game.timer.start(() => this.clock()); } });
+    const cur = S.get('cur', null); if (cur) { Game.start(cur.lv, cur.free, true); HX.toast('Partida retomada'); } else this.levels();
+  },
+  hud() { if (!Game.deck.length) return; HX.$('#lv').textContent = Game.free ? 'Livre' : Game.lv + 1; HX.$('#pairs').textContent = `${Game.got.length / 2}/${Game.deck.length / 2}`; HX.$('#moves').textContent = Game.moves; this.clock(); },
+  clock() { HX.$('#time').textContent = HX.fmt(Game.timer.ms); },
+  helpItems: ['Toque em duas cartas para virá-las. Se forem iguais, ficam abertas; se não, voltam a ficar viradas para baixo.', 'Encontre todos os pares com o menor número de jogadas (cada par de cartas viradas conta uma jogada).', 'Nas primeiras fases você vê todas as cartas por um instante antes de começar.', 'Estrelas: ★★★ com até 1,6 jogada por par; ★★ com até 2,3.', 'Pausar esconde as cartas. O tema pode ser trocado a qualquer momento (recomeça a partida).', 'No modo livre você escolhe o tamanho do tabuleiro e o tema.'],
+  levels() {
+    Game.timer.stop(); const p = S.get('progress', { unlocked: 0, stars: {} });
+    const c = HX.overlay(`<h3>Memory</h3><p>Campanha: 15 fases de 6 a 18 pares.</p><div class="levels">${LEVELS.map((L, k) => `<button class="lvb ${k > p.unlocked ? 'locked' : ''} ${k === p.unlocked ? 'next' : ''}" data-k="${k}">${k + 1}<small>${p.stars[k] ? '★'.repeat(p.stars[k]) + '☆'.repeat(3 - p.stars[k]) : k > p.unlocked ? '🔒' : L.pairs + ' pares'}</small></button>`).join('')}</div><button class="btn-primary" id="go">${S.get('cur', null) ? 'Continuar' : 'Jogar fase ' + (p.unlocked + 1)}</button><div class="row2"><button class="btn" id="fr">Modo livre</button><button class="btn" id="how">Como jogar</button></div>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Conclua a fase anterior'); S.del('cur'); S.del('theme'); Game.start(k); });
+    HX.on(c, '#go', () => { if (S.get('cur', null)) { HX.close(); if (!Game.lock) Game.timer.start(() => this.clock()); } else { S.del('theme'); Game.start(p.unlocked); } });
+    HX.on(c, '#fr', () => this.freeSetup()); HX.on(c, '#how', () => HX.help('Como jogar', this.helpItems, () => this.levels()));
+  },
+  freeSetup() {
+    const rec = S.get('records', {});
+    HX.setup({ title: 'Modo livre', text: 'Escolha tamanho e tema.', values: S.get('freeCfg', { pairs: 8, theme: 'joias' }),
+      groups: [{ key: 'pairs', label: 'Tamanho', opts: [[6, '3×4'], [8, '4×4'], [10, '4×5'], [12, '4×6'], [15, '5×6'], [18, '6×6']] }, { key: 'theme', label: 'Tema', opts: Object.entries(Themes).map(([k, t]) => [k, t.n]) }],
+      start: 'Jogar', extra: `<p style="margin-top:8px">Recordes: ${[6, 8, 10, 12, 15, 18].map(n => rec['free' + n] ? `${n} pares ${rec['free' + n].moves} jog.` : '').filter(Boolean).join(' · ') || 'nenhum ainda'}</p>`,
+      onStart: x => { S.set('freeCfg', x); S.del('cur'); Game.start(0, { pairs: x.pairs, cols: { 6: 3, 8: 4, 10: 4, 12: 4, 15: 5, 18: 6 }[x.pairs], theme: x.theme, peek: 0 }); } });
+  },
+  themes() {
+    const c = HX.overlay(`<h3>Tema das cartas</h3><p>Trocar o tema recomeça a partida atual.</p>${Object.entries(Themes).map(([k, t]) => `<button class="btn ${k === Game.theme ? 'acc' : ''}" data-t="${k}">${t.n}</button>`).join('')}<button class="btn-primary" id="cl">Fechar</button>`, { guard: false, dismiss: () => {} });
+    c.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.set('theme', b.dataset.t); S.del('cur'); Game.start(Game.lv, Game.free ? Object.assign({}, Game.free, { theme: b.dataset.t }) : null); });
+    HX.on(c, '#cl', () => HX.close());
+  },
+  win(score, secs, stars, best) {
+    const last = !Game.free && Game.lv + 1 >= LEVELS.length;
+    const c = HX.overlay(`<h3>${best ? 'Novo recorde!' : 'Todos os pares!'}</h3><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><div class="kv"><div><b>${Game.moves}</b><small>Jogadas</small></div><div><b>${HX.fmt(secs * 1000)}</b><small>Tempo</small></div><div><b>${score}</b><small>Pontos</small></div></div>${Game.free || last ? '' : '<button class="btn-primary" id="nx">Próxima fase</button>'}<div class="row2"><button class="btn" id="rp">Jogar de novo</button><button class="btn" id="lv">${Game.free ? 'Menu' : 'Fases'}</button></div>`);
+    HX.on(c, '#nx', () => { S.del('theme'); Game.start(Game.lv + 1); }); HX.on(c, '#rp', () => Game.start(Game.lv, Game.free)); HX.on(c, '#lv', () => this.levels());
+  }
+};
+UI.init(); HX.sw();
+window.MM = { LEVELS, Themes, Game, View, UI, S };
+</script>
+</body>
+</html>

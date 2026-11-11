@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>H-LUX Spider</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#06130d;--bg2:radial-gradient(ellipse at 50% 0%,#0f3a26 0%,#06130d 66%);--cw:36px;--ch:52px}
+.table{position:relative;width:100%;height:100%;touch-action:none;user-select:none;margin:0 auto}
+.topline{display:flex;justify-content:space-between;align-items:center;height:calc(var(--ch) + 8px);padding:0 2px}
+.stock{position:relative;width:calc(var(--cw)*1.6);height:var(--ch);cursor:pointer}
+.stock .cd{position:absolute;top:0}
+.found{display:flex;gap:3px}
+.found .slot{width:calc(var(--cw)*.7);height:calc(var(--ch)*.7);border-radius:6px;border:1px dashed rgba(201,164,92,.35);display:flex;align-items:center;justify-content:center;font-size:12px;color:#c9a45c}
+.found .slot.full{border:0;background:linear-gradient(160deg,#fff,#eadfc8);color:#1a1408;font-weight:800}
+.cols{position:relative;display:grid;grid-template-columns:repeat(10,var(--cw));justify-content:space-between;margin-top:6px}
+.col{position:relative;min-height:var(--ch);border-radius:6px}
+.col.empty{box-shadow:inset 0 0 0 1px rgba(201,164,92,.3)}
+.col.drop{box-shadow:inset 0 0 0 2px #f1dca6}
+.cd{position:absolute;left:0;width:var(--cw);height:var(--ch);border-radius:5px;background:linear-gradient(160deg,#fffdf7,#eee5d0);box-shadow:0 1px 2px rgba(0,0,0,.5),inset 0 0 0 1px rgba(0,0,0,.15);font-weight:800;line-height:1;transition:top .12s}
+.cd .r{position:absolute;left:3px;top:2px;font-size:calc(var(--cw)*.36);letter-spacing:-.5px}
+.cd .s{position:absolute;right:2px;top:2px;font-size:calc(var(--cw)*.32)}
+.cd .big{position:absolute;left:0;right:0;bottom:3px;text-align:center;font-size:calc(var(--cw)*.6)}
+.cd.red{color:#c62828}.cd.blk{color:#16130d}
+.cd.down{background:repeating-linear-gradient(45deg,#1b2a22 0 4px,#14211a 4px 8px);box-shadow:inset 0 0 0 1.5px #c9a45c,0 1px 2px rgba(0,0,0,.5)}
+.cd.down *{display:none}
+.cd.sel{box-shadow:0 0 0 2px #f1dca6,0 2px 6px rgba(0,0,0,.6)}
+.cd.hint{box-shadow:0 0 0 3px #6fb7ff,0 2px 6px rgba(0,0,0,.6)}
+.cd.drag{z-index:50;pointer-events:none;transition:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Spi<b>der</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Naipes</small><b id="suits">1</b></div><div class="sc"><small>Pontos</small><b id="score">500</b></div><div class="sc"><small>Jogadas</small><b id="moves">0</b></div><div class="sc"><small>Tempo</small><b id="time">0:00</b></div></div>
+  <div class="stage" id="stage" style="align-items:stretch;justify-content:flex-start"><div class="table" id="table"><div class="topline"><div class="stock" id="stock"></div><div class="found" id="found"></div></div><div class="cols" id="cols"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica</button>
+    <button class="tool" id="t-deal"><svg class="i"><rect x="5" y="4" width="11" height="15" rx="2"/><path d="M9 8h10v12H9"/></svg>Distribuir</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Novo</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX SPIDER v1.0 — paciência Spider com 104 cartas (dois baralhos), 10 colunas, 5 distribuições de 10.
+   Modos: 1, 2 ou 4 naipes. Sequência K→A do mesmo naipe sai da mesa. Pontuação clássica: 500, −1 por jogada, +100 por sequência.
+   Módulos: Rules (puras) · Game · View · UI */
+const S = HX.store('spider');
+const SUIT = ['♠', '♥', '♦', '♣'], RED = [false, true, true, false], RK = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const Rules = {
+  deal(suits, rnd = Math.random) {
+    const deck = []; const ss = suits === 1 ? [0] : suits === 2 ? [0, 1] : [0, 1, 2, 3];
+    for (let k = 0; k < 8; k++) for (let r = 1; r <= 13; r++) deck.push({ s: ss[k % ss.length], r, up: false });
+    HX.shuffle(deck, rnd); const cols = Array.from({ length: 10 }, () => []);
+    for (let i = 0; i < 54; i++) cols[i % 10].push(deck.pop());
+    cols.forEach(c => c[c.length - 1].up = true);
+    return { cols, stock: deck, done: [] };
+  },
+  // a partir do índice i a coluna forma uma sequência movível (mesmo naipe, decrescente)
+  runFrom(col, i) { if (i < 0 || i >= col.length || !col[i].up) return false; for (let k = i + 1; k < col.length; k++) if (col[k].s !== col[i].s || col[k].r !== col[k - 1].r - 1) return false; return true; },
+  canDrop(col, card) { if (!col.length) return true; const t = col[col.length - 1]; return t.up && t.r === card.r + 1; },
+  // remove sequências completas K→A; devolve os naipes removidos
+  collect(st) { const out = []; for (const c of st.cols) { if (c.length < 13) continue; const i = c.length - 13; if (c[i].r === 13 && this.runFrom(c, i) && c[c.length - 1].r === 1) { out.push(c[i].s); c.splice(i, 13); if (c.length && !c[c.length - 1].up) c[c.length - 1].up = true; } } st.done.push(...out); return out; },
+  moves(st) {
+    const out = [];
+    st.cols.forEach((c, from) => { for (let i = 0; i < c.length; i++) { if (!this.runFrom(c, i)) continue; const card = c[i];
+      st.cols.forEach((t, to) => { if (to === from || !this.canDrop(t, card)) return; const reveal = i > 0 && !c[i - 1].up, same = t.length && t[t.length - 1].s === card.s, toEmpty = !t.length;
+        if (toEmpty && i === 0) return; // mover coluna inteira para coluna vazia não ajuda
+        // não é útil soltar sobre carta de mesma ordem que já estava encaixada no mesmo naipe
+        const already = i > 0 && c[i - 1].up && c[i - 1].r === card.r + 1 && c[i - 1].s === card.s;
+        if (already && !same) return;
+        let v = (same ? 50 : 10) + (reveal ? 30 : 0) + (i === 0 ? 20 : 0) - (toEmpty ? 25 : 0) + (c.length - i);
+        if (already) v -= 60; out.push({ from, i, to, v }); }); } });
+    return out.sort((a, b) => b.v - a.v);
+  }
+};
+const Game = {
+  st: null, suits: 1, moves: 0, score: 500, hist: [], timer: HX.timer(), done: false, hintK: 0, seed: 0,
+  newGame(suits) {
+    HX.close(); this.suits = suits; this.seed = Date.now() % 1e9; this.st = Rules.deal(suits, HX.rng(this.seed)); this.moves = 0; this.score = 500; this.hist = []; this.done = false; this.hintK = 0;
+    this.timer = HX.timer(); this.timer.start(() => UI.clock());
+    const stt = S.get('stats', {}); const k = 's' + suits; stt[k] = stt[k] || { played: 0, won: 0, best: 0, fastest: 0 }; stt[k].played++; S.set('stats', stt);
+    View.render(); UI.hud(); this.save();
+  },
+  snap() { this.hist.push(JSON.stringify({ st: this.st, moves: this.moves, score: this.score })); if (this.hist.length > 250) this.hist.shift(); },
+  move(from, i, to, silent) {
+    const c = this.st.cols[from], t = this.st.cols[to]; if (from === to || !Rules.runFrom(c, i) || !Rules.canDrop(t, c[i])) return false;
+    this.snap(); t.push(...c.splice(i)); if (c.length && !c[c.length - 1].up) c[c.length - 1].up = true;
+    this.moves++; this.score--; this.hintK = 0;
+    const got = Rules.collect(this.st); if (got.length) { this.score += 100 * got.length; HX.sfx('win'); HX.vibrate(30); HX.toast('Sequência completa!'); } else if (!silent) HX.sfx('move');
+    this.after(); return true;
+  },
+  dealRow() {
+    if (this.done) return; if (!this.st.stock.length) return HX.toast('Não há mais cartas para distribuir');
+    if (this.st.cols.some(c => !c.length)) return HX.toast('Preencha as colunas vazias antes de distribuir');
+    this.snap(); for (const c of this.st.cols) { const k = this.st.stock.pop(); k.up = true; c.push(k); }
+    this.moves++; this.hintK = 0; HX.sfx('dice'); const got = Rules.collect(this.st); if (got.length) this.score += 100 * got.length; this.after();
+  },
+  undo() { if (this.done || !this.hist.length) return HX.toast('Nada para desfazer'); const h = JSON.parse(this.hist.pop()); this.st = h.st; this.moves = h.moves; this.score = h.score - 1; this.after(); HX.sfx('tap'); },
+  auto(from, i) { // toque: leva a sequência para o melhor destino
+    const c = this.st.cols[from]; if (!Rules.runFrom(c, i)) return false; const card = c[i];
+    const opts = this.st.cols.map((t, to) => ({ to, t })).filter(o => o.to !== from && Rules.canDrop(o.t, card));
+    if (!opts.length) return false;
+    opts.sort((a, b) => { const sc = o => (o.t.length && o.t[o.t.length - 1].s === card.s ? 3 : o.t.length ? 2 : 1); return sc(b) - sc(a); });
+    if (!opts[0].t.length && i === 0) return false;
+    return this.move(from, i, opts[0].to);
+  },
+  hint() {
+    const ms = Rules.moves(this.st); if (!ms.length) { if (this.st.stock.length) { View.flash('stock'); return HX.toast('Sem jogadas úteis: distribua uma nova linha'); } return HX.toast('Não há jogadas disponíveis'); }
+    const m = ms[this.hintK % ms.length]; this.hintK++; View.flash(m); HX.sfx('tap');
+  },
+  after() { if (this.st.done.length === 8) return this.win(); this.save(); View.render(); UI.hud(); },
+  win() {
+    this.done = true; this.timer.stop(); const secs = Math.round(this.timer.ms / 1000); const stt = S.get('stats', {}), k = 's' + this.suits; const s = stt[k] = stt[k] || { played: 1, won: 0, best: 0, fastest: 0 };
+    s.won++; s.best = Math.max(s.best, this.score); s.fastest = s.fastest ? Math.min(s.fastest, secs) : secs; S.set('stats', stt); S.del('cur'); S.hub(null); View.render(); UI.hud(); HX.sfx('win'); setTimeout(() => UI.win(secs), 700);
+  },
+  save() { if (this.done) return; S.set('cur', { st: this.st, suits: this.suits, moves: this.moves, score: this.score, ms: this.timer.ms }); S.hub(`Em andamento · ${this.suits} naipe${this.suits > 1 ? 's' : ''} · ${this.st.done.length}/8 sequências`); },
+  load() { const c = S.get('cur', null); if (!c || !c.st) return false; Object.assign(this, { st: c.st, suits: c.suits, moves: c.moves, score: c.score, hist: [], done: false }); this.timer = HX.timer(); this.timer.set(c.ms || 0); this.timer.start(() => UI.clock()); return true; }
+};
+const View = {
+  cw: 36, ch: 52, gapDown: 6, gapUp: 15, drag: null, els: [],
+  init() {
+    HX.$('#stock').onclick = () => { if (!HX.isOpen()) Game.dealRow(); };
+    const tb = HX.$('#table');
+    tb.addEventListener('pointerdown', e => this.down(e)); addEventListener('pointermove', e => this.moveDrag(e)); addEventListener('pointerup', e => this.up(e)); addEventListener('pointercancel', () => this.cancel());
+    new ResizeObserver(() => { this.fit(); if (Game.st) this.render(); }).observe(HX.$('#stage')); this.fit();
+  },
+  fit() { const st = HX.$('#stage'); const W = st.clientWidth; this.cw = Math.max(28, Math.min(70, Math.floor((W - 9 * 4) / 10), Math.floor((st.clientHeight - 40) / 1.42 / 4.2))); HX.$('#table').style.maxWidth = (this.cw * 10 + 9 * Math.min(14, Math.max(3, Math.floor((W - this.cw * 10) / 9)))) + 'px'; this.ch = Math.round(this.cw * 1.42); document.documentElement.style.setProperty('--cw', this.cw + 'px'); document.documentElement.style.setProperty('--ch', this.ch + 'px'); this.H = st.clientHeight - this.ch - 20; },
+  card(k) { return `<div class="cd ${k.up ? (RED[k.s] ? 'red' : 'blk') : 'down'}"><span class="r">${RK[k.r]}</span><span class="s">${SUIT[k.s]}</span><span class="big">${SUIT[k.s]}</span></div>`; },
+  render() {
+    const st = Game.st, cols = HX.$('#cols'); cols.innerHTML = '';
+    st.cols.forEach((c, ci) => {
+      const el = document.createElement('div'); el.className = 'col' + (c.length ? '' : ' empty'); el.dataset.c = ci;
+      // espaçamento que cabe na altura disponível
+      const downs = c.filter(k => !k.up).length, ups = c.length - downs; let gd = Math.round(this.ch * .14), gu = Math.round(this.ch * .32);
+      const need = this.ch + downs * gd + Math.max(0, ups - 1) * gu; if (need > this.H && c.length > 1) { const f = (this.H - this.ch) / (downs * gd + Math.max(0, ups - 1) * gu); gd = Math.max(3, gd * f); gu = Math.max(9, gu * f); }
+      let y = 0; c.forEach((k, i) => { const d = document.createElement('div'); d.outerHTML; el.insertAdjacentHTML('beforeend', this.card(k)); const node = el.lastChild; node.style.top = y + 'px'; node.dataset.c = ci; node.dataset.i = i; y += k.up ? gu : gd; });
+      el.style.height = Math.max(this.ch, y - (c.length ? (c[c.length - 1].up ? gu : gd) : 0) + this.ch) + 'px';
+      cols.appendChild(el);
+    });
+    const n = Math.ceil(st.stock.length / 10); HX.$('#stock').innerHTML = Array.from({ length: n }, (_, k) => `<div class="cd down" style="left:${k * this.cw * .14}px"></div>`).join('') + (n ? '' : '<div style="height:100%;width:var(--cw);border-radius:5px;border:1px dashed rgba(201,164,92,.35)"></div>');
+    HX.$('#found').innerHTML = Array.from({ length: 8 }, (_, k) => st.done[k] !== undefined ? `<div class="slot full" style="color:${RED[st.done[k]] ? '#c62828' : '#1a1408'}">K${SUIT[st.done[k]]}</div>` : '<div class="slot"></div>').join('');
+  },
+  at(e) { const el = document.elementFromPoint(e.clientX, e.clientY); if (!el) return null; const cd = el.closest('.cd[data-c]'); if (cd) return { c: +cd.dataset.c, i: +cd.dataset.i }; const col = el.closest('.col'); if (col) return { c: +col.dataset.c, i: -1 }; return null; },
+  colAt(x) { const cs = [...HX.$('#cols').children]; let best = -1, bd = 1e9; cs.forEach((el, k) => { const r = el.getBoundingClientRect(), d = Math.abs(r.left + r.width / 2 - x); if (d < bd) { bd = d; best = k; } }); return best; },
+  down(e) {
+    if (HX.isOpen() || Game.done || this.drag) return; const h = this.at(e); if (!h || h.i < 0) return;
+    const c = Game.st.cols[h.c]; if (!Rules.runFrom(c, h.i)) { if (c[h.i] && c[h.i].up) HX.toast('Só sequências do mesmo naipe em ordem descem juntas'); return; }
+    const nodes = [...HX.$('#cols').children[h.c].querySelectorAll('.cd')].slice(h.i);
+    this.drag = { from: h.c, i: h.i, x0: e.clientX, y0: e.clientY, nodes, moved: false, pos: nodes.map(n => ({ l: n.offsetLeft, t: n.offsetTop })) };
+    nodes.forEach(n => n.classList.add('sel'));
+  },
+  moveDrag(e) {
+    const d = this.drag; if (!d) return; const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+    if (!d.moved && Math.hypot(dx, dy) < 8) return; d.moved = true;
+    d.nodes.forEach((n, k) => { n.classList.add('drag'); n.style.transform = `translate(${dx}px,${dy}px)`; });
+    const to = this.colAt(e.clientX); HX.$('#cols').querySelectorAll('.col').forEach((c, k) => c.classList.toggle('drop', k === to && k !== d.from && Rules.canDrop(Game.st.cols[k], Game.st.cols[d.from][d.i])));
+  },
+  up(e) {
+    const d = this.drag; if (!d) return; this.drag = null;
+    if (!d.moved) { if (!Game.auto(d.from, d.i)) { HX.sfx('hit'); HX.toast('Nenhum destino para essa carta'); this.render(); } return; }
+    const to = this.colAt(e.clientX); if (!Game.move(d.from, d.i, to)) { HX.sfx('hit'); this.render(); }
+  },
+  cancel() { if (this.drag) { this.drag = null; this.render(); } },
+  flash(m) {
+    if (m === 'stock') { HX.$('#stock').animate([{ filter: 'brightness(1.8)' }, { filter: 'none' }], { duration: 700 }); return; }
+    const src = [...HX.$('#cols').children[m.from].querySelectorAll('.cd')].slice(m.i); const dst = HX.$('#cols').children[m.to]; const top = dst.querySelector('.cd:last-child');
+    src.forEach(n => n.classList.add('hint')); if (top) top.classList.add('hint'); else dst.classList.add('drop');
+    setTimeout(() => { src.forEach(n => n.classList.remove('hint')); if (top) top.classList.remove('hint'); dst.classList.remove('drop'); }, 1200);
+  }
+};
+const UI = {
+  init() {
+    View.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-hint').onclick = () => Game.hint(); HX.$('#t-deal').onclick = () => Game.dealRow(); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    addEventListener('keydown', e => { if (HX.isOpen()) return; if (e.key === 'z' || (e.key === 'z' && e.ctrlKey)) Game.undo(); if (e.key === 'h') Game.hint(); if (e.key === 'd') Game.dealRow(); });
+    HX.life({ onHide: () => { Game.timer.stop(); Game.st && Game.save(); }, onShow: () => { if (Game.st && !Game.done && !HX.isOpen()) Game.timer.start(() => this.clock()); } });
+    if (Game.load()) { View.render(); this.hud(); HX.toast('Partida retomada'); } else this.setup();
+  },
+  hud() { HX.$('#suits').textContent = Game.suits; HX.$('#score').textContent = Game.score; HX.$('#moves').textContent = Game.moves; this.clock(); HX.$('#t-deal').disabled = !Game.st.stock.length; },
+  clock() { HX.$('#time').textContent = HX.fmt(Game.timer.ms); },
+  helpItems: ['Spider usa 104 cartas (dois baralhos). O objetivo é montar 8 sequências do Rei ao Ás do mesmo naipe; cada sequência completa sai da mesa.', 'Qualquer carta pode ir sobre uma carta um valor acima, de qualquer naipe. Mas só uma sequência do mesmo naipe, em ordem decrescente, se move junta.', 'Toque numa carta para levá-la ao melhor destino ou arraste até a coluna desejada. Colunas vazias aceitam qualquer carta.', '“Distribuir” coloca uma carta em cada coluna (5 vezes por partida). Não pode haver coluna vazia ao distribuir.', 'Pontuação: começa em 500, perde 1 por jogada e ganha 100 por sequência completa.', 'Modos: 1 naipe (mais fácil), 2 naipes ou 4 naipes (mais difícil). Nem toda distribuição tem solução.', 'Teclado: Z desfaz, H mostra dica, D distribui.'],
+  setup() {
+    const stt = S.get('stats', {}); const line = k => { const s = stt['s' + k] || {}; return s.played ? `${s.won || 0}/${s.played} vitórias` : 'sem partidas'; };
+    HX.setup({ title: 'Spider', text: 'Escolha o número de naipes.', values: { suits: S.get('suits', 1) }, groups: [{ key: 'suits', label: 'Naipes', opts: [[1, '1 naipe'], [2, '2 naipes'], [4, '4 naipes']] }], start: 'Novo jogo', help: this.helpItems,
+      extra: `<p style="margin-top:8px">1 naipe: ${line(1)} · 2: ${line(2)} · 4: ${line(4)}</p>`, onStart: x => { S.set('suits', x.suits); S.del('cur'); Game.newGame(x.suits); } });
+  },
+  menu() {
+    const c = HX.overlay(`<h3>Spider</h3><p>${Game.st ? `${Game.st.done.length} de 8 sequências · ${Game.st.stock.length / 10} distribuições restantes` : ''}</p><button class="btn-primary" id="cl">Continuar</button><button class="btn" id="nw">Novo jogo</button><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#cl', () => HX.close()); HX.on(c, '#nw', () => this.setup()); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems)); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  win(secs) {
+    const s = (S.get('stats', {})['s' + Game.suits]) || {};
+    const c = HX.overlay(`<h3>Vitória!</h3><p>${Game.suits} naipe${Game.suits > 1 ? 's' : ''} · as 8 sequências foram montadas</p><div class="kv"><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.moves}</b><small>Jogadas</small></div><div><b>${HX.fmt(secs * 1000)}</b><small>Tempo</small></div></div><p>Recorde: ${s.best || Game.score} pts · mais rápido ${s.fastest ? HX.fmt(s.fastest * 1000) : '—'}</p><button class="btn-primary" id="ag">Novo jogo</button><button class="btn" id="md">Mudar naipes</button>`);
+    HX.on(c, '#ag', () => Game.newGame(Game.suits)); HX.on(c, '#md', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.SP = { Rules, Game, View, UI, S };
+</script>
+</body>
+</html>
