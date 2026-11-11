@@ -1,8 +1,9 @@
 {
-  "name": "H-LUX Puzzle Studio",
+  "name": "H-LUX",
   "short_name": "H-LUX",
-  "description": "Quebra-cabeças com as suas próprias fotos. Funciona offline.",
+  "description": "Coleção de minijogos H-LUX: Puzzle Studio, Mahjong e mais. Funciona offline.",
   "lang": "pt-BR",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -14,5 +15,9 @@
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Puzzle Studio", "url": "puzzle/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mahjong", "url": "mahjong/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

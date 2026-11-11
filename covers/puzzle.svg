@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+<defs>
+<radialGradient id="bg" cx=".5" cy=".45" r=".8"><stop offset="0" stop-color="#1f1d1a"/><stop offset="1" stop-color="#0a0a0b"/></radialGradient>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1dca6"/><stop offset="1" stop-color="#a8833f"/></linearGradient>
+<linearGradient id="p1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b5c78"/><stop offset="1" stop-color="#1b2c3d"/></linearGradient>
+<linearGradient id="p2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c58b4a"/><stop offset="1" stop-color="#6e4421"/></linearGradient>
+<linearGradient id="p3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f7a52"/><stop offset="1" stop-color="#22402a"/></linearGradient>
+<path id="pc" d="M0 0 H40 c-6-16 4-28 20-28 s26 12 20 28 H120 V40 c16-6 28 4 28 20 s-12 26-28 20 V120 H80 c6 16-4 28-20 28 s-26-12-20-28 H0 V80 c-16 6-28-4-28-20 s12-26 28-20 Z"/>
+</defs>
+<rect width="640" height="400" fill="url(#bg)"/>
+<g transform="translate(150 120) rotate(-8)"><use href="#pc" fill="url(#p1)" stroke="#000" stroke-opacity=".5" stroke-width="2"/></g>
+<g transform="translate(300 150) rotate(6)"><use href="#pc" fill="url(#p2)" stroke="#000" stroke-opacity=".5" stroke-width="2"/></g>
+<g transform="translate(410 95) rotate(-14)"><use href="#pc" fill="url(#p3)" stroke="#000" stroke-opacity=".5" stroke-width="2"/></g>
+<g transform="translate(250 50) rotate(12) scale(.8)"><use href="#pc" fill="none" stroke="url(#g)" stroke-width="4"/></g>
+<rect x="18" y="18" width="604" height="364" rx="20" fill="none" stroke="url(#g)" stroke-opacity=".35" stroke-width="1.5"/>
+</svg>
