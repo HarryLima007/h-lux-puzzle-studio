@@ -167,20 +167,62 @@ window.HLUX_GAMES = [
     id: 'gomoku', name: 'Gomoku', tagline: 'Cinco em linha 15×15',
     description: 'Forme cinco pedras seguidas num tabuleiro 15×15. Toque para prever e toque de novo para confirmar.',
     path: 'gomoku/', cover: 'covers/gomoku.svg', accent: '#d9b071', tags: ['Estratégia', 'IA', '2 jogadores']
+  },
+  {
+    id: 'sudoku', name: 'Sudoku', tagline: 'Lógica numérica 9×9',
+    description: 'Quatro dificuldades com solução única garantida, anotações, verificação de erros, dicas e desafio diário.',
+    path: 'sudoku/', cover: 'covers/sudoku.svg', accent: '#8fb4ff', tags: ['Lógica', 'Diário', 'Estatísticas']
+  },
+  {
+    id: 'wordsearch', name: 'Word Search', tagline: 'Caça-palavras em português',
+    description: '36 fases com temas, de grades 8×8 até 14×14, diagonais e palavras invertidas.',
+    path: 'wordsearch/', cover: 'covers/wordsearch.svg', accent: '#5fc3a4', tags: ['Palavras', 'Temas', '36 fases']
+  },
+  {
+    id: 'wordmaster', name: 'Word Master', tagline: 'Descubra a palavra secreta',
+    description: 'Adivinhe palavras de 4 a 6 letras com pistas por cor. Temas, palavra do dia, sequência de vitórias e estatísticas.',
+    path: 'wordmaster/', cover: 'covers/wordmaster.svg', accent: '#d9a73a', tags: ['Palavras', 'Diário', 'Estatísticas']
+  },
+  {
+    id: 'memory', name: 'Memory', tagline: 'Encontre os pares',
+    description: 'Campanha de 15 fases e modo livre de 6 a 18 pares, com quatro temas de cartas e recordes.',
+    path: 'memory/', cover: 'covers/memory.svg', accent: '#c792ea', tags: ['Memória', 'Temas', '15 fases']
+  },
+  {
+    id: 'spider', name: 'Spider', tagline: 'Paciência Spider',
+    description: 'Monte sequências do Rei ao Ás com 1, 2 ou 4 naipes. Arrastar ou tocar, dicas, desfazer e recordes.',
+    path: 'spider/', cover: 'covers/spider.svg', accent: '#2fbf71', tags: ['Cartas', 'Paciência', 'Recordes']
+  },
+  {
+    id: 'crazycards', name: 'Crazy Cards', tagline: 'Descarte por cor e número',
+    description: 'Jogo de cartas original do H-LUX com cartas especiais e coringas. Contra a IA ou com amigos no mesmo aparelho.',
+    path: 'crazycards/', cover: 'covers/crazycards.svg', accent: '#e5484d', tags: ['Cartas', 'IA', 'Até 4']
+  },
+  {
+    id: 'domino', name: 'Domino', tagline: 'Dominó duplo-seis',
+    description: 'Modalidades Compra e Bloqueio, de 2 a 4 jogadores, partidas até 50, 100 ou 150 pontos.',
+    path: 'domino/', cover: 'covers/domino.svg', accent: '#f1e7cf', tags: ['Peças', 'IA', 'Até 4']
+  },
+  {
+    id: 'dice', name: 'Dice', tagline: 'Cinco dados, 13 categorias',
+    description: 'Lance até três vezes, guarde os dados e escolha onde pontuar. Sozinho ou com até 3 adversários.',
+    path: 'dice/', cover: 'covers/dice.svg', accent: '#e05a5a', tags: ['Dados', 'Recordes', 'Até 4']
   }
 ];
 
 /* Categorias usadas pelos filtros do catálogo (um jogo pode estar em mais de uma). */
-window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'Cartas', 'Dados', 'Palavras', 'Arcade', 'Corrida', 'Aventura', '2+ jogadores'];
+window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'Cartas e peças', 'Dados', 'Palavras', 'Arcade', 'Corrida', 'Aventura', '2+ jogadores'];
 (function () {
   const C = {
     puzzle: ['Quebra-cabeças'], mahjong: ['Quebra-cabeças', 'Lógica'], nonogram: ['Lógica'], minefield: ['Lógica'], '2048': ['Lógica', 'Quebra-cabeças'],
-    solitaire: ['Cartas'], snake: ['Arcade'], blocks: ['Arcade', 'Quebra-cabeças'], blockudoku: ['Quebra-cabeças', 'Lógica'], woodblocks: ['Quebra-cabeças', 'Lógica'],
+    solitaire: ['Cartas e peças'], snake: ['Arcade'], blocks: ['Arcade', 'Quebra-cabeças'], blockudoku: ['Quebra-cabeças', 'Lógica'], woodblocks: ['Quebra-cabeças', 'Lógica'],
     match: ['Quebra-cabeças'], bubble: ['Arcade'], merge: ['Arcade', 'Quebra-cabeças'], arrow: ['Lógica', 'Quebra-cabeças'], unblock: ['Lógica', 'Quebra-cabeças'],
     parking: ['Lógica', 'Quebra-cabeças'], flow: ['Lógica', 'Quebra-cabeças'],
     chess: ['Tabuleiro', 'Estratégia', '2+ jogadores'], checkers: ['Tabuleiro', 'Estratégia', '2+ jogadores'], ludo: ['Tabuleiro', 'Dados', '2+ jogadores'],
     four: ['Tabuleiro', 'Estratégia', '2+ jogadores'], reversi: ['Tabuleiro', 'Estratégia', '2+ jogadores'], battleship: ['Estratégia', '2+ jogadores'],
-    backgammon: ['Tabuleiro', 'Dados', 'Estratégia', '2+ jogadores'], mancala: ['Tabuleiro', 'Estratégia', '2+ jogadores'], gomoku: ['Tabuleiro', 'Estratégia', '2+ jogadores']
+    backgammon: ['Tabuleiro', 'Dados', 'Estratégia', '2+ jogadores'], mancala: ['Tabuleiro', 'Estratégia', '2+ jogadores'], gomoku: ['Tabuleiro', 'Estratégia', '2+ jogadores'],
+    sudoku: ['Lógica'], wordsearch: ['Palavras'], wordmaster: ['Palavras', 'Lógica'], memory: ['Quebra-cabeças'], spider: ['Cartas e peças'],
+    crazycards: ['Cartas e peças', '2+ jogadores'], domino: ['Cartas e peças', 'Tabuleiro', '2+ jogadores'], dice: ['Dados', '2+ jogadores']
   };
   window.HLUX_GAMES.forEach(g => { if (!g.cats) g.cats = C[g.id] || []; });
 })();
