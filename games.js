@@ -72,5 +72,20 @@ window.HLUX_GAMES = [
     cover: 'covers/snake.svg',
     accent: '#3fd68a',
     tags: ['Arcade', 'Reflexos', 'Recordes']
+  },
+  {
+    id: 'blocks', name: 'Blocks', tagline: 'Blocos que caem',
+    description: 'Gire e encaixe as peças que caem para completar linhas. A velocidade aumenta a cada nível.',
+    path: 'blocks/', cover: 'covers/blocks.svg', accent: '#b98cff', tags: ['Arcade', 'Blocos', 'Recordes']
+  },
+  {
+    id: 'blockudoku', name: 'Blockudoku', tagline: 'Blocos + Sudoku em 9×9',
+    description: 'Encaixe três peças por rodada e elimine linhas, colunas e quadrados 3×3. Combos multiplicam os pontos.',
+    path: 'blockudoku/', cover: 'covers/blockudoku.svg', accent: '#3a4f86', tags: ['Lógica', 'Blocos', 'Combos']
+  },
+  {
+    id: 'woodblocks', name: 'Wood Blocks', tagline: 'Encaixe em tabuleiro de madeira',
+    description: 'Peças de madeira num tabuleiro 10×10. Complete linhas e colunas e encadeie combos.',
+    path: 'woodblocks/', cover: 'covers/woodblocks.svg', accent: '#b8743e', tags: ['Lógica', 'Relaxante', 'Recordes']
   }
 ];

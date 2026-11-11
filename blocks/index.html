@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0812">
+<title>H-LUX Blocks</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0a0812;--bg2:radial-gradient(ellipse at 50% -10%,#251a3d 0%,#0a0812 60%);--panel:#141022;--panel2:#1c1730;--line:#2d2547;--muted:#9a90b8}
+body{touch-action:none}
+.play{display:flex;gap:10px;align-items:stretch;justify-content:center;width:100%;height:100%}
+#cv{display:block;border-radius:12px;border:1px solid #3a2f5c;box-shadow:0 0 0 1px rgba(201,164,92,.18),0 18px 50px rgba(0,0,0,.6);touch-action:none}
+.side{display:flex;flex-direction:column;gap:8px;width:84px;flex:none}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;text-align:center}
+.box small{display:block;font-size:9.5px;letter-spacing:1.2px;color:var(--muted);font-weight:800}
+.box b{font-size:17px;font-variant-numeric:tabular-nums}
+#next{width:100%;height:auto;display:block}
+.pad{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:100%;max-width:640px;margin-top:8px;flex:none}
+.pad button{height:58px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;color:var(--accent2);touch-action:none;user-select:none;-webkit-user-select:none}
+.pad button:active,.pad button.on{background:#2a2145}
+.pad svg.i{width:26px;height:26px}
+@media (hover:hover) and (pointer:fine){.pad{display:none}}
+@media (max-height:560px) and (orientation:landscape){.pad{position:fixed;right:10px;bottom:10px;width:auto;grid-template-columns:repeat(5,52px)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Blo<b>cks</b></div><button class="ib" id="pause" aria-label="Pausar"><svg class="i" id="pi"><path d="M9 5.5v13M15 5.5v13"/></svg></button></div>
+  <div class="stage" id="stage">
+    <div class="play">
+      <canvas id="cv"></canvas>
+      <div class="side">
+        <div class="box"><small>PRÓXIMA</small><canvas id="next" width="160" height="200"></canvas></div>
+        <div class="box"><small>PONTOS</small><b id="score">0</b></div>
+        <div class="box"><small>RECORDE</small><b id="best">0</b></div>
+        <div class="box"><small>NÍVEL</small><b id="level">1</b></div>
+        <div class="box"><small>LINHAS</small><b id="lines">0</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="pad" id="pad">
+    <button data-a="left" aria-label="Esquerda"><svg class="i"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button data-a="rotate" aria-label="Girar"><svg class="i"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg></button>
+    <button data-a="right" aria-label="Direita"><svg class="i"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button data-a="soft" aria-label="Descer"><svg class="i"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button data-a="hard" aria-label="Soltar"><svg class="i"><path d="M6 6l6 6 6-6M6 13l6 6 6-6"/></svg></button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX BLOCKS v1.0 — blocos que caem
+   Módulos: Pieces (formas + rotação SRS) · Engine (regras) · Render · Input · UI */
+const S = HX.store('blocks');
+const W = 10, H = 20, HID = 2; // 2 linhas ocultas acima do topo
+
+/* ---------- Pieces ---------- */
+const SHAPES = {
+  I: [[0, 1], [1, 1], [2, 1], [3, 1]], O: [[1, 0], [2, 0], [1, 1], [2, 1]], T: [[1, 0], [0, 1], [1, 1], [2, 1]],
+  S: [[1, 0], [2, 0], [0, 1], [1, 1]], Z: [[0, 0], [1, 0], [1, 1], [2, 1]], J: [[0, 0], [0, 1], [1, 1], [2, 1]], L: [[2, 0], [0, 1], [1, 1], [2, 1]]
+};
+const COLORS = { I: ['#5fd3f3', '#1f8fb3'], O: ['#f2d36b', '#b8902a'], T: ['#b98cff', '#6d3fc7'], S: ['#6fe39a', '#23a356'], Z: ['#ff7a8a', '#c43246'], J: ['#7aa2ff', '#2f55c7'], L: ['#ffae5c', '#c8691c'] };
+const KICKS = { // SRS: deslocamentos testados ao girar de r para r+1
+  N: [[[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]]],
+  I: [[[0, 0], [-2, 0], [1, 0], [-2, 1], [1, -2]], [[0, 0], [-1, 0], [2, 0], [-1, -2], [2, 1]], [[0, 0], [2, 0], [-1, 0], [2, -1], [-1, 2]], [[0, 0], [1, 0], [-2, 0], [1, 2], [-2, -1]]]
+};
+function cellsOf(t, rot) {
+  const n = t === 'I' ? 4 : t === 'O' ? 4 : 3;
+  return SHAPES[t].map(([x, y]) => { let a = x, b = y; for (let k = 0; k < rot; k++) [a, b] = [n - 1 - b, a]; return [a, b]; });
+}
+
+/* ---------- Engine ---------- */
+const E = {
+  s: null,
+  fresh() { return { grid: new Array(W * (H + HID)).fill(null), bag: [], next: [], cur: null, score: 0, lines: 0, level: 1, over: false }; },
+  refill() { const s = this.s; while (s.next.length < 3) { if (!s.bag.length) s.bag = HX.shuffle(Object.keys(SHAPES)); s.next.push(s.bag.pop()); } },
+  spawn() {
+    const s = this.s; this.refill(); const t = s.next.shift(); this.refill();
+    s.cur = { t, rot: 0, x: t === 'O' ? 3 : 3, y: t === 'I' ? 0 : 0, resets: 0 };
+    if (!this.fits(s.cur.x, s.cur.y, 0)) { s.over = true; return false; }
+    return true;
+  },
+  fits(x, y, rot, t = this.s.cur.t) {
+    for (const [cx, cy] of cellsOf(t, rot)) { const gx = x + cx, gy = y + cy; if (gx < 0 || gx >= W || gy >= H + HID) return false; if (gy >= 0 && this.s.grid[gy * W + gx]) return false; }
+    return true;
+  },
+  move(dx) { const c = this.s.cur; if (this.fits(c.x + dx, c.y, c.rot)) { c.x += dx; this.touched(); return true; } return false; },
+  rotate(dir = 1) {
+    const c = this.s.cur; if (c.t === 'O') return false;
+    const to = (c.rot + (dir > 0 ? 1 : 3)) % 4, table = (c.t === 'I' ? KICKS.I : KICKS.N)[dir > 0 ? c.rot : to];
+    for (const [kx, ky0] of table) { const kx2 = dir > 0 ? kx : -kx, ky = dir > 0 ? -ky0 : ky0; if (this.fits(c.x + kx2, c.y + ky, to)) { c.x += kx2; c.y += ky; c.rot = to; this.touched(); return true; } }
+    return false;
+  },
+  touched() { const c = this.s.cur; if (Loop.lockAt && c.resets < 15) { Loop.lockAt = performance.now() + 500; c.resets++; } },
+  grounded() { const c = this.s.cur; return !this.fits(c.x, c.y + 1, c.rot); },
+  ghostY() { const c = this.s.cur; let y = c.y; while (this.fits(c.x, y + 1, c.rot)) y++; return y; },
+  stepDown(soft) { const c = this.s.cur; if (this.fits(c.x, c.y + 1, c.rot)) { c.y++; if (soft) this.s.score += 1; return true; } return false; },
+  hardDrop() { const c = this.s.cur, y = this.ghostY(); this.s.score += 2 * (y - c.y); c.y = y; return this.lock(); },
+  lock() {
+    const s = this.s, c = s.cur;
+    for (const [cx, cy] of cellsOf(c.t, c.rot)) { const gy = c.y + cy; if (gy < HID) { s.over = true; } if (gy >= 0) s.grid[gy * W + c.x + cx] = c.t; }
+    const full = []; for (let y = 0; y < H + HID; y++) { let f = true; for (let x = 0; x < W; x++) if (!s.grid[y * W + x]) { f = false; break; } if (f) full.push(y); }
+    return full;
+  },
+  clear(rows) {
+    const s = this.s; if (!rows.length) return;
+    const keep = []; for (let y = 0; y < H + HID; y++) if (!rows.includes(y)) keep.push(s.grid.slice(y * W, y * W + W));
+    while (keep.length < H + HID) keep.unshift(new Array(W).fill(null));
+    s.grid = keep.flat();
+    s.score += [0, 100, 300, 500, 800][rows.length] * s.level; s.lines += rows.length; s.level = 1 + Math.floor(s.lines / 10);
+  },
+  speed() { const l = this.s.level - 1; return Math.max(45, 1000 * Math.pow(0.8 - l * 0.007, l)); }
+};
+
+/* ---------- Render ---------- */
+const R = {
+  cv: null, x: null, nx: null, cs: 24, dpr: 1, flash: null,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); this.nx = HX.$('#next').getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); },
+  size() {
+    const st = HX.$('#stage'), avW = st.clientWidth - 94, avH = st.clientHeight;
+    this.cs = Math.max(12, Math.floor(Math.min(avW / W, avH / H))); this.dpr = Math.min(devicePixelRatio || 1, 2);
+    this.cv.width = W * this.cs * this.dpr; this.cv.height = H * this.cs * this.dpr; this.cv.style.width = W * this.cs + 'px'; this.cv.style.height = H * this.cs + 'px';
+    this.draw();
+  },
+  block(x, px, py, s, t, alpha = 1) {
+    const [a, b] = COLORS[t]; x.globalAlpha = alpha;
+    const g = x.createLinearGradient(px, py, px + s, py + s); g.addColorStop(0, a); g.addColorStop(1, b);
+    x.fillStyle = g; x.beginPath(); x.roundRect ? x.roundRect(px + 1, py + 1, s - 2, s - 2, s * .18) : x.rect(px + 1, py + 1, s - 2, s - 2); x.fill();
+    x.fillStyle = 'rgba(255,255,255,.28)'; x.fillRect(px + s * .18, py + s * .14, s * .5, s * .12);
+    x.strokeStyle = 'rgba(232,205,140,.35)'; x.lineWidth = 1; x.stroke(); x.globalAlpha = 1;
+  },
+  draw() {
+    const s = E.s, x = this.x, c = this.cs; if (!s) return;
+    x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    x.fillStyle = '#0d0a18'; x.fillRect(0, 0, W * c, H * c);
+    x.strokeStyle = 'rgba(255,255,255,.035)'; x.lineWidth = 1; x.beginPath();
+    for (let i = 1; i < W; i++) { x.moveTo(i * c + .5, 0); x.lineTo(i * c + .5, H * c); } for (let j = 1; j < H; j++) { x.moveTo(0, j * c + .5); x.lineTo(W * c, j * c + .5); } x.stroke();
+    for (let y = HID; y < H + HID; y++) for (let i = 0; i < W; i++) { const t = s.grid[y * W + i]; if (t) this.block(x, i * c, (y - HID) * c, c, t); }
+    if (s.cur && !s.over) {
+      const gy = E.ghostY();
+      for (const [cx, cy] of cellsOf(s.cur.t, s.cur.rot)) { const py = (gy + cy - HID) * c; if (py >= 0) { x.strokeStyle = COLORS[s.cur.t][0]; x.globalAlpha = .45; x.lineWidth = 2; x.strokeRect(( s.cur.x + cx) * c + 2, py + 2, c - 4, c - 4); x.globalAlpha = 1; } }
+      for (const [cx, cy] of cellsOf(s.cur.t, s.cur.rot)) { const py = (s.cur.y + cy - HID) * c; if (py > -c) this.block(x, (s.cur.x + cx) * c, py, c, s.cur.t); }
+    }
+    if (this.flash) { const p = (performance.now() - this.flash.t0) / 180; x.fillStyle = `rgba(255,243,207,${Math.max(0, .85 - p)})`; for (const y of this.flash.rows) x.fillRect(0, (y - HID) * c, W * c, c); }
+    // próxima
+    const n = this.nx; n.clearRect(0, 0, 160, 200);
+    s.next.slice(0, 2).forEach((t, k) => { const cells = cellsOf(t, 0), sz = k ? 22 : 32, mx = Math.max(...cells.map(p => p[0])) + 1, my = Math.max(...cells.map(p => p[1])) + 1, ox = (160 - mx * sz) / 2, oy = (k ? 130 : 20) + (k ? 0 : (70 - my * sz) / 2); for (const [cx, cy] of cells) this.block(n, ox + cx * sz, oy + cy * sz, sz, t, k ? .6 : 1); });
+  }
+};
+
+/* ---------- Loop ---------- */
+const Loop = {
+  raf: 0, last: 0, acc: 0, lockAt: 0, softing: false, state: 'idle',
+  start() { this.last = performance.now(); this.acc = 0; this.lockAt = 0; this.state = 'run'; cancelAnimationFrame(this.raf); this.raf = requestAnimationFrame(t => this.tick(t)); },
+  stop() { this.state = 'idle'; cancelAnimationFrame(this.raf); },
+  tick(t) {
+    this.raf = requestAnimationFrame(tt => this.tick(tt));
+    const s = E.s; if (this.state !== 'run') { R.draw(); return; }
+    if (R.flash) { if (t - R.flash.t0 > 180) { E.clear(R.flash.rows); R.flash = null; UI.hud(); if (!E.spawn()) return UI.over(); } R.draw(); this.last = t; return; }
+    Input.repeat(t);
+    const iv = this.softing ? Math.min(45, E.speed() / 2) : E.speed();
+    this.acc += t - this.last; this.last = t;
+    if (E.grounded()) {
+      if (!this.lockAt) this.lockAt = t + 500;
+      if (t >= this.lockAt) this.doLock();
+    } else { this.lockAt = 0; while (this.acc >= iv) { this.acc -= iv; if (!E.stepDown(this.softing)) break; } UI.hud(); }
+    if (this.acc > iv) this.acc = iv;
+    R.draw();
+  },
+  doLock(rows) {
+    rows = rows || E.lock(); this.lockAt = 0; this.acc = 0;
+    if (E.s.over) return UI.over();
+    if (rows.length) { R.flash = { rows, t0: performance.now() }; HX.vibrate(rows.length >= 4 ? 40 : 15); }
+    else if (!E.spawn()) return UI.over();
+    UI.hud(); UI.save();
+  }
+};
+
+/* ---------- Input ---------- */
+const Input = {
+  held: {}, init() {
+    const act = (a, down) => {
+      if (Loop.state !== 'run' || R.flash) { if (!down) this.held[a] = 0; return; }
+      if (a === 'soft') { Loop.softing = down; return; }
+      if (!down) { this.held[a] = 0; return; }
+      if (a === 'left') { E.move(-1); this.held.left = performance.now() + 170; }
+      else if (a === 'right') { E.move(1); this.held.right = performance.now() + 170; }
+      else if (a === 'rotate') E.rotate(1); else if (a === 'ccw') E.rotate(-1);
+      else if (a === 'hard') Loop.doLock(E.hardDrop());
+      R.draw();
+    };
+    this.act = act;
+    const keys = { ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'rotate', x: 'rotate', X: 'rotate', z: 'ccw', Z: 'ccw', ' ': 'hard', a: 'left', d: 'right', s: 'soft', w: 'rotate' };
+    window.addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { UI.togglePause(); return; } const a = keys[e.key]; if (!a) return; e.preventDefault(); if (e.repeat && a !== 'soft') return; act(a, true); });
+    window.addEventListener('keyup', e => { const a = keys[e.key]; if (a) act(a, false); });
+    HX.$('#pad').querySelectorAll('[data-a]').forEach(b => {
+      b.addEventListener('pointerdown', e => { e.preventDefault(); b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) {} act(b.dataset.a, true); });
+      const up = () => { b.classList.remove('on'); act(b.dataset.a, false); };
+      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+    });
+    // gestos no tabuleiro: tocar gira, arrastar move, deslizar rápido para baixo solta
+    const cv = HX.$('#cv'); let g = null;
+    cv.addEventListener('pointerdown', e => { g = { x: e.clientX, y: e.clientY, t: performance.now(), mx: 0, my: 0, moved: false }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+    cv.addEventListener('pointermove', e => {
+      if (!g || Loop.state !== 'run') return; const c = R.cs, dx = e.clientX - g.x - g.mx * c, dy = e.clientY - g.y;
+      if (Math.abs(dx) > c * .9) { const k = Math.sign(dx); E.move(k); g.mx += k; g.moved = true; R.draw(); }
+      if (dy > c * 1.2 && !g.hard) { const steps = Math.floor(dy / c) - g.my; for (let i = 0; i < steps; i++) E.stepDown(true); g.my += Math.max(0, steps); g.moved = true; R.draw(); }
+    });
+    cv.addEventListener('pointerup', e => {
+      if (!g) return; const dt = performance.now() - g.t, dy = e.clientY - g.y, dx = e.clientX - g.x;
+      if (Loop.state === 'run') { if (dy > 60 && dt < 220 && Math.abs(dy) > Math.abs(dx) * 1.5) act('hard', true); else if (!g.moved && Math.hypot(dx, dy) < 10) act('rotate', true); }
+      g = null;
+    });
+  },
+  repeat(t) { for (const a of ['left', 'right']) if (this.held[a] && t >= this.held[a]) { E.move(a === 'left' ? -1 : 1); this.held[a] = t + 45; } }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    R.init(); Input.init();
+    HX.$('#pause').onclick = () => this.togglePause();
+    HX.life({ onHide: () => { if (Loop.state === 'run') this.togglePause(); this.save(); } });
+    this.home();
+  },
+  best() { return S.get('best', 0); },
+  hud() { const s = E.s; HX.$('#score').textContent = s.score; HX.$('#best').textContent = Math.max(this.best(), s.score); HX.$('#level').textContent = s.level; HX.$('#lines').textContent = s.lines; },
+  home() {
+    const saved = S.get('game', null);
+    E.s = saved || E.fresh(); if (!saved) { E.refill(); } R.size(); this.hud();
+    const c = HX.overlay(`<h3>Blocks</h3><p>Encaixe as peças e complete linhas. A velocidade aumenta a cada 10 linhas.</p>
+      <div class="kv"><div><b>${this.best()}</b><small>Recorde</small></div><div><b>${S.get('games', 0)}</b><small>Partidas</small></div><div><b>${S.get('maxLines', 0)}</b><small>Mais linhas</small></div></div>
+      ${saved ? '<button class="btn-primary" id="cont">▶ Continuar partida</button>' : ''}<button class="${saved ? 'btn' : 'btn-primary'}" id="new">Nova partida</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    HX.on(c, '#cont', () => { HX.close(); this.resume(); });
+    HX.on(c, '#new', () => { HX.close(); this.newGame(); });
+    HX.on(c, '#how', () => this.howTo());
+  },
+  howTo() {
+    HX.help('Como jogar', ['<b>Celular:</b> toque no tabuleiro para girar, arraste para os lados para mover, deslize rápido para baixo para soltar. Também há botões embaixo.', '<b>Computador:</b> ← → movem, ↑ ou X gira, Z gira ao contrário, ↓ desce, Espaço solta, P pausa.', 'Complete uma linha inteira para eliminá-la. 4 linhas de uma vez valem mais.', 'A sombra mostra onde a peça vai cair.'], () => this.home());
+  },
+  newGame() { E.s = E.fresh(); E.spawn(); S.set('games', S.get('games', 0) + 1); this.hud(); Loop.start(); this.icon(); },
+  resume() { if (!E.s.cur) E.spawn(); Loop.start(); this.icon(); },
+  togglePause() {
+    if (Loop.state === 'run') {
+      Loop.state = 'paused'; this.save(); this.icon();
+      const c = HX.overlay(`<h3>Pausado</h3><div class="kv"><div><b>${E.s.score}</b><small>Pontos</small></div><div><b>${E.s.level}</b><small>Nível</small></div><div><b>${E.s.lines}</b><small>Linhas</small></div></div><button class="btn-primary" id="go">Continuar</button><button class="btn" id="rs">Reiniciar</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+      HX.on(c, '#go', () => this.togglePause()); HX.on(c, '#rs', () => { HX.close(); S.del('game'); this.newGame(); });
+      HX.on(c, '#how', () => HX.help('Como jogar', ['Toque gira · arraste move · deslize para baixo solta.', 'Teclado: ← → ↑ ↓ Espaço, P pausa.'], () => { Loop.state = 'run'; this.togglePause(); }));
+    } else if (Loop.state === 'paused') { HX.close(); Loop.last = performance.now(); Loop.state = 'run'; this.icon(); }
+  },
+  icon() { HX.$('#pi').innerHTML = Loop.state === 'paused' ? '<path d="M8 5.5v13l10.5-6.5z"/>' : '<path d="M9 5.5v13M15 5.5v13"/>'; },
+  save() { const s = E.s; if (!s || s.over || !s.cur) return; S.set('game', s); S.hub(`Em andamento · ${s.score} pts · nível ${s.level}`); },
+  over() {
+    Loop.state = 'over'; const s = E.s, best = this.best(), rec = s.score > best;
+    if (rec) S.set('best', s.score); S.set('maxLines', Math.max(S.get('maxLines', 0), s.lines)); S.del('game'); S.hub(`Recorde ${Math.max(best, s.score)} pts`);
+    HX.vibrate([30, 40, 30]);
+    const c = HX.overlay(`<h3>Fim de jogo</h3><p>${rec ? '<b style="color:var(--accent2)">Novo recorde!</b>' : 'As peças chegaram ao topo.'}</p><div class="kv"><div><b>${s.score}</b><small>Pontos</small></div><div><b>${s.lines}</b><small>Linhas</small></div><div><b>${Math.max(best, s.score)}</b><small>Recorde</small></div></div><button class="btn-primary" id="new">Jogar de novo</button><button class="btn" id="menu">Menu</button>`);
+    HX.on(c, '#new', () => { HX.close(); this.newGame(); }); HX.on(c, '#menu', () => { HX.close(); this.home(); });
+    this.hud();
+  }
+};
+UI.init(); HX.sw();
+window.BLK = { E, Loop, UI, R, cellsOf, S };
+</script>
+</body>
+</html>

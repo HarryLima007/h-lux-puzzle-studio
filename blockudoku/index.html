@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0c1220">
+<title>H-LUX Blockudoku</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0c1220;--bg2:radial-gradient(ellipse at 50% -10%,#1b2a4d 0%,#0c1220 62%);--panel:#131c33;--panel2:#1a2541;--line:#2a3a63;--muted:#93a0c2;--c:34px;--t:18px}
+body{touch-action:none}
+.stage{flex-direction:column;gap:10px;justify-content:center}
+.board{display:grid;padding:6px;background:#d9cfb6;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 18px 50px rgba(0,0,0,.55);flex:none}
+.bc{width:var(--c);height:var(--c);background:#f6f1e4;box-shadow:inset 0 0 0 .5px #cfc4a6;transition:background .15s}
+.bc.alt{background:#ebe3cf}
+.bc:nth-child(9n+3),.bc:nth-child(9n+6){box-shadow:inset -2px 0 0 #b9a679,inset 0 0 0 .5px #cfc4a6}
+.bc:nth-child(n+19):nth-child(-n+27),.bc:nth-child(n+46):nth-child(-n+54){box-shadow:inset 0 -2px 0 #b9a679,inset 0 0 0 .5px #cfc4a6}
+.bc:nth-child(21),.bc:nth-child(24),.bc:nth-child(48),.bc:nth-child(51){box-shadow:inset -2px -2px 0 #b9a679}
+.bc.on{background:linear-gradient(150deg,#3a4f86,#1d2b52);box-shadow:inset 0 0 0 1.5px #c9a45c,inset 0 2px 0 rgba(255,255,255,.18)}
+.bc.pv{background:rgba(201,164,92,.55)}
+.bc.pvx{background:rgba(229,96,79,.35)}
+.bc.pz{box-shadow:inset 0 0 0 3px #e8cd8c,0 0 10px rgba(232,205,140,.7)}
+.bc.clr{animation:clr .38s ease}
+@keyframes clr{0%{background:#fff3cf;transform:scale(1)}100%{background:inherit;transform:scale(.6)}}
+.tray{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:calc(var(--c) * 9 + 12px);flex:none;touch-action:none}
+.slot{height:calc(var(--t) * 5 + 14px);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px}
+.pc{display:grid;cursor:grab;touch-action:none}
+.pc i{display:block;background:linear-gradient(150deg,#3a4f86,#1d2b52);box-shadow:inset 0 0 0 1.5px #c9a45c;border-radius:3px}
+.pc.nofit i{filter:grayscale(1) brightness(.6)}
+.pc.float{position:fixed;left:0;top:0;z-index:50;pointer-events:none;opacity:.92;filter:drop-shadow(0 10px 14px rgba(0,0,0,.45))}
+.pc.float i{border-radius:4px}
+.combo{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--serif);font-weight:700;font-size:40px;color:var(--accent2);text-shadow:0 2px 14px rgba(0,0,0,.6);pointer-events:none;animation:pop .9s ease forwards}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.7)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}100%{opacity:0;transform:translate(-50%,-90%) scale(1)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Block<b>udoku</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Pontos</small><b id="score">0</b></div><div class="sc"><small>Recorde</small><b id="best">0</b></div><div class="sc"><small>Combo</small><b id="combo">—</b></div></div>
+  <div class="stage" id="stage"><div class="board" id="board"></div><div class="tray" id="tray"></div></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script src="../shared/blockgrid.js"></script>
+<script>
+'use strict';
+/* H-LUX BLOCKUDOKU v1.0 — 9×9: linhas, colunas e quadrados 3×3 eliminam */
+const G = HXBlockGrid.create({
+  id: 'blockudoku', size: 9, boxes: 3,
+  pieces: [
+    { shape: '#', weight: 3 }, { shape: '##', weight: 5 }, { shape: '###', weight: 5 }, { shape: '####', weight: 4 }, { shape: '#####', weight: 2 },
+    { shape: '##/#.', weight: 5 }, { shape: '##/##', weight: 4 }, { shape: '#./.#', weight: 2 }, { shape: '#../.#./..#', weight: 1.5 },
+    { shape: '#./#./##', weight: 4 }, { shape: '.#/.#/##', weight: 4 }, { shape: '###/.#.', weight: 4 }, { shape: '.##/##.', weight: 3 }, { shape: '##./.##', weight: 3 },
+    { shape: '.#./###/.#.', weight: 1.5 }, { shape: '###/.#./.#.', weight: 1.5 }, { shape: '#.#/###', weight: 1.5 }, { shape: '#../#../###', weight: 1.5 }
+  ],
+  // pontos: 1 por quadrado colocado; 18 por região eliminada, bônus por várias e multiplicador de combo
+  score(n, regions, combo) { if (!regions) return n; const base = 18 * regions + (regions > 1 ? 12 * regions * (regions - 1) : 0); return n + Math.round(base * (combo > 1 ? 1 + .5 * (combo - 1) : 1)); }
+});
+const V = HXBlockGrid.mount(G, { board: HX.$('#board'), tray: HX.$('#tray'), stage: HX.$('#stage'), locked: () => HX.isOpen(), onPlace, onRender: hud });
+function hud() { const s = G.s; HX.$('#score').textContent = s.score; HX.$('#best').textContent = Math.max(G.best(), s.score); HX.$('#combo').textContent = s.combo > 1 ? '×' + s.combo : '—'; }
+function onPlace(r) {
+  V.flash(r.cleared); V.render(); G.save();
+  if (r.regions) { HX.vibrate(r.regions > 1 ? 30 : 15); const t = document.createElement('div'); t.className = 'combo'; t.textContent = (G.s.combo > 1 ? `Combo ×${G.s.combo}  ` : r.regions > 1 ? `${r.regions}× ` : '') + '+' + r.pts; HX.$('#stage').appendChild(t); setTimeout(() => t.remove(), 900); }
+  if (G.s.over) setTimeout(over, 450);
+}
+function over() {
+  const s = G.s, rec = G.finish(), st = G.S.get('stats', {});
+  const c = HX.overlay(`<h3>Sem espaço</h3><p>${rec ? '<b style="color:var(--accent2)">Novo recorde!</b>' : 'Nenhuma peça cabe mais no tabuleiro.'}</p><div class="kv"><div><b>${s.score}</b><small>Pontos</small></div><div><b>${s.cleared}</b><small>Eliminações</small></div><div><b>${G.best()}</b><small>Recorde</small></div></div><button class="btn-primary" id="new">Jogar de novo</button><button class="btn" id="home">Menu</button>`);
+  HX.on(c, '#new', () => { HX.close(); start(true); }); HX.on(c, '#home', () => home());
+}
+function start(fresh) { G.s = fresh ? G.fresh() : (G.S.get('game', null) || G.fresh()); V.size(); hud(); G.save(); }
+function home() {
+  const saved = G.S.get('game', null), st = G.S.get('stats', { games: 0, cleared: 0 });
+  G.s = saved || G.fresh(); V.size();
+  const c = HX.overlay(`<h3>Blockudoku</h3><p>Encaixe peças na grade 9×9. Complete linhas, colunas ou quadrados 3×3 para eliminá-los.</p><div class="kv"><div><b>${G.best()}</b><small>Recorde</small></div><div><b>${st.games}</b><small>Partidas</small></div><div><b>${st.cleared}</b><small>Eliminações</small></div></div>
+    ${saved ? '<button class="btn-primary" id="cont">▶ Continuar</button>' : ''}<button class="${saved ? 'btn' : 'btn-primary'}" id="new">Nova partida</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+  HX.on(c, '#cont', () => { HX.close(); start(false); }); HX.on(c, '#new', () => { HX.close(); start(true); }); HX.on(c, '#how', howTo);
+}
+function howTo() { HX.help('Como jogar', ['Arraste uma das três peças até a grade. Ela fica um pouco acima do dedo para você ver onde vai cair.', 'Linha, coluna ou quadrado 3×3 completo é eliminado. Os quadrados dourados mostram o que vai sumir.', 'Elimine em jogadas seguidas para fazer <b>combos</b> e multiplicar os pontos.', 'Não há gravidade. Quando nenhuma das peças couber, a partida acaba.', 'Peças acinzentadas não cabem em lugar nenhum agora.'], home); }
+HX.$('#menu').onclick = () => {
+  const c = HX.overlay(`<h3>Menu</h3><button class="btn-primary" id="go">Continuar</button><button class="btn" id="new">Nova partida</button><button class="btn" id="how">Como jogar</button>`, { guard: false, dismiss: () => {} });
+  HX.on(c, '#go', () => HX.close()); HX.on(c, '#new', () => { HX.close(); if (G.s.placed) { G.finish(); } start(true); }); HX.on(c, '#how', () => HX.help('Como jogar', ['Arraste peças para a grade.', 'Linhas, colunas e quadrados 3×3 completos são eliminados.', 'Eliminações seguidas fazem combo.'], () => HX.close()));
+};
+HX.life({ onHide: () => G.s && G.save() });
+home(); HX.sw();
+window.BKD = { G, V };
+</script>
+</body>
+</html>
