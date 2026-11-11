@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#060608">
+<title>H-LUX Flow</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#060608;--bg2:radial-gradient(ellipse at 50% 0%,#1a1a24 0%,#060608 62%)}
+body{touch-action:none}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 1px rgba(201,164,92,.35),0 18px 50px rgba(0,0,0,.6)}
+.lvwrap{max-height:52vh;overflow:auto;padding:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Fl<b>ow</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc"><small>Ligados</small><b id="flows">0/0</b></div><div class="sc"><small>Preenchido</small><b id="fill">0%</b></div><div class="sc"><small>Traços</small><b id="moves">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-reset"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Reiniciar</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica<span class="badge" id="b-hint"></span></button>
+    <button class="tool" id="t-levels"><svg class="i"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2"/></svg>Fases</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX FLOW v1.0 — conecte os pares de cores preenchendo o tabuleiro
+   Geração: caminho que passa por todas as casas (serpentina embaralhada por "backbite") dividido em trechos;
+   cada trecho vira um par de pontos → toda fase tem pelo menos uma solução com preenchimento total.
+   Módulos: Gen · Game · Render · Input · UI */
+const S = HX.store('flow');
+const PAL = ['#ff4d5e', '#3d8bff', '#3ddc84', '#ffd23f', '#ff8c2e', '#c86bff', '#2fe0e0', '#ff6fb5', '#b8f04a', '#f4efe2', '#8a6bff', '#a0522d'];
+const SIZES = [5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9];
+const LEVELS = SIZES.map((n, k) => ({ n, colors: Math.max(3, n - 1 + (k % 3 === 0 ? 0 : -1) + (k > 30 ? 1 : 0)), seed: 7000 + k * 97 }));
+
+/* ---------- Gen ---------- */
+const Gen = {
+  path(n, rnd) {
+    let p = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) p.push(y * n + (y % 2 ? n - 1 - x : x));
+    const adj = (a, b) => Math.abs(a % n - b % n) + Math.abs(Math.floor(a / n) - Math.floor(b / n)) === 1;
+    const nbs = i => { const x = i % n, y = Math.floor(i / n), o = []; if (x > 0) o.push(i - 1); if (x < n - 1) o.push(i + 1); if (y > 0) o.push(i - n); if (y < n - 1) o.push(i + n); return o; };
+    for (let it = 0; it < n * n * 30; it++) { // backbite: mantém um caminho hamiltoniano, embaralhando-o
+      if (rnd() < .5) p.reverse();
+      const end = p[p.length - 1], cand = nbs(end).filter(c => c !== p[p.length - 2]); const c = cand[Math.floor(rnd() * cand.length)];
+      const k = p.indexOf(c); p = p.slice(0, k + 1).concat(p.slice(k + 1).reverse());
+    }
+    return p.every((v, i) => i === 0 || adj(p[i - 1], v)) ? p : null;
+  },
+  make(L) {
+    const rnd = HX.rng(L.seed), n = L.n, k = L.colors;
+    for (let t = 0; t < 200; t++) {
+      const p = this.path(n, rnd); if (!p) continue;
+      // cortes aleatórios com trechos de pelo menos 3 casas
+      const cuts = new Set(); let guard = 0; while (cuts.size < k - 1 && guard++ < 500) { const c = 3 + Math.floor(rnd() * (p.length - 5)); cuts.add(c); }
+      const cs = [...cuts].sort((a, b) => a - b), segs = []; let s0 = 0; for (const c of cs) { segs.push(p.slice(s0, c)); s0 = c; } segs.push(p.slice(s0));
+      if (segs.some(s => s.length < 3)) continue;
+      // evita pares com pontas vizinhas (triviais) na maior parte das fases
+      const adjEnds = segs.filter(s => { const a = s[0], b = s[s.length - 1]; return Math.abs(a % n - b % n) + Math.abs(Math.floor(a / n) - Math.floor(b / n)) === 1; }).length;
+      if (adjEnds > 1 && t < 150) continue;
+      return { n, sol: segs, ends: segs.map(s => [s[0], s[s.length - 1]]) };
+    }
+    return null;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  lv: 0, P: null, paths: [], moves: 0, hints: 3, done: false, hist: [], usedHint: false,
+  start(k, resume) {
+    this.lv = k; this.P = Gen.make(LEVELS[k]); this.paths = this.P.ends.map(() => []); this.moves = 0; this.hints = 3; this.done = false; this.hist = []; this.usedHint = false;
+    const sv = resume && S.get('cur', null); if (sv && sv.lv === k) { this.paths = sv.paths; this.moves = sv.moves; this.hints = sv.hints; this.usedHint = sv.usedHint; }
+    HX.close(); Rd.size(); UI.hud(); this.save();
+  },
+  endColor(i) { return this.P.ends.findIndex(e => e[0] === i || e[1] === i); },
+  owner(i) { return this.paths.findIndex(p => p.includes(i)); },
+  complete(c) { const p = this.paths[c], e = this.P.ends[c]; return p.length > 1 && ((p[0] === e[0] && p[p.length - 1] === e[1]) || (p[0] === e[1] && p[p.length - 1] === e[0])); },
+  covered() { const s = new Set(); this.paths.forEach(p => p.forEach(i => s.add(i))); this.P.ends.forEach(e => e.forEach(i => s.add(i))); return s.size; },
+  snapshot() { this.hist.push(JSON.stringify(this.paths)); if (this.hist.length > 80) this.hist.shift(); },
+  undo() { if (!this.hist.length || this.done) return; this.paths = JSON.parse(this.hist.pop()); UI.hud(); this.save(); },
+  hint() {
+    if (this.done) return; if (this.hints <= 0) return HX.toast('Sem dicas nesta fase');
+    const c = this.P.sol.findIndex((s, k) => !this.complete(k) || JSON.stringify(this.paths[k]) !== JSON.stringify(s) && JSON.stringify(this.paths[k]) !== JSON.stringify(s.slice().reverse()));
+    if (c < 0) return; this.snapshot(); this.hints--; this.usedHint = true;
+    const sol = this.P.sol[c];
+    // abre espaço: corta caminhos de outras cores que usam essas casas
+    this.paths.forEach((p, k) => { if (k === c) return; const cut = p.findIndex(i => sol.includes(i)); if (cut >= 0) this.paths[k] = p.slice(0, cut); });
+    this.paths[c] = sol.slice(); UI.hud(); this.save(); this.check();
+  },
+  check() {
+    const all = this.P.ends.every((_, c) => this.complete(c)), full = this.covered() === this.P.n * this.P.n;
+    if (all && full) return this.win();
+    if (all && !full) HX.toast('Todos ligados! Agora preencha todas as casas.');
+  },
+  win() {
+    this.done = true; S.del('cur'); const k = this.P.ends.length;
+    const stars = !this.usedHint && this.moves <= k ? 3 : !this.usedHint ? 2 : 1;
+    const p = S.get('progress', { unlocked: 0, levels: {} }), prev = p.levels[this.lv];
+    p.levels[this.lv] = { stars: Math.max(prev ? prev.stars : 0, stars), best: prev ? Math.min(prev.best, this.moves) : this.moves };
+    p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length - 1)); S.set('progress', p); S.hub(`Fase ${p.unlocked + 1} de ${LEVELS.length}`);
+    HX.vibrate(30); setTimeout(() => UI.win(stars), 450);
+  },
+  save() { if (!this.done && this.P) { S.set('cur', { lv: this.lv, paths: this.paths, moves: this.moves, hints: this.hints, usedHint: this.usedHint }); S.hub(`Fase ${this.lv + 1} em andamento`); } }
+};
+
+/* ---------- Render ---------- */
+const Rd = {
+  cv: null, x: null, cs: 50, dpr: 1, active: -1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => Game.P && this.size()).observe(HX.$('#stage')); },
+  size() { const st = HX.$('#stage'), n = Game.P.n; this.cs = Math.floor(Math.min((st.clientWidth - 8) / n, (st.clientHeight - 8) / n, 80)); this.dpr = Math.min(devicePixelRatio || 1, 2); const W = this.cs * n; this.cv.width = W * this.dpr; this.cv.height = W * this.dpr; this.cv.style.width = this.cv.style.height = W + 'px'; },
+  draw() {
+    const x = this.x, n = Game.P.n, s = this.cs; x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    x.fillStyle = '#0c0c10'; x.fillRect(0, 0, n * s, n * s);
+    // fundo das casas ocupadas
+    Game.paths.forEach((p, c) => p.forEach(i => { x.fillStyle = PAL[c % PAL.length] + '22'; x.fillRect((i % n) * s, Math.floor(i / n) * s, s, s); }));
+    x.strokeStyle = 'rgba(201,164,92,.22)'; x.lineWidth = 1; x.beginPath(); for (let k = 1; k < n; k++) { x.moveTo(k * s + .5, 0); x.lineTo(k * s + .5, n * s); x.moveTo(0, k * s + .5); x.lineTo(n * s, k * s + .5); } x.stroke();
+    const cx = i => (i % n + .5) * s, cy = i => (Math.floor(i / n) + .5) * s;
+    Game.paths.forEach((p, c) => { if (p.length < 2) return; x.strokeStyle = PAL[c % PAL.length]; x.lineWidth = s * .34; x.lineCap = 'round'; x.lineJoin = 'round'; x.beginPath(); p.forEach((i, k) => k ? x.lineTo(cx(i), cy(i)) : x.moveTo(cx(i), cy(i))); x.stroke(); });
+    Game.P.ends.forEach((e, c) => e.forEach(i => { const col = PAL[c % PAL.length], done = Game.complete(c);
+      x.fillStyle = col; x.beginPath(); x.arc(cx(i), cy(i), s * .34, 0, 7); x.fill();
+      if (done) { x.strokeStyle = '#fff'; x.lineWidth = 2; x.stroke(); }
+      x.fillStyle = 'rgba(0,0,0,.55)'; x.font = `800 ${Math.round(s * .3)}px Manrope,sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String.fromCharCode(65 + c), cx(i), cy(i) + 1); }));
+  }
+};
+
+/* ---------- Input: arraste para desenhar; voltar por cima apaga; cruzar outra cor corta a dela ---------- */
+const Input = {
+  c: -1, changed: false,
+  init() {
+    const cv = Rd.cv;
+    const cell = e => { const r = cv.getBoundingClientRect(), n = Game.P.n, x = Math.floor((e.clientX - r.left) / Rd.cs), y = Math.floor((e.clientY - r.top) / Rd.cs); return x >= 0 && y >= 0 && x < n && y < n ? y * n + x : -1; };
+    cv.addEventListener('pointerdown', e => {
+      if (Game.done || HX.isOpen()) return; const i = cell(e); if (i < 0) return; try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      const ec = Game.endColor(i), oc = Game.owner(i);
+      Game.snapshot(); this.changed = false;
+      if (ec >= 0) { this.c = ec; Game.paths[ec] = [i]; this.changed = true; }
+      else if (oc >= 0) { this.c = oc; const p = Game.paths[oc]; Game.paths[oc] = p.slice(0, p.indexOf(i) + 1); this.changed = true; }
+      else { this.c = -1; Game.hist.pop(); }
+    });
+    cv.addEventListener('pointermove', e => { if (this.c < 0) return; const j = cell(e); if (j < 0) return; this.walk(j); });
+    const end = () => { if (this.c < 0) return; this.c = -1; if (this.changed) { Game.moves++; UI.hud(); Game.save(); Game.check(); } else Game.hist.pop(); };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  },
+  // avança casa a casa até o dedo (permite movimentos rápidos)
+  walk(j) {
+    const n = Game.P.n; let guard = 0;
+    for (;;) {
+      const p = Game.paths[this.c], last = p[p.length - 1]; if (last === j || guard++ > 40) break;
+      const lx = last % n, ly = Math.floor(last / n), jx = j % n, jy = Math.floor(j / n);
+      const nx = lx + Math.sign(jx - lx) * (Math.abs(jx - lx) >= Math.abs(jy - ly) ? 1 : 0), ny = ly + Math.sign(jy - ly) * (Math.abs(jx - lx) >= Math.abs(jy - ly) ? 0 : 1);
+      if (!this.step(ny * n + nx)) break;
+    }
+    UI.hud();
+  },
+  step(j) {
+    const c = this.c, p = Game.paths[c], k = p.indexOf(j);
+    if (k >= 0) { Game.paths[c] = p.slice(0, k + 1); this.changed = true; return true; } // voltando: apaga
+    if (Game.complete(c)) return false;
+    const ec = Game.endColor(j); if (ec >= 0 && ec !== c) return false; // ponta de outra cor bloqueia
+    const oc = Game.owner(j); if (oc >= 0 && oc !== c) { const q = Game.paths[oc]; Game.paths[oc] = q.slice(0, q.indexOf(j)); } // corta a outra cor
+    p.push(j); this.changed = true; if (ec === c) HX.vibrate(10);
+    return ec !== c; // chegou ao par: para de desenhar
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    Rd.init(); Input.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-reset').onclick = () => { S.del('cur'); Game.start(Game.lv); }; HX.$('#t-hint').onclick = () => Game.hint(); HX.$('#t-levels').onclick = () => this.levels(); HX.$('#menu').onclick = () => this.levels();
+    const loop = () => { if (Game.P) Rd.draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => Game.save() });
+    const cur = S.get('cur', null); if (cur) { Game.start(cur.lv, true); HX.toast('Fase retomada'); } else { Game.start(S.get('progress', { unlocked: 0 }).unlocked); this.levels(); }
+  },
+  hud() { const k = Game.P.ends.length, done = Game.P.ends.filter((_, c) => Game.complete(c)).length; HX.$('#lv').textContent = Game.lv + 1; HX.$('#flows').textContent = `${done}/${k}`; HX.$('#fill').textContent = Math.round(Game.covered() / (Game.P.n * Game.P.n) * 100) + '%'; HX.$('#moves').textContent = Game.moves; HX.$('#b-hint').textContent = Game.hints; },
+  levels() {
+    const p = S.get('progress', { unlocked: 0, levels: {} });
+    const c = HX.overlay(`<h3>Flow</h3><p>Ligue cada par de pontos da mesma cor. Os caminhos não podem se cruzar e todas as casas devem ser preenchidas.</p><div class="lvwrap"><div class="levels">${LEVELS.map((L, k) => { const d = p.levels[k]; return `<button class="lvb ${k > p.unlocked ? 'locked' : ''} ${k === p.unlocked ? 'next' : ''}" data-k="${k}">${k + 1}<small>${d ? '★'.repeat(d.stars) + '☆'.repeat(3 - d.stars) : k > p.unlocked ? '🔒' : L.n + '×' + L.n}</small></button>`; }).join('')}</div></div><button class="btn-primary" id="go">Jogar fase ${p.unlocked + 1}</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Conclua a fase anterior'); S.del('cur'); Game.start(k); });
+    HX.on(c, '#go', () => { S.del('cur'); Game.start(p.unlocked); }); HX.on(c, '#how', () => HX.help('Como jogar', ['Arraste a partir de um ponto colorido até o outro ponto da mesma cor.', 'Passar por cima do próprio caminho apaga o trecho. Passar sobre outra cor corta o caminho dela.', 'Para vencer, ligue todos os pares e preencha todas as casas do tabuleiro.', 'As letras nos pontos ajudam a distinguir as cores.', 'Desenhar cada cor de uma só vez, sem dicas, vale ★★★.'], () => this.levels()));
+  },
+  win(stars) { const last = Game.lv + 1 >= LEVELS.length; const c = HX.overlay(`<h3>Fluxo perfeito!</h3><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><div class="kv"><div><b>${Game.moves}</b><small>Traços</small></div><div><b>${Game.P.ends.length}</b><small>Cores</small></div><div><b>${Game.P.n}×${Game.P.n}</b><small>Tamanho</small></div></div>${last ? '<p>Você concluiu todas as fases!</p>' : '<button class="btn-primary" id="nx">Próxima fase</button>'}<div class="row2"><button class="btn" id="rp">Repetir</button><button class="btn" id="lv">Fases</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.lv + 1)); HX.on(c, '#rp', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels()); }
+};
+UI.init(); HX.sw();
+window.FL = { LEVELS, Gen, Game, Rd, S };
+</script>
+</body>
+</html>

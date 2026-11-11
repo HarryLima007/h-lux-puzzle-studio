@@ -102,5 +102,25 @@ window.HLUX_GAMES = [
     id: 'merge', name: 'Merge', tagline: 'Funda joias até o Sol H-LUX',
     description: 'Solte joias num recipiente com física. Iguais se fundem e evoluem por 11 níveis até o Sol H-LUX.',
     path: 'merge/', cover: 'covers/merge.svg', accent: '#d4a3ff', tags: ['Física', 'Evolução', 'Recordes']
+  },
+  {
+    id: 'arrow', name: 'Arrow', tagline: 'Libere as setas na ordem certa',
+    description: 'Toque nas setas para tirá-las do tabuleiro. Cada uma só sai se o caminho estiver livre. 30 fases sempre solucionáveis.',
+    path: 'arrow/', cover: 'covers/arrow.svg', accent: '#f1dca6', tags: ['Lógica', 'Campanha', '30 fases']
+  },
+  {
+    id: 'unblock', name: 'Unblock', tagline: 'Desbloqueie a peça dourada',
+    description: 'Deslize os blocos pelo seu eixo e abra caminho até a saída. 38 fases com solução mínima conhecida.',
+    path: 'unblock/', cover: 'covers/unblock.svg', accent: '#c9a45c', tags: ['Lógica', 'Deslizar', '38 fases']
+  },
+  {
+    id: 'parking', name: 'Parking', tagline: 'Esvazie o estacionamento',
+    description: 'Cada veículo só anda para frente ou para trás. Descubra a ordem certa para tirar todos sem batidas.',
+    path: 'parking/', cover: 'covers/parking.svg', accent: '#3d8bff', tags: ['Lógica', 'Trânsito', '30 fases']
+  },
+  {
+    id: 'flow', name: 'Flow', tagline: 'Conecte as cores',
+    description: 'Ligue os pares de pontos da mesma cor sem cruzar caminhos e preencha todas as casas do tabuleiro.',
+    path: 'flow/', cover: 'covers/flow.svg', accent: '#3ddc84', tags: ['Lógica', 'Caminhos', '40 fases']
   }
 ];

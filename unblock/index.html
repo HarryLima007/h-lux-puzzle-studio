@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0f">
+<title>H-LUX Unblock</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0d0d0f;--bg2:radial-gradient(ellipse at 50% 0%,#26231d 0%,#0d0d0f 62%);--u:52px}
+body{touch-action:none}
+.board{position:relative;width:calc(var(--u) * 6 + 16px);height:calc(var(--u) * 6 + 16px);padding:8px;border-radius:18px;flex:none;
+  background:radial-gradient(ellipse at 30% 20%,#2e2c2a,#141312 70%);box-shadow:0 0 0 3px #8f6b2e,0 0 0 4px #c9a45c,0 20px 50px rgba(0,0,0,.6)}
+.board::before{content:'';position:absolute;inset:8px;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:var(--u) var(--u);border-radius:8px}
+.exit{position:absolute;right:-10px;top:calc(8px + var(--u) * 2 + 4px);width:14px;height:calc(var(--u) - 8px);background:#0d0d0f;border-radius:3px;box-shadow:inset 0 0 0 2px #c9a45c}
+.exit::after{content:'›';position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#e8cd8c;font:800 26px var(--sans)}
+.blk{position:absolute;left:8px;top:8px;border-radius:12px;touch-action:none;cursor:grab;transition:transform .12s ease;
+  background:linear-gradient(160deg,#f5efe2,#d8ccb2);box-shadow:inset 0 2px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.2),0 4px 8px rgba(0,0,0,.45)}
+.blk.v{background:linear-gradient(110deg,#e9dfc8,#c9b993)}
+.blk.t{background:linear-gradient(160deg,#e85a4f,#9c1f1f);box-shadow:inset 0 2px 0 rgba(255,255,255,.35),inset 0 -3px 0 rgba(0,0,0,.3),0 0 0 2px #e8cd8c,0 4px 10px rgba(0,0,0,.5)}
+.blk.t::after{content:'H';position:absolute;inset:0;display:grid;place-items:center;font:700 calc(var(--u) * .5) var(--serif);color:#ffe7b0}
+.blk.drag{transition:none;z-index:5;filter:brightness(1.06)}
+.blk.hint{animation:hint 1s ease 2}
+@keyframes hint{50%{box-shadow:0 0 0 4px #e8cd8c,0 0 20px #e8cd8c}}
+.ghost{position:absolute;left:8px;top:8px;border-radius:12px;border:2px dashed #e8cd8c;pointer-events:none;animation:fadeg 2s ease forwards}
+@keyframes fadeg{0%,70%{opacity:1}100%{opacity:0}}
+.lvwrap{max-height:52vh;overflow:auto;padding:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Un<b>block</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc"><small>Jogadas</small><b id="moves">0</b></div><div class="sc"><small>Mínimo</small><b id="opt">—</b></div><div class="sc"><small>Melhor</small><b id="best">—</b></div></div>
+  <div class="stage" id="stage"><div class="board" id="board"><div class="exit"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-reset"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Reiniciar</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica<span class="badge" id="b-hint"></span></button>
+    <button class="tool" id="t-levels"><svg class="i"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2"/></svg>Fases</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX UNBLOCK v1.0 — leve o bloco H até a saída
+   Fases geradas e verificadas por busca em largura (todas têm solução; "Mínimo" é a menor quantidade de jogadas).
+   Módulos: Levels · Solver (BFS) · Game · View (arrastar) · UI */
+const S = HX.store('unblock'), N = 6;
+const LEVELS = [[[1,2,0,2],[0,1,3,2]],[[1,2,1,2],[0,2,4,3],[1,5,3,3]],[[1,2,2,2],[0,2,4,2],[0,2,5,2],[1,4,3,2],[1,0,2,2],[1,1,2,3],[1,5,0,2]],[[1,2,2,2],[0,2,5,2],[0,2,4,2],[1,4,3,2],[0,0,5,2],[1,1,2,3],[0,0,0,2]],[[1,2,2,2],[0,4,4,2],[0,2,4,2],[1,0,4,2],[1,0,1,2],[0,2,5,2]],[[1,2,1,2],[0,2,4,2],[1,0,2,2],[0,1,3,2],[0,2,5,2],[1,4,3,2],[1,4,1,2]],[[1,2,1,2],[0,4,3,2],[1,0,2,2],[0,1,5,2],[1,4,4,2],[0,0,4,2],[0,2,4,2],[0,3,1,2],[1,1,2,2],[0,0,0,3]],[[1,2,1,2],[1,0,3,3],[0,2,5,2],[1,4,2,3],[0,2,4,2],[0,4,1,2],[0,0,1,2],[1,3,1,2],[1,1,3,2],[1,5,2,3]],[[1,2,1,2],[0,2,3,3],[1,5,2,2],[0,1,5,2],[1,0,4,2],[1,4,4,2],[1,0,0,3],[0,2,4,2],[1,1,1,3]],[[1,2,2,2],[0,1,4,2],[1,3,3,3],[1,0,4,2],[0,0,3,2],[1,4,4,2],[1,4,2,2],[1,5,2,2],[0,0,2,2],[1,3,0,3]],[[1,2,1,2],[0,0,4,3],[0,2,5,3],[0,0,3,3],[1,3,1,3],[0,2,0,2],[1,4,2,2],[1,5,3,2],[0,4,0,2],[1,1,0,2]],[[1,2,1,2],[0,2,4,2],[0,2,3,2],[0,1,5,2],[1,0,2,3],[0,4,3,2],[1,1,1,3],[1,3,0,2],[0,1,0,2],[0,3,2,2],[0,4,5,2]],[[1,2,0,2],[0,1,3,3],[0,2,2,2],[1,4,3,2],[0,2,5,3],[1,1,1,2],[1,0,1,2],[0,3,0,2],[0,2,4,2],[1,5,4,2]],[[1,2,2,2],[0,1,5,2],[0,0,4,3],[1,5,3,3],[1,1,1,3],[0,2,1,2],[0,4,1,2],[1,4,4,2],[0,1,0,2],[1,3,2,2]],[[1,2,1,2],[1,0,4,2],[0,2,5,2],[1,0,2,2],[0,4,1,2],[0,2,3,2],[1,1,3,3],[1,1,1,2],[1,4,2,2],[0,3,0,2],[0,0,0,2]],[[1,2,2,2],[1,0,3,3],[0,2,5,2],[0,3,0,2],[1,1,3,3],[0,4,5,2],[1,0,1,2],[0,0,0,3],[0,2,4,3],[1,5,3,2],[0,4,2,2],[0,2,1,2]],[[1,2,0,2],[0,2,5,2],[0,2,4,2],[0,1,3,2],[1,4,3,2],[1,0,2,2],[1,1,4,2],[0,3,2,2],[0,1,2,2],[1,4,0,2]],[[1,2,1,2],[0,1,5,2],[0,1,4,2],[0,4,4,2],[1,0,4,2],[1,0,1,2],[0,1,3,2],[0,0,0,2],[1,4,2,2],[0,2,0,2],[1,3,3,2]],[[1,2,1,2],[0,0,5,3],[0,2,3,2],[0,1,4,2],[1,5,4,2],[1,0,3,2],[0,3,4,2],[1,0,1,2],[0,0,0,2],[0,2,0,2],[0,4,1,2],[1,5,2,2]],[[1,2,2,2],[0,1,5,3],[0,1,4,3],[1,5,3,2],[0,3,2,3],[0,1,0,2],[0,2,1,2],[1,0,0,3],[1,4,3,2]],[[1,2,2,2],[0,2,5,2],[0,1,4,2],[0,3,4,3],[1,0,4,2],[0,2,0,2],[0,0,2,2],[1,1,0,2],[1,4,0,2],[0,2,1,2],[0,0,3,2]],[[1,2,1,2],[0,2,4,2],[0,2,5,2],[0,2,3,2],[1,0,2,2],[1,4,3,2],[1,0,4,2],[0,3,2,2],[0,2,0,2],[1,1,4,2],[0,4,5,2],[1,1,2,2],[1,5,3,2]],[[1,2,1,2],[0,0,5,3],[0,1,4,2],[0,2,3,2],[1,4,3,3],[1,5,2,2],[1,0,2,2],[0,3,0,2],[1,4,1,2],[1,3,4,2],[1,5,4,2],[1,1,2,2]],[[1,2,2,2],[1,0,1,2],[0,2,5,2],[1,4,3,3],[0,0,4,2],[0,2,4,2],[0,4,2,2],[0,2,0,3],[0,1,1,2],[1,1,2,2]],[[1,2,1,2],[0,1,4,2],[1,0,3,3],[1,4,4,2],[1,0,0,3],[0,4,3,2],[0,3,2,2],[1,3,3,2],[0,1,5,2],[1,1,2,2],[1,3,0,2],[1,5,1,2]],[[1,2,0,2],[0,0,2,3],[0,0,3,2],[1,5,1,3],[0,1,5,3],[1,3,2,2],[0,3,1,2],[0,2,4,2],[1,4,4,2],[1,0,4,2]],[[1,2,1,2],[0,2,3,2],[0,1,5,2],[0,2,4,2],[1,0,3,2],[0,0,1,2],[1,4,4,2],[0,4,3,2],[0,0,2,2],[1,3,1,2],[0,4,2,2],[0,4,0,2],[1,1,3,2]],[[1,2,2,2],[0,1,4,3],[0,1,5,2],[1,5,3,2],[0,4,0,2],[1,5,1,2],[0,1,1,2],[1,4,4,2],[0,3,3,2],[1,0,1,2],[1,3,0,3],[1,1,2,2]],[[1,2,1,2],[1,5,4,2],[0,1,5,3],[1,3,0,2],[1,3,2,3],[0,1,3,2],[0,4,0,2],[0,1,4,2],[1,0,2,2],[1,4,3,3],[1,4,1,2],[1,5,2,2]],[[1,2,2,2],[0,1,4,3],[1,4,4,2],[0,4,1,2],[1,5,3,3],[1,3,0,2],[1,4,2,2],[0,2,5,2],[1,1,1,2],[1,3,2,2],[1,0,1,2],[1,0,4,2],[0,4,0,2]],[[1,2,0,2],[0,4,2,2],[0,1,3,2],[1,4,3,3],[1,0,1,2],[0,0,5,2],[1,0,3,2],[1,1,1,2],[1,3,0,2],[0,4,0,2],[0,2,5,2],[1,3,2,2],[0,2,4,2],[1,5,4,2]],[[1,2,2,2],[1,0,2,3],[0,1,4,2],[1,4,3,2],[1,1,1,2],[0,0,5,2],[0,3,2,3],[1,0,0,2],[0,2,0,2],[0,2,5,2],[1,5,0,2]],[[1,2,1,2],[0,3,2,2],[0,2,3,2],[1,0,4,2],[0,1,5,2],[0,2,4,2],[1,0,1,2],[0,3,5,2],[1,4,3,2],[0,0,0,3],[1,1,1,2],[1,3,0,2],[1,5,3,2],[1,5,1,2]],[[1,2,1,2],[0,0,5,2],[0,1,0,2],[0,1,3,3],[1,0,2,3],[0,1,4,2],[0,3,2,2],[1,4,3,3],[1,5,3,2],[1,0,0,2],[0,2,5,2],[1,1,1,2]],[[1,2,0,2],[0,2,5,3],[0,0,2,2],[0,1,4,2],[1,0,3,2],[0,2,2,2],[1,5,4,2],[0,4,3,2],[0,2,3,2],[0,0,1,2],[0,0,5,2],[1,3,0,2]],[[1,2,0,2],[0,0,4,3],[0,0,5,3],[1,3,2,2],[1,3,4,2],[1,4,2,3],[0,1,2,2],[1,0,0,3],[0,0,3,2],[0,3,0,2],[1,5,2,3]],[[1,2,0,2],[0,2,2,2],[0,0,5,3],[1,4,4,2],[0,1,3,2],[1,3,3,3],[1,0,1,3],[1,4,1,2],[1,5,3,3],[0,4,0,2],[1,5,1,2],[0,0,4,2]],[[1,2,1,2],[0,1,5,3],[1,5,4,2],[1,4,4,2],[0,4,3,2],[0,2,4,2],[1,0,1,3],[1,1,2,3],[0,2,3,2],[1,5,0,3],[0,2,0,2],[0,3,2,2]]]; // [horizontal, linha, coluna, tamanho]; o primeiro é o bloco alvo
+
+/* ---------- Solver: BFS sobre as posições de cada bloco ---------- */
+const Solver = {
+  occ(vs, pos) { const g = new Array(36).fill(-1); vs.forEach((v, k) => { for (let i = 0; i < v[3]; i++) { const r = v[0] ? v[1] : pos[k] + i, c = v[0] ? pos[k] + i : v[2]; g[r * N + c] = k; } }); return g; },
+  // devolve {moves, first:[k,pos]} com a menor solução a partir de pos
+  solve(vs, pos0, limit = 300000) {
+    const key = p => p.join(','), start = key(pos0), par = new Map([[start, null]]); let q = [pos0];
+    while (q.length) {
+      const nq = [];
+      for (const p of q) {
+        if (p[0] === N - 2) { // reconstrói o caminho
+          const path = []; let k = key(p); while (par.get(k)) { const [prev, vk, vp] = par.get(k); path.unshift([vk, vp]); k = prev; }
+          return { moves: path.length, path };
+        }
+        const g = this.occ(vs, p);
+        vs.forEach((v, k) => { for (const d of [-1, 1]) { let x = p[k]; for (;;) { x += d; const lead = d > 0 ? x + v[3] - 1 : x; if (lead < 0 || lead >= N) break; const cell = v[0] ? v[1] * N + lead : lead * N + v[2]; if (g[cell] >= 0 && g[cell] !== k) break; const np = p.slice(); np[k] = x; const kk = key(np); if (!par.has(kk)) { par.set(kk, [key(p), k, x]); nq.push(np); if (par.size > limit) return null; } } } });
+      }
+      q = nq;
+    }
+    return null;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  lv: 0, vs: null, pos: null, moves: 0, hist: [], opt: 0, hints: 3, done: false,
+  start(n, resume) {
+    this.lv = n; this.vs = LEVELS[n]; this.pos = this.vs.map(v => v[0] ? v[2] : v[1]); this.moves = 0; this.hist = []; this.hints = 3; this.done = false;
+    const sv = resume && S.get('cur', null); if (sv && sv.lv === n) { this.pos = sv.pos; this.moves = sv.moves; this.hist = sv.hist || []; this.hints = sv.hints; }
+    const sol = Solver.solve(this.vs, this.vs.map(v => v[0] ? v[2] : v[1])); this.opt = sol ? sol.moves : 0;
+    HX.close(); View.build(); UI.hud(); this.save();
+  },
+  range(k) { // até onde o bloco k pode deslizar
+    const v = this.vs[k], g = Solver.occ(this.vs, this.pos); let lo = this.pos[k], hi = this.pos[k];
+    const free = x => { const cell = v[0] ? v[1] * N + x : x * N + v[2]; return g[cell] < 0 || g[cell] === k; };
+    while (lo - 1 >= 0 && free(lo - 1)) lo--; while (hi + v[3] < N && free(hi + v[3])) hi++;
+    return [lo, hi];
+  },
+  set(k, x) { if (x === this.pos[k]) return false; this.hist.push(this.pos.slice()); this.pos[k] = x; this.moves++; UI.hud(); this.save(); if (this.pos[0] === N - 2) this.win(); return true; },
+  undo() { if (!this.hist.length || this.done) return; this.pos = this.hist.pop(); this.moves++; View.place(); UI.hud(); this.save(); },
+  hint() {
+    if (this.done) return; if (this.hints <= 0) return HX.toast('Sem dicas nesta fase');
+    const sol = Solver.solve(this.vs, this.pos); if (!sol || !sol.path.length) return;
+    this.hints--; const [k, x] = sol.path[0]; View.hint(k, x); UI.hud(); this.save();
+    HX.toast(`Faltam pelo menos ${sol.moves} jogadas`);
+  },
+  save() { if (!this.done) { S.set('cur', { lv: this.lv, pos: this.pos, moves: this.moves, hist: this.hist.slice(-60), hints: this.hints }); S.hub(`Fase ${this.lv + 1} · ${this.moves} jogadas`); } },
+  win() {
+    this.done = true; S.del('cur');
+    const stars = this.moves <= this.opt ? 3 : this.moves <= this.opt + Math.ceil(this.opt * .5) ? 2 : 1;
+    const p = S.get('progress', { unlocked: 0, levels: {} }), prev = p.levels[this.lv];
+    p.levels[this.lv] = { stars: Math.max(prev ? prev.stars : 0, stars), best: prev ? Math.min(prev.best, this.moves) : this.moves };
+    p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length - 1)); S.set('progress', p); S.hub(`Fase ${p.unlocked + 1} de ${LEVELS.length}`);
+    View.exit(); HX.vibrate(30); setTimeout(() => UI.win(stars), 650);
+  }
+};
+
+/* ---------- View: blocos arrastáveis ---------- */
+const View = {
+  els: [], u: 52,
+  size() { const st = HX.$('#stage'); this.u = Math.floor(Math.min((st.clientWidth - 40) / 6, (st.clientHeight - 24) / 6, 84)); document.documentElement.style.setProperty('--u', this.u + 'px'); this.place(); },
+  build() {
+    const b = HX.$('#board'); b.querySelectorAll('.blk,.ghost').forEach(e => e.remove()); this.els = [];
+    Game.vs.forEach((v, k) => { const d = document.createElement('div'); d.className = 'blk ' + (k === 0 ? 't' : v[0] ? 'h' : 'v'); d.dataset.k = k; b.appendChild(d); this.els.push(d); this.bind(d, k); });
+    this.size();
+  },
+  xy(k, x) { const v = Game.vs[k], u = this.u; return v[0] ? [x * u, v[1] * u] : [v[2] * u, x * u]; },
+  place() {
+    const u = this.u; Game.vs.forEach((v, k) => { const d = this.els[k]; if (!d) return; const [px, py] = this.xy(k, Game.pos[k]); d.style.width = (v[0] ? v[3] * u : u) - 6 + 'px'; d.style.height = (v[0] ? u : v[3] * u) - 6 + 'px'; d.style.transform = `translate(${px + 3}px,${py + 3}px)`; });
+  },
+  bind(d, k) {
+    let st = null;
+    d.addEventListener('pointerdown', e => { if (Game.done || HX.isOpen()) return; e.preventDefault(); try { d.setPointerCapture(e.pointerId); } catch (_) {} st = { x: e.clientX, y: e.clientY, p0: Game.pos[k], r: Game.range(k) }; d.classList.add('drag'); });
+    d.addEventListener('pointermove', e => { if (!st) return; const v = Game.vs[k], delta = (v[0] ? e.clientX - st.x : e.clientY - st.y) / this.u; const x = HX.clamp(st.p0 + delta, st.r[0], st.r[1]); const [px, py] = this.xy(k, x); d.style.transform = `translate(${px + 3}px,${py + 3}px)`; st.x2 = x; });
+    const up = () => { if (!st) return; d.classList.remove('drag'); const x = Math.round(st.x2 ?? st.p0); st = null; Game.set(k, x); this.place(); };
+    d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up);
+  },
+  hint(k, x) { const d = this.els[k]; d.classList.remove('hint'); void d.offsetWidth; d.classList.add('hint'); const g = document.createElement('div'); g.className = 'ghost'; const v = Game.vs[k], u = this.u, [px, py] = this.xy(k, x); g.style.width = (v[0] ? v[3] * u : u) - 6 + 'px'; g.style.height = (v[0] ? u : v[3] * u) - 6 + 'px'; g.style.transform = `translate(${px + 3}px,${py + 3}px)`; HX.$('#board').appendChild(g); setTimeout(() => g.remove(), 2000); },
+  exit() { const d = this.els[0]; d.style.transition = 'transform .5s ease-in, opacity .5s'; const [px, py] = this.xy(0, N + 1); d.style.transform = `translate(${px}px,${py + 3}px)`; d.style.opacity = '0'; }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-reset').onclick = () => Game.start(Game.lv); HX.$('#t-hint').onclick = () => Game.hint(); HX.$('#t-levels').onclick = () => this.levels(); HX.$('#menu').onclick = () => this.levels();
+    new ResizeObserver(() => Game.vs && View.size()).observe(HX.$('#stage')); HX.life({ onHide: () => Game.save() });
+    const cur = S.get('cur', null); if (cur) { Game.start(cur.lv, true); HX.toast('Fase retomada'); } else { Game.start(S.get('progress', { unlocked: 0 }).unlocked); this.levels(); }
+  },
+  hud() { HX.$('#lv').textContent = Game.lv + 1; HX.$('#moves').textContent = Game.moves; HX.$('#opt').textContent = Game.opt; const d = S.get('progress', { levels: {} }).levels[Game.lv]; HX.$('#best').textContent = d ? d.best : '—'; HX.$('#b-hint').textContent = Game.hints; },
+  levels() {
+    const p = S.get('progress', { unlocked: 0, levels: {} });
+    const c = HX.overlay(`<h3>Unblock</h3><p>Deslize os blocos para abrir caminho e leve o bloco <b style="color:#ff8f7f">H</b> até a saída à direita.</p><div class="lvwrap"><div class="levels">${LEVELS.map((_, k) => { const d = p.levels[k]; return `<button class="lvb ${k > p.unlocked ? 'locked' : ''} ${k === p.unlocked ? 'next' : ''}" data-k="${k}">${k + 1}<small>${d ? '★'.repeat(d.stars) + '☆'.repeat(3 - d.stars) : k > p.unlocked ? '🔒' : ''}</small></button>`; }).join('')}</div></div><button class="btn-primary" id="go">Jogar fase ${p.unlocked + 1}</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Conclua a fase anterior'); Game.start(k); });
+    HX.on(c, '#go', () => Game.start(p.unlocked)); HX.on(c, '#how', () => HX.help('Como jogar', ['Arraste os blocos. Horizontais só andam para os lados e verticais só para cima e para baixo.', 'Leve o bloco vermelho <b>H</b> até a saída dourada à direita.', '<b>Mínimo</b> é a menor quantidade de jogadas possível. Igualar o mínimo vale ★★★.', 'Cada fase tem 3 dicas, que mostram o próximo movimento da melhor solução.', 'Desfazer e Reiniciar estão sempre disponíveis.'], () => this.levels()));
+  },
+  win(stars) { const last = Game.lv + 1 >= LEVELS.length; const c = HX.overlay(`<h3>Saída livre!</h3><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><div class="kv"><div><b>${Game.moves}</b><small>Jogadas</small></div><div><b>${Game.opt}</b><small>Mínimo</small></div><div><b>${Game.lv + 1}</b><small>Fase</small></div></div>${last ? '<p>Você concluiu todas as fases!</p>' : '<button class="btn-primary" id="nx">Próxima fase</button>'}<div class="row2"><button class="btn" id="rp">Repetir</button><button class="btn" id="lv">Fases</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.lv + 1)); HX.on(c, '#rp', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels()); }
+};
+UI.init(); HX.sw();
+window.UB = { LEVELS, Solver, Game, View, S };
+</script>
+</body>
+</html>
