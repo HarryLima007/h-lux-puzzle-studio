@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#03030a">
+<title>H-LUX Invaders</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#03030a;--bg2:radial-gradient(ellipse at 50% 0%,#141432 0%,#03030a 70%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Inva<b>ders</b></div><button class="ib" id="menu" aria-label="Pausa"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Onda</small><b id="wave">1</b></div><div class="sc"><small>Vidas</small><b id="lives">3</b></div><div class="sc"><small>Pontos</small><b id="score">0</b></div><div class="sc"><small>Recorde</small><b id="best">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX INVADERS v1.0 — ondas de naves em formação; a cada 5 ondas, um chefe.
+   Inimigos: Soldado (marcha em bloco), Atirador (dispara mais), Mergulhador (sai da formação em curva em direção à nave).
+   Bônus: tiro duplo e escudo. Dificuldade cresce por onda. Módulos: Game · View · Input · UI */
+const S = HX.store('invaders');
+const W = 360, H = 600;
+const Game = {
+  wave: 1, lives: 3, score: 0, state: 'idle', px: W / 2, shots: [], foes: [], ebul: [], drops: [], fx: [], boss: null, cool: 0, dbl: 0, shield: 0, inv: 0, dir: 1, march: 0, waveScore: 0, t: 0, stars: [],
+  start(wave, keep) { HX.close(); this.wave = wave; if (!keep) { this.lives = 3; this.score = 0; } this.waveScore = this.score; this.setup(); this.state = 'play'; HX.sfx('power'); this.save(); UI.hud(); },
+  setup() {
+    this.shots = []; this.ebul = []; this.drops = []; this.fx = []; this.boss = null; this.dir = 1; this.march = 0; this.descend = 0; this.cool = 0; this.inv = 1.5; this.px = W / 2; this.t = 0;
+    this.foes = [];
+    if (this.wave % 5 === 0) { const lvl = this.wave / 5; this.boss = { x: W / 2, y: 110, hp: 60 + lvl * 40, max: 60 + lvl * 40, t: 0, ph: 0 }; HX.toast('Chefe à frente!', 1200); return; }
+    const rows = Math.min(5, 3 + Math.floor(this.wave / 3)), cols = 7;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const type = r === 0 && this.wave >= 2 ? 'shooter' : (r === 1 && this.wave >= 3 && c % 2 === 0) ? 'diver' : 'grunt'; this.foes.push({ hx: c * 40 - 120, hy: r * 34, x: 0, y: 0, type, hp: type === 'shooter' ? 2 : 1, dive: null, alive: true }); }
+  },
+  speed() { return 18 + this.wave * 4; },
+  step(dt) {
+    if (this.state !== 'play') return; this.t += dt;
+    for (const s of this.stars) { s.y += s.v * dt; if (s.y > H) { s.y = 0; s.x = Math.random() * W; } }
+    // nave
+    if (Input.keys.has('ArrowLeft') || Input.keys.has('a')) this.px -= 260 * dt; if (Input.keys.has('ArrowRight') || Input.keys.has('d')) this.px += 260 * dt;
+    this.px = HX.clamp(this.px, 18, W - 18); if (this.inv > 0) this.inv -= dt; if (this.dbl > 0) this.dbl -= dt; if (this.shield > 0) this.shield -= dt;
+    this.cool -= dt; if ((Input.firing || Input.keys.has(' ')) && this.cool <= 0) { this.cool = .28; if (this.dbl > 0) this.shots.push({ x: this.px - 8, y: H - 60 }, { x: this.px + 8, y: H - 60 }); else this.shots.push({ x: this.px, y: H - 62 }); HX.sfx('shot'); }
+    for (const s of this.shots) s.y -= 520 * dt; this.shots = this.shots.filter(s => s.y > -10 && !s.dead);
+    // formação
+    const alive = this.foes.filter(f => f.alive); const ox = W / 2 + this.march, oy = 90 + Math.min(this.wave * 4, 50) + this.descend;
+    if (alive.length) { const sp = this.speed() * (1 + (1 - alive.length / this.foes.length) * 1.6); this.march += this.dir * sp * dt;
+      const xs = alive.filter(f => !f.dive).map(f => W / 2 + this.march + f.hx); if (xs.length && (Math.max(...xs) > W - 22 || Math.min(...xs) < 22)) { this.dir = -this.dir; this.march += this.dir * sp * dt * 2; this.descend = (this.descend || 0) + 10; } }
+    for (const f of alive) {
+      if (f.dive) { f.dive.t += dt; const d = f.dive; f.x = d.x0 + Math.sin(d.t * 2.2) * 70 * d.s + (this.px - d.x0) * Math.min(1, d.t / 2.5); f.y = d.y0 + d.t * (150 + this.wave * 8); if (f.y > H + 20) { f.dive = null; } }
+      else { f.x = ox + f.hx; f.y = oy + f.hy; if (f.type === 'diver' && Math.random() < dt * (.05 + this.wave * .01)) f.dive = { t: 0, x0: f.x, y0: f.y, s: Math.random() < .5 ? -1 : 1 }; }
+      const rate = (f.type === 'shooter' ? .5 : .07) * (1 + this.wave * .12) / Math.max(1, alive.length / 8);
+      if (Math.random() < dt * rate) this.ebul.push({ x: f.x, y: f.y + 10, vx: 0, vy: 170 + this.wave * 8 });
+      if (f.y > H - 70 && !f.dive) { this.hitPlayer(true); return; }
+    }
+    // chefe
+    const b = this.boss; if (b) { b.t += dt; b.x = W / 2 + Math.sin(b.t * .9) * 120; b.ph -= dt;
+      if (b.ph <= 0) { const lvl = this.wave / 5; const pattern = Math.floor(b.t / 4) % 3; b.ph = pattern === 0 ? 1.1 - Math.min(.5, lvl * .1) : pattern === 1 ? .35 : 1.4;
+        if (pattern === 0) for (let k = -2; k <= 2; k++) this.ebul.push({ x: b.x, y: b.y + 30, vx: k * 55, vy: 190 });
+        else if (pattern === 1) { const a = Math.atan2(H - 40 - b.y, this.px - b.x); this.ebul.push({ x: b.x, y: b.y + 30, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240 }); }
+        else for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2 + b.t; this.ebul.push({ x: b.x, y: b.y, vx: Math.cos(a) * 140, vy: Math.abs(Math.sin(a)) * 140 + 40 }); } } }
+    // projéteis inimigos
+    for (const e of this.ebul) { e.x += e.vx * dt; e.y += e.vy * dt; if (Math.abs(e.x - this.px) < 14 && Math.abs(e.y - (H - 40)) < 14) { e.dead = true; this.hitPlayer(); } }
+    this.ebul = this.ebul.filter(e => !e.dead && e.y < H + 10 && e.x > -10 && e.x < W + 10);
+    // colisões tiros × inimigos
+    for (const s of this.shots) { for (const f of alive) if (f.alive && Math.abs(s.x - f.x) < 15 && Math.abs(s.y - f.y) < 13) { s.dead = true; f.hp--; if (f.hp <= 0) this.kill(f); else HX.sfx('hit'); break; }
+      if (b && !s.dead && Math.abs(s.x - b.x) < 48 && Math.abs(s.y - b.y) < 26) { s.dead = true; b.hp--; this.score += 2; HX.sfx('hit'); if (b.hp <= 0) this.killBoss(); } }
+    // mergulhador encosta na nave
+    for (const f of alive) if (f.alive && f.dive && Math.abs(f.x - this.px) < 22 && Math.abs(f.y - (H - 40)) < 20) { this.kill(f); this.hitPlayer(); }
+    for (const d of this.drops) { d.y += 110 * dt; if (Math.abs(d.x - this.px) < 22 && Math.abs(d.y - (H - 40)) < 18) { d.got = true; if (d.k === 'dbl') { this.dbl = 12; HX.toast('Tiro duplo!', 900); } else { this.shield = 8; HX.toast('Escudo!', 900); } HX.sfx('power'); } }
+    this.drops = this.drops.filter(d => !d.got && d.y < H);
+    this.fx = this.fx.filter(p => (p.t -= dt) > 0); for (const p of this.fx) { p.x += p.vx * dt; p.y += p.vy * dt; }
+    if (!this.boss && !this.foes.some(f => f.alive)) this.clear();
+  },
+  kill(f) { f.alive = false; this.score += { grunt: 10, shooter: 25, diver: 40 }[f.type] * (f.dive ? 2 : 1); HX.sfx('boom'); this.burst(f.x, f.y, f.type === 'diver' ? '#6fb7ff' : f.type === 'shooter' ? '#e5484d' : '#f1dca6'); if (Math.random() < .07) this.drops.push({ x: f.x, y: f.y, k: Math.random() < .6 ? 'dbl' : 'shield' }); UI.hud(); },
+  killBoss() { const b = this.boss; this.boss = null; this.score += 500 * (this.wave / 5); for (let k = 0; k < 4; k++) this.burst(b.x + (k - 1.5) * 20, b.y, '#f1dca6'); HX.sfx('win'); HX.vibrate(60); this.ebul = []; UI.hud(); },
+  burst(x, y, c) { for (let k = 0; k < 12; k++) { const a = Math.random() * 7, s = 40 + Math.random() * 120; this.fx.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: .5, c }); } },
+  hitPlayer(force) { if (!force && (this.inv > 0 || this.shield > 0)) return; this.lives--; this.inv = 2; this.burst(this.px, H - 40, '#c9a45c'); HX.sfx('lose'); HX.vibrate(50); this.ebul = []; UI.hud();
+    if (force) { this.descend = 0; this.foes.forEach(f => f.dive = null); }
+    if (this.lives <= 0) this.over(); },
+  clear() { this.state = 'clear'; this.score += 100 + this.lives * 20; this.record(); this.save(true); UI.hud(); HX.sfx('win'); setTimeout(() => UI.clear(), 700); },
+  over() { this.state = 'over'; this.record(); S.del('cur'); S.hub(null); setTimeout(() => UI.over(), 700); },
+  record() { const b = S.get('best', 0); this.newBest = this.score > b; if (this.newBest) S.set('best', this.score); const w = S.get('bestWave', 0); if (this.wave > w) S.set('bestWave', this.wave); },
+  pause() { if (this.state !== 'play') return; this.state = 'pause'; this.save(); UI.pause(); },
+  resume() { if (this.state !== 'pause') return; HX.close(); this.state = 'play'; this.inv = Math.max(this.inv, .8); },
+  save(next) { if (this.state === 'over') return; S.set('cur', { wave: next ? this.wave + 1 : this.wave, lives: this.lives, score: next ? this.score : this.waveScore }); S.hub(`Onda ${next ? this.wave + 1 : this.wave} · ${this.lives} vidas · ${this.score} pts`); }
+};
+Game.descend = 0;
+const View = {
+  cv: null, x: null, k: 1, dpr: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); this.size(); Game.stars = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 10 + Math.random() * 40, s: Math.random() * 1.5 + .3 })); },
+  size() { const st = HX.$('#stage'); this.k = Math.min((st.clientWidth - 8) / W, (st.clientHeight - 8) / H); this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = W * this.k * this.dpr; this.cv.height = H * this.k * this.dpr; this.cv.style.width = W * this.k + 'px'; this.cv.style.height = H * this.k + 'px'; },
+  ship(x, y, c, k = 1) { const g = this.x; g.fillStyle = c; g.beginPath(); g.moveTo(x, y - 14 * k); g.lineTo(x + 14 * k, y + 10 * k); g.lineTo(x + 5 * k, y + 6 * k); g.lineTo(x, y + 12 * k); g.lineTo(x - 5 * k, y + 6 * k); g.lineTo(x - 14 * k, y + 10 * k); g.closePath(); g.fill(); },
+  foe(f) { const g = this.x, x = f.x, y = f.y;
+    if (f.type === 'grunt') { g.fillStyle = '#f1dca6'; g.beginPath(); g.ellipse(x, y, 13, 9, 0, 0, 7); g.fill(); g.fillStyle = '#0a0a18'; g.fillRect(x - 6, y - 2, 4, 4); g.fillRect(x + 2, y - 2, 4, 4); g.fillStyle = '#f1dca6'; g.fillRect(x - 13, y + 6, 4, 6); g.fillRect(x + 9, y + 6, 4, 6); }
+    else if (f.type === 'shooter') { g.fillStyle = f.hp > 1 ? '#e5484d' : '#ff9a8a'; g.beginPath(); g.moveTo(x, y + 12); g.lineTo(x + 15, y - 6); g.lineTo(x + 6, y - 10); g.lineTo(x, y - 4); g.lineTo(x - 6, y - 10); g.lineTo(x - 15, y - 6); g.closePath(); g.fill(); g.fillStyle = '#fff'; g.fillRect(x - 2, y - 2, 4, 6); }
+    else { g.fillStyle = '#6fb7ff'; g.beginPath(); g.moveTo(x, y + 13); g.lineTo(x + 12, y - 8); g.lineTo(x, y - 3); g.lineTo(x - 12, y - 8); g.closePath(); g.fill(); g.strokeStyle = '#cfe6ff'; g.beginPath(); g.moveTo(x - 16, y - 2); g.lineTo(x + 16, y - 2); g.stroke(); } },
+  draw() {
+    const g = this.x, G = Game; g.setTransform(this.k * this.dpr, 0, 0, this.k * this.dpr, 0, 0);
+    g.fillStyle = '#05051a'; g.fillRect(0, 0, W, H); for (const s of G.stars) { g.fillStyle = `rgba(255,255,255,${.3 + s.s / 3})`; g.fillRect(s.x, s.y, s.s, s.s); }
+    for (const f of G.foes) if (f.alive) this.foe(f);
+    if (G.boss) { const b = G.boss; g.fillStyle = '#c9a45c'; g.beginPath(); g.moveTo(b.x - 50, b.y - 10); g.lineTo(b.x - 30, b.y - 28); g.lineTo(b.x + 30, b.y - 28); g.lineTo(b.x + 50, b.y - 10); g.lineTo(b.x + 34, b.y + 22); g.lineTo(b.x - 34, b.y + 22); g.closePath(); g.fill(); g.fillStyle = '#e5484d'; g.beginPath(); g.arc(b.x, b.y - 2, 10, 0, 7); g.fill(); g.fillStyle = '#05051a'; g.fillRect(b.x - 40, b.y + 6, 80, 5);
+      g.fillStyle = '#33282a'; g.fillRect(40, 40, W - 80, 6); g.fillStyle = '#e5484d'; g.fillRect(40, 40, (W - 80) * b.hp / b.max, 6); }
+    g.fillStyle = '#fff6c8'; for (const s of G.shots) g.fillRect(s.x - 1.5, s.y - 8, 3, 12);
+    for (const e of G.ebul) { g.fillStyle = '#ff7a6a'; g.beginPath(); g.arc(e.x, e.y, 3.5, 0, 7); g.fill(); }
+    for (const d of G.drops) { g.fillStyle = d.k === 'dbl' ? '#c86bff' : '#3ddc84'; g.beginPath(); g.arc(d.x, d.y, 9, 0, 7); g.fill(); g.fillStyle = '#111'; g.font = '800 10px Manrope'; g.textAlign = 'center'; g.fillText(d.k === 'dbl' ? '2×' : 'E', d.x, d.y + 4); }
+    for (const p of G.fx) { g.globalAlpha = p.t * 2; g.fillStyle = p.c; g.fillRect(p.x, p.y, 3, 3); } g.globalAlpha = 1;
+    if (G.state !== 'over' && !(G.inv > 0 && Math.floor(G.inv * 10) % 2)) { this.ship(G.px, H - 40, '#f1dca6'); if (G.shield > 0) { g.strokeStyle = 'rgba(61,220,132,.8)'; g.lineWidth = 2; g.beginPath(); g.arc(G.px, H - 38, 22, 0, 7); g.stroke(); } }
+    g.fillStyle = '#c9a45c'; g.font = '700 12px Manrope'; g.textAlign = 'left'; g.fillText(`ONDA ${G.wave}${G.wave % 5 === 0 ? ' · CHEFE' : ''}`, 10, 20); g.textAlign = 'right'; g.fillText(G.dbl > 0 ? 'TIRO DUPLO' : '', W - 10, 20);
+  }
+};
+const Input = {
+  keys: new Set(), firing: false, lastX: null,
+  init() {
+    const cv = View.cv, lx = e => (e.clientX - cv.getBoundingClientRect().left) / View.k;
+    // tocar e arrastar move a nave (relativo) e mantém o tiro automático
+    cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (_) {} this.lastX = lx(e); this.firing = true; if (e.pointerType === 'mouse') Game.px = lx(e); });
+    cv.addEventListener('pointermove', e => { const x = lx(e); if (e.pointerType === 'mouse') { Game.px = x; return; } if (this.lastX == null) return; Game.px += (x - this.lastX) * 1.2; this.lastX = x; });
+    const up = () => { this.lastX = null; this.firing = false; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    addEventListener('keydown', e => { if (e.key === ' ') e.preventDefault(); if (e.key === 'p' || e.key === 'Escape') return Game.state === 'play' ? Game.pause() : Game.resume(); this.keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key); });
+    addEventListener('keyup', e => this.keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
+  }
+};
+const UI = {
+  init() {
+    View.init(); Input.init();
+    HX.$('#menu').onclick = () => Game.state === 'play' ? Game.pause() : Game.state === 'pause' ? Game.resume() : this.home();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.033, (t - last) / 1000); last = t; Game.step(dt); View.draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => Game.pause() }); HX.$('#best').textContent = S.get('best', 0); this.home();
+  },
+  hud() { HX.$('#wave').textContent = Game.wave; HX.$('#lives').textContent = Game.lives; HX.$('#score').textContent = Game.score; HX.$('#best').textContent = Math.max(S.get('best', 0), Game.score); },
+  helpItems: ['Toque e arraste em qualquer lugar da tela para mover a nave; enquanto o dedo estiver na tela, ela atira sozinha. No mouse, segure o botão para atirar.', 'Teclado: ← → (ou A D) movem e espaço atira. P pausa.', 'Soldados dourados marcham em bloco; atiradores vermelhos aguentam 2 tiros e disparam mais; mergulhadores azuis saem da formação e vêm em sua direção (valem o dobro no mergulho).', 'A cada 5 ondas aparece um chefe com padrões de tiro diferentes.', 'Bônus: 2× tiro duplo e E escudo temporário. Se a formação chegar até a sua nave, você perde uma vida.', 'O progresso fica salvo no início de cada onda.'],
+  home() {
+    Game.state = 'idle'; const cur = S.get('cur', null);
+    const c = HX.overlay(`<h3>Invaders</h3><p>Recorde: ${S.get('best', 0)} pts · melhor onda: ${S.get('bestWave', 0)}</p>${cur ? `<button class="btn-primary" id="ct">Continuar onda ${cur.wave} · ${cur.lives} vidas</button>` : ''}<button class="${cur ? 'btn' : 'btn-primary'}" id="nw">Novo jogo</button><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false });
+    HX.on(c, '#ct', () => { Game.lives = cur.lives; Game.score = cur.score; Game.start(cur.wave, true); }); HX.on(c, '#nw', () => { S.del('cur'); Game.start(1); }); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => this.home())); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.home(); });
+  },
+  pause() { const c = HX.overlay(`<h3>Pausa</h3><p>Onda ${Game.wave} · ${Game.score} pontos</p><button class="btn-primary" id="rs">Continuar</button><div class="row2"><button class="btn" id="rt">Reiniciar onda</button><button class="btn" id="hm">Menu</button></div>`, { guard: false });
+    HX.on(c, '#rs', () => Game.resume()); HX.on(c, '#rt', () => { Game.score = Game.waveScore; Game.start(Game.wave, true); }); HX.on(c, '#hm', () => this.home()); },
+  clear() { const c = HX.overlay(`<h3>Onda ${Game.wave} vencida!</h3><div class="kv"><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.lives}</b><small>Vidas</small></div></div><button class="btn-primary" id="nx">Próxima onda${(Game.wave + 1) % 5 === 0 ? ' (chefe)' : ''}</button><button class="btn" id="hm">Menu</button>`);
+    HX.on(c, '#nx', () => Game.start(Game.wave + 1, true)); HX.on(c, '#hm', () => this.home()); },
+  over() { HX.sfx('lose'); const c = HX.overlay(`<h3>Fim de jogo</h3><p>${Game.newBest ? 'Novo recorde!' : 'Recorde: ' + S.get('best', 0)}</p><div class="kv"><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.wave}</b><small>Onda</small></div></div><button class="btn-primary" id="ag">Jogar de novo</button><button class="btn" id="hm">Menu</button>`);
+    HX.on(c, '#ag', () => Game.start(1)); HX.on(c, '#hm', () => this.home()); }
+};
+UI.init(); HX.sw();
+window.IV = { Game, View, Input, UI, S, W, H };
+</script>
+</body>
+</html>

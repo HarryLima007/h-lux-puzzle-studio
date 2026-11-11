@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>H-LUX Racer</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0a0a0a;--bg2:radial-gradient(ellipse at 50% 0%,#222 0%,#0a0a0a 70%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Rac<b>er</b></div><button class="ib" id="menu" aria-label="Pausa"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Pista</small><b id="trk">—</b></div><div class="sc"><small>Velocidade</small><b id="spd">0</b></div><div class="sc"><small id="l3">Tempo</small><b id="tm">0:00</b></div><div class="sc"><small id="l4">Progresso</small><b id="prog">0%</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX RACER v1.0 — corrida arcade vista de cima. 6 pistas com curvas, largura e trânsito próprios (medalhas por tempo)
+   + modo Infinito (3 vidas, pontos por distância). Batidas reduzem a velocidade; sair da pista freia.
+   Módulos: TRACKS · Game · View · Input · UI */
+const S = HX.store('racer');
+const W = 360, H = 600, CAR = { w: 26, h: 44 };
+const TRACKS = [
+  { n: 'Avenida Dourada', len: 9000, rw: 240, curve: [[.3, 0], [.4, 60], [.6, -60], [.8, 0]], traffic: .55, cones: .2, oil: 0, max: 520, gold: 22, silver: 26, bronze: 33, sky: '#2b2f3a', grass: '#2f5d3a', road: '#3a3a40' },
+  { n: 'Deserto de Ouro', len: 11000, rw: 220, curve: [[.2, 80], [.35, -80], [.5, 100], [.7, -40], [.9, 60]], traffic: .45, cones: .45, oil: .2, max: 560, gold: 24, silver: 29, bronze: 36, sky: '#c9945a', grass: '#c8a165', road: '#6b5a48' },
+  { n: 'Serra Nevada', len: 12000, rw: 210, curve: [[.15, -90], [.3, 90], [.45, -110], [.6, 110], [.8, -70]], traffic: .5, cones: .3, oil: .45, max: 560, gold: 26, silver: 31, bronze: 38, sky: '#dfe8f2', grass: '#e9eef5', road: '#5a6170' },
+  { n: 'Cidade à Noite', len: 13000, rw: 230, curve: [[.2, 40], [.3, -100], [.5, 80], [.65, -60], [.85, 100]], traffic: .9, cones: .2, oil: .2, max: 600, gold: 26, silver: 31, bronze: 38, sky: '#0d1022', grass: '#16182a', road: '#2a2c38' },
+  { n: 'Costa Azul', len: 14000, rw: 200, curve: [[.1, 70], [.25, -120], [.4, 120], [.55, -120], [.7, 120], [.9, 0]], traffic: .7, cones: .35, oil: .3, max: 620, gold: 27, silver: 32, bronze: 39, sky: '#7fc4e8', grass: '#d9c79a', road: '#4a4c55' },
+  { n: 'Circuito H-LUX', len: 16000, rw: 190, curve: [[.1, -130], [.2, 130], [.35, -140], [.5, 140], [.65, -140], [.8, 130], [.95, 0]], traffic: 1, cones: .5, oil: .5, max: 660, gold: 29, silver: 34, bronze: 41, sky: '#1a140a', grass: '#2a2214', road: '#33302a' }
+];
+const ENDLESS = { n: 'Infinito', len: Infinity, rw: 220, traffic: .7, cones: .35, oil: .3, max: 560, sky: '#20242e', grass: '#2f4a38', road: '#3a3a40' };
+const Game = {
+  T: null, ti: -1, endless: false, d: 0, v: 0, x: 0, t: 0, lives: 3, state: 'idle', objs: [], nextSpawn: 300, crashT: 0, slipT: 0, hits: 0, rnd: Math.random, score: 0, steer: 0,
+  start(ti) { HX.close(); this.ti = ti; this.endless = ti < 0; this.T = this.endless ? ENDLESS : TRACKS[ti]; this.d = 0; this.v = 0; this.x = 0; this.t = 0; this.lives = 3; this.objs = []; this.nextSpawn = 400; this.crashT = 0; this.slipT = 0; this.hits = 0; this.score = 0; this.rnd = HX.rng(this.endless ? Date.now() : 4242 + ti * 77); this.state = 'count'; this.count = 3; HX.sfx('tap'); UI.hud(); },
+  // deslocamento lateral do centro da pista na distância z (curvas suaves por interpolação)
+  center(z) { const T = this.T; if (this.endless) return Math.sin(z / 1700) * 70 + Math.sin(z / 610) * 22 * Math.min(1, z / 20000); const p = z / T.len, pts = [[0, 0]].concat(T.curve, [[1, 0]]);
+    for (let k = 1; k < pts.length; k++) if (p <= pts[k][0]) { const a = pts[k - 1], b = pts[k], u = (p - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * (1 - Math.cos(u * Math.PI)) / 2; } return 0; },
+  diff() { return this.endless ? Math.min(2.2, 1 + this.d / 40000) : 1; },
+  spawn() {
+    const T = this.T, r = this.rnd, z = this.d + H + 80; const lanes = [-1, 0, 1].map(k => k * T.rw / 3.2);
+    const k = r(); const dens = T.traffic * this.diff();
+    if (k < .55) { const lane = lanes[Math.floor(r() * 3)]; this.objs.push({ type: 'car', z, x: lane, v: 160 + r() * 140, c: ['#e5484d', '#3d8bff', '#3ddc84', '#f2c230', '#c86bff', '#f4efe2'][Math.floor(r() * 6)], wob: r() * 6 }); }
+    else if (k < .55 + T.cones * .5) { const lane = lanes[Math.floor(r() * 3)]; for (let j = 0; j < 3; j++) this.objs.push({ type: 'cone', z: z + j * 26, x: lane + (j - 1) * 10 }); }
+    else if (k < .55 + T.cones * .5 + T.oil * .4) this.objs.push({ type: 'oil', z, x: (r() - .5) * T.rw * .6 });
+    this.nextSpawn = this.d + (360 - Math.min(220, dens * 170)) * (.7 + r() * .6);
+  },
+  step(dt) {
+    if (this.state === 'count') { this.count -= dt; if (Math.floor(this.count + dt) !== Math.floor(this.count) && this.count > 0) HX.sfx('tap'); if (this.count <= 0) { this.state = 'play'; HX.sfx('power'); } return; }
+    if (this.state !== 'play') return; const T = this.T;
+    this.t += dt; if (this.crashT > 0) this.crashT -= dt; if (this.slipT > 0) this.slipT -= dt;
+    // direção: teclado ou toque (com inércia)
+    let st = Input.dir(); if (this.slipT > 0) st += Math.sin(this.t * 14) * .8;
+    this.steer += (st - this.steer) * Math.min(1, dt * 10); this.x += this.steer * (150 + this.v * .35) * dt;
+    const c = this.center(this.d + 70), off = Math.abs(this.x - c) > T.rw / 2 - CAR.w / 2;
+    const maxV = (off ? 180 : T.max * (this.endless ? this.diff() * .85 : 1)) * (Input.brake() ? .45 : 1);
+    this.v += ((this.crashT > 0 ? 120 : maxV) - this.v) * Math.min(1, dt * (this.v < maxV ? .9 : 3));
+    this.x = HX.clamp(this.x, c - T.rw / 2 - 60, c + T.rw / 2 + 60);
+    this.d += this.v * dt; if (this.endless) this.score = Math.floor(this.d / 10);
+    if (this.d > this.nextSpawn) this.spawn();
+    for (const o of this.objs) { if (o.type === 'car') { o.z += o.v * dt; o.x += Math.sin(this.t * .8 + o.wob) * 6 * dt; } }
+    // colisões (carro do jogador fica em z = d + 70)
+    const pz = this.d + 70, px = this.x;
+    for (const o of this.objs) { if (o.hit) continue; const ox = this.center(o.z) + o.x, dz = Math.abs(o.z - pz);
+      if (o.type === 'car' && dz < CAR.h * .9 && Math.abs(ox - px) < CAR.w * .95) { o.hit = true; this.crash(); o.z += 40; }
+      if (o.type === 'cone' && dz < 18 && Math.abs(ox - px) < CAR.w * .7) { o.hit = true; this.v *= .7; HX.sfx('hit'); HX.vibrate(15); if (this.endless) this.score -= 0; }
+      if (o.type === 'oil' && dz < 24 && Math.abs(ox - px) < 30) { o.hit = true; this.slipT = 1.1; HX.sfx('power'); HX.toast('Óleo!', 700); } }
+    this.objs = this.objs.filter(o => o.z > this.d - 120 && o.z < this.d + H + 400);
+    if (!this.endless && this.d >= T.len) this.finish();
+    UI.hud();
+  },
+  crash() { this.hits++; this.v *= .25; this.crashT = .8; HX.sfx('boom'); HX.vibrate(60); if (!this.endless) this.t += 2; else { this.lives--; if (this.lives <= 0) this.over(); } },
+  finish() {
+    this.state = 'done'; const T = this.T, tm = this.t, medal = tm <= T.gold ? 3 : tm <= T.silver ? 2 : tm <= T.bronze ? 1 : 0;
+    const rec = S.get('tracks', {}), old = rec[this.ti]; const best = !old || tm < old.t; rec[this.ti] = { t: best ? tm : old.t, medal: Math.max(medal, old ? old.medal : 0) }; S.set('tracks', rec);
+    HX.sfx(medal ? 'win' : 'coin'); S.hub(`Pistas: ${Object.values(rec).filter(r => r.medal).length}/${TRACKS.length} com medalha`); setTimeout(() => UI.finish(tm, medal, best), 600);
+  },
+  over() { this.state = 'done'; const b = S.get('endless', 0), best = this.score > b; if (best) S.set('endless', this.score); HX.sfx('lose'); setTimeout(() => UI.over(best), 700); },
+  pause() { if (this.state !== 'play' && this.state !== 'count') return; this.prev = this.state; this.state = 'pause'; UI.pause(); },
+  resume() { if (this.state !== 'pause') return; HX.close(); this.state = 'count'; this.count = 1.5; }
+};
+const View = {
+  cv: null, x: null, k: 1, dpr: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); this.size(); },
+  size() { const st = HX.$('#stage'); this.k = Math.min((st.clientWidth - 8) / W, (st.clientHeight - 8) / H); this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = W * this.k * this.dpr; this.cv.height = H * this.k * this.dpr; this.cv.style.width = W * this.k + 'px'; this.cv.style.height = H * this.k + 'px'; },
+  car(x, y, c, me) { const g = this.x; g.save(); g.translate(x, y); if (me && Game.slipT > 0) g.rotate(Math.sin(Game.t * 14) * .25); else if (me) g.rotate(Game.steer * .12);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(-CAR.w / 2 + 3, -CAR.h / 2 + 4, CAR.w, CAR.h);
+    g.fillStyle = c; g.beginPath(); g.roundRect(-CAR.w / 2, -CAR.h / 2, CAR.w, CAR.h, 7); g.fill();
+    g.fillStyle = 'rgba(10,15,25,.85)'; g.beginPath(); g.roundRect(-CAR.w / 2 + 4, -CAR.h / 2 + 9, CAR.w - 8, 10, 3); g.fill(); g.beginPath(); g.roundRect(-CAR.w / 2 + 4, CAR.h / 2 - 14, CAR.w - 8, 7, 3); g.fill();
+    g.fillStyle = me ? '#fff6c8' : '#ffeaa0'; g.fillRect(-CAR.w / 2 + 3, -CAR.h / 2, 5, 3); g.fillRect(CAR.w / 2 - 8, -CAR.h / 2, 5, 3);
+    if (me) { g.fillStyle = '#1a1408'; g.fillRect(-2, -CAR.h / 2 + 2, 4, CAR.h - 4); } g.restore(); },
+  draw() {
+    const g = this.x, G = Game, T = G.T; g.setTransform(this.k * this.dpr, 0, 0, this.k * this.dpr, 0, 0);
+    if (!T) { g.fillStyle = '#111'; g.fillRect(0, 0, W, H); return; }
+    g.fillStyle = T.grass; g.fillRect(0, 0, W, H);
+    const camX = G.center(G.d + 70) * .6 + G.x * .4; // a câmera acompanha a pista e o carro
+    const sx = z => W / 2 + G.center(z) - camX, sy = z => H - 40 - (z - G.d);
+    // pista em faixas horizontais de 10 unidades
+    for (let y = H; y > -10; y -= 8) { const z = G.d + (H - 40 - y), cx = sx(z);
+      g.fillStyle = Math.floor(z / 60) % 2 ? '#c9a45c' : '#f4efe2'; g.fillRect(cx - T.rw / 2 - 8, y - 8, 8, 9); g.fillRect(cx + T.rw / 2, y - 8, 8, 9);
+      g.fillStyle = T.road; g.fillRect(cx - T.rw / 2, y - 8, T.rw, 9);
+      if (Math.floor(z / 40) % 2) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(cx - T.rw / 6 - 1.5, y - 8, 3, 9); g.fillRect(cx + T.rw / 6 - 1.5, y - 8, 3, 9); }
+      if (!G.endless && z >= T.len && z < T.len + 30) { for (let k = 0; k < 12; k++) { g.fillStyle = (k + Math.floor(z / 10)) % 2 ? '#111' : '#fff'; g.fillRect(cx - T.rw / 2 + k * T.rw / 12, y - 8, T.rw / 12, 9); } }
+    }
+    for (const o of G.objs) { const x = sx(o.z) + o.x, y = sy(o.z); if (y < -60 || y > H + 60) continue;
+      if (o.type === 'car') this.car(x, y, o.c); else if (o.type === 'cone') { g.fillStyle = '#ff8c2e'; g.beginPath(); g.moveTo(x, y - 9); g.lineTo(x + 7, y + 7); g.lineTo(x - 7, y + 7); g.fill(); g.fillStyle = '#fff'; g.fillRect(x - 4, y, 8, 2.5); }
+      else { g.fillStyle = 'rgba(10,10,14,.85)'; g.beginPath(); g.ellipse(x, y, 26, 14, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(120,90,200,.35)'; g.beginPath(); g.ellipse(x - 6, y - 3, 10, 5, 0, 0, 7); g.fill(); } }
+    const pz = G.d + 70; this.car(sx(pz) + (G.x - G.center(pz)), sy(pz), G.crashT > 0 && Math.floor(G.t * 20) % 2 ? '#ff6b5a' : '#e0b14a', true);
+    // painel
+    g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, 0, W, 26); g.fillStyle = '#f1dca6'; g.font = '700 12px Manrope'; g.textAlign = 'left'; g.fillText(T.n.toUpperCase(), 10, 17); g.textAlign = 'right';
+    g.fillText(G.endless ? `${G.score} m · ${'♥'.repeat(Math.max(0, G.lives))}` : `${Math.round(Math.min(1, G.d / T.len) * 100)}% · ${G.hits} batidas`, W - 10, 17);
+    if (G.state === 'count') { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, W, H); g.fillStyle = '#f1dca6'; g.font = '800 72px "Cormorant Garamond",serif'; g.textAlign = 'center'; g.fillText(Math.ceil(G.count), W / 2, H / 2); }
+    if (G.state === 'play' && G.t < 4 && Input.touchHint) { g.fillStyle = 'rgba(241,220,166,.15)'; g.fillRect(0, H - 150, W / 2 - 2, 150); g.fillRect(W / 2 + 2, H - 150, W / 2, 150); g.fillStyle = 'rgba(241,220,166,.7)'; g.font = '800 14px Manrope'; g.textAlign = 'center'; g.fillText('◀ segure', W / 4, H - 70); g.fillText('segure ▶', W * .75, H - 70); }
+  }
+};
+const Input = {
+  keys: new Set(), ptr: new Map(), touchHint: true,
+  init() {
+    const cv = View.cv;
+    cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (_) {} this.ptr.set(e.pointerId, e.clientX); });
+    cv.addEventListener('pointermove', e => { if (this.ptr.has(e.pointerId)) this.ptr.set(e.pointerId, e.clientX); });
+    const up = e => this.ptr.delete(e.pointerId); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'Escape') return Game.state === 'pause' ? Game.resume() : Game.pause(); this.keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key); if (e.key.startsWith('Arrow')) e.preventDefault(); });
+    addEventListener('keyup', e => this.keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
+  },
+  // segurar a metade esquerda/direita da tela vira para o lado; os dois juntos freiam
+  dir() { let d = 0; if (this.keys.has('ArrowLeft') || this.keys.has('a')) d -= 1; if (this.keys.has('ArrowRight') || this.keys.has('d')) d += 1;
+    const r = View.cv.getBoundingClientRect(); let l = 0, rr = 0; for (const x of this.ptr.values()) { if (x < r.left + r.width / 2) l = 1; else rr = 1; } if (l !== rr) d += rr - l; return HX.clamp(d, -1, 1); },
+  brake() { if (this.keys.has('ArrowDown') || this.keys.has('s')) return true; const r = View.cv.getBoundingClientRect(); let l = 0, rr = 0; for (const x of this.ptr.values()) { if (x < r.left + r.width / 2) l = 1; else rr = 1; } return l && rr; }
+};
+const UI = {
+  init() {
+    View.init(); Input.init();
+    HX.$('#menu').onclick = () => Game.state === 'pause' ? Game.resume() : (Game.state === 'play' || Game.state === 'count') ? Game.pause() : this.home();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.033, (t - last) / 1000); last = t; Game.step(dt); View.draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => Game.pause() }); this.home();
+  },
+  hud() { const G = Game; HX.$('#trk').textContent = G.endless ? '∞' : G.ti + 1; HX.$('#spd').textContent = Math.round(G.v * .36); HX.$('#l3').textContent = G.endless ? 'Vidas' : 'Tempo'; HX.$('#tm').textContent = G.endless ? G.lives : HX.fmt(G.t * 1000);
+    HX.$('#l4').textContent = G.endless ? 'Metros' : 'Progresso'; HX.$('#prog').textContent = G.endless ? G.score : Math.round(Math.min(1, G.d / (G.T ? G.T.len : 1)) * 100) + '%'; },
+  helpItems: ['O carro acelera sozinho. Segure o lado esquerdo ou direito da tela para virar; segurar os dois lados freia. No teclado: ← → viram e ↓ freia.', 'Siga as curvas: fora do asfalto o carro perde muita velocidade.', 'Desvie dos carros (batida = muito mais lento e +2 s no tempo), dos cones (reduzem a velocidade) e das manchas de óleo (o carro derrapa).', 'Pistas: complete no menor tempo. Ouro, prata e bronze dependem do tempo; uma medalha libera a próxima pista.', 'Infinito: corra o máximo possível com 3 vidas; a cada batida perde uma. O trânsito fica mais rápido com a distância.'],
+  home() {
+    Game.state = 'idle'; const rec = S.get('tracks', {}); const md = ['—', '🥉', '🥈', '🥇'];
+    const unlocked = k => k === 0 || (rec[k - 1] && rec[k - 1].medal > 0);
+    const c = HX.overlay(`<h3>Racer</h3><p>Escolha uma pista. Medalha libera a próxima.</p><div class="hist" style="padding:4px">${TRACKS.map((T, k) => `<button class="btn" data-k="${k}" style="display:flex;width:100%;justify-content:space-between;align-items:center;margin:4px 0;${unlocked(k) ? '' : 'opacity:.4'}"><span>${k + 1}. ${T.n}</span><small style="color:var(--muted)">${rec[k] ? `${md[rec[k].medal]} ${HX.fmt(rec[k].t * 1000)}` : unlocked(k) ? `🥇 ${T.gold}s` : '🔒'}</small></button>`).join('')}</div><button class="btn-primary" id="inf">Modo Infinito · recorde ${S.get('endless', 0)} m</button><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (!unlocked(k)) return HX.toast('Ganhe uma medalha na pista anterior'); Game.start(k); });
+    HX.on(c, '#inf', () => Game.start(-1)); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => this.home())); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.home(); });
+  },
+  pause() { const c = HX.overlay(`<h3>Pausa</h3><p>${Game.T.n}</p><button class="btn-primary" id="rs">Continuar</button><div class="row2"><button class="btn" id="rt">Reiniciar</button><button class="btn" id="hm">Pistas</button></div>`, { guard: false });
+    HX.on(c, '#rs', () => Game.resume()); HX.on(c, '#rt', () => Game.start(Game.ti)); HX.on(c, '#hm', () => this.home()); },
+  finish(tm, medal, best) { const T = Game.T, names = ['Sem medalha', 'Bronze', 'Prata', 'Ouro'];
+    const c = HX.overlay(`<h3>${['Chegada!', '🥉 Bronze!', '🥈 Prata!', '🥇 Ouro!'][medal]}</h3><p>${best ? 'Melhor tempo nesta pista!' : ''} ${medal ? '' : `Bronze com ${T.bronze}s ou menos.`}</p><div class="kv"><div><b>${HX.fmt(tm * 1000)}</b><small>Tempo</small></div><div><b>${Game.hits}</b><small>Batidas</small></div><div><b>${names[medal]}</b><small>Medalha</small></div></div>${medal && Game.ti + 1 < TRACKS.length ? '<button class="btn-primary" id="nx">Próxima pista</button>' : ''}<div class="row2"><button class="btn" id="rt">Correr de novo</button><button class="btn" id="hm">Pistas</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.ti + 1)); HX.on(c, '#rt', () => Game.start(Game.ti)); HX.on(c, '#hm', () => this.home()); },
+  over(best) { const c = HX.overlay(`<h3>Fim da corrida</h3><p>${best ? 'Novo recorde!' : 'Recorde: ' + S.get('endless', 0) + ' m'}</p><div class="kv"><div><b>${Game.score}</b><small>Metros</small></div><div><b>${HX.fmt(Game.t * 1000)}</b><small>Tempo</small></div></div><button class="btn-primary" id="ag">Correr de novo</button><button class="btn" id="hm">Pistas</button>`);
+    HX.on(c, '#ag', () => Game.start(-1)); HX.on(c, '#hm', () => this.home()); }
+};
+UI.init(); HX.sw();
+window.RC = { TRACKS, Game, View, Input, UI, S, W, H };
+</script>
+</body>
+</html>
