@@ -207,6 +207,46 @@ window.HLUX_GAMES = [
     id: 'dice', name: 'Dice', tagline: 'Cinco dados, 13 categorias',
     description: 'Lance até três vezes, guarde os dados e escolha onde pontuar. Sozinho ou com até 3 adversários.',
     path: 'dice/', cover: 'covers/dice.svg', accent: '#e05a5a', tags: ['Dados', 'Recordes', 'Até 4']
+  },
+  {
+    id: 'invaders', name: 'Invaders', tagline: 'Defenda o espaço',
+    description: 'Ondas de naves com soldados, atiradores e mergulhadores, chefes a cada 5 ondas, bônus e recordes.',
+    path: 'invaders/', cover: 'covers/invaders.svg', accent: '#f1dca6', tags: ['Arcade', 'Chefes', 'Recordes']
+  },
+  {
+    id: 'breakout', name: 'Breakout', tagline: 'Quebre todos os blocos',
+    description: '12 fases desenhadas com blocos resistentes, explosivos e indestrutíveis, quatro bônus e três vidas.',
+    path: 'breakout/', cover: 'covers/breakout.svg', accent: '#e07b3a', tags: ['Arcade', 'Fases', 'Bônus']
+  },
+  {
+    id: 'defense', name: 'Defense', tagline: 'Torres contra ondas',
+    description: 'Construa e melhore quatro tipos de torre em cinco mapas, contra inimigos variados e chefes.',
+    path: 'defense/', cover: 'covers/defense.svg', accent: '#3ddc84', tags: ['Estratégia', '5 mapas', 'Chefes']
+  },
+  {
+    id: 'pong', name: 'Pong', tagline: 'O clássico das raquetes',
+    description: 'Contra a IA em três níveis ou a dois no mesmo aparelho, cada um com metade da tela.',
+    path: 'pong/', cover: 'covers/pong.svg', accent: '#e5484d', tags: ['Arcade', 'IA', '2 jogadores']
+  },
+  {
+    id: 'tictactoe', name: 'Tic Tac Toe', tagline: 'Jogo da velha',
+    description: 'O 3×3 clássico com IA imbatível no difícil, além das variantes 4×4 e 5×5.',
+    path: 'tictactoe/', cover: 'covers/tictactoe.svg', accent: '#6fb7ff', tags: ['Tabuleiro', 'IA', '2 jogadores']
+  },
+  {
+    id: 'pinball', name: 'Pinball', tagline: 'Mesa de fliperama',
+    description: 'Bumpers, estilingues, alvos, letras L-U-X e multiplicador até 5×. Física estável e controles para toque e teclado.',
+    path: 'pinball/', cover: 'covers/pinball.svg', accent: '#3d8bff', tags: ['Arcade', 'Física', 'Recordes']
+  },
+  {
+    id: 'dungeon', name: 'Dungeon', tagline: 'Masmorra por turnos',
+    description: 'Andares gerados a cada partida, inimigos com comportamentos diferentes, baús, melhorias e chefes.',
+    path: 'dungeon/', cover: 'covers/dungeon.svg', accent: '#c9a45c', tags: ['Aventura', 'Roguelike', 'Recordes']
+  },
+  {
+    id: 'racer', name: 'Racer', tagline: 'Corrida arcade',
+    description: 'Seis pistas com curvas, trânsito, cones e óleo, medalhas por tempo e um modo infinito.',
+    path: 'racer/', cover: 'covers/racer.svg', accent: '#e0b14a', tags: ['Corrida', 'Medalhas', 'Infinito']
   }
 ];
 
@@ -222,7 +262,9 @@ window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'C
     four: ['Tabuleiro', 'Estratégia', '2+ jogadores'], reversi: ['Tabuleiro', 'Estratégia', '2+ jogadores'], battleship: ['Estratégia', '2+ jogadores'],
     backgammon: ['Tabuleiro', 'Dados', 'Estratégia', '2+ jogadores'], mancala: ['Tabuleiro', 'Estratégia', '2+ jogadores'], gomoku: ['Tabuleiro', 'Estratégia', '2+ jogadores'],
     sudoku: ['Lógica'], wordsearch: ['Palavras'], wordmaster: ['Palavras', 'Lógica'], memory: ['Quebra-cabeças'], spider: ['Cartas e peças'],
-    crazycards: ['Cartas e peças', '2+ jogadores'], domino: ['Cartas e peças', 'Tabuleiro', '2+ jogadores'], dice: ['Dados', '2+ jogadores']
+    crazycards: ['Cartas e peças', '2+ jogadores'], domino: ['Cartas e peças', 'Tabuleiro', '2+ jogadores'], dice: ['Dados', '2+ jogadores'],
+    invaders: ['Arcade'], breakout: ['Arcade'], defense: ['Estratégia'], pong: ['Arcade', '2+ jogadores'], tictactoe: ['Tabuleiro', '2+ jogadores'],
+    pinball: ['Arcade'], dungeon: ['Aventura'], racer: ['Corrida', 'Arcade']
   };
   window.HLUX_GAMES.forEach(g => { if (!g.cats) g.cats = C[g.id] || []; });
 })();
