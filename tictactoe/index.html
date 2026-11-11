@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0c0c12">
+<title>H-LUX Tic Tac Toe</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0c0c12;--bg2:radial-gradient(ellipse at 50% 0%,#1f1f2e 0%,#0c0c12 64%);--c:100px}
+.board{display:grid;gap:8px;padding:10px;border-radius:20px;background:#15151f;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6);touch-action:manipulation}
+.sq{width:var(--c);height:var(--c);border-radius:14px;background:#1d1d2a;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.sq:hover:empty{background:#242436}
+.sq svg{width:72%;height:72%;overflow:visible}
+.sq .x path{stroke:#f1dca6;stroke-width:12;stroke-linecap:round;fill:none;stroke-dasharray:100;animation:draw .3s ease forwards}
+.sq .o circle{stroke:#6fb7ff;stroke-width:11;fill:none;stroke-dasharray:252;stroke-dashoffset:252;animation:draw .35s ease forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.sq .x path{stroke-dashoffset:100}
+.sq.win{background:#3b3220;box-shadow:0 0 0 2px #f1dca6}
+.sq.last::after{content:'';position:absolute;right:7px;top:7px;width:7px;height:7px;border-radius:50%;background:#c9a45c}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Tic Tac <b>Toe</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-X"><span class="dot" style="background:#f1dca6"></span><span class="nm" id="n-X">X</span><span class="ct" id="s-X">0</span></div><div class="pl" id="p-O"><span class="dot" style="background:#6fb7ff"></span><span class="nm" id="n-O">O</span><span class="ct" id="s-O">0</span></div></div>
+  <div class="stage" id="stage"><div class="board" id="board"></div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Resultados</button>
+    <button class="tool" id="t-restart"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Reiniciar</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX TIC TAC TOE v1.0 — jogo da velha 3×3 (3 em linha), 4×4 (4 em linha) e 5×5 (4 em linha).
+   IA: minimax com poda alfa-beta (perfeita no 3×3; profundidade limitada com avaliação nos maiores). Módulos: Rules · AI · Game · View · UI */
+const S = HX.store('tictactoe');
+const Rules = {
+  lines(n, k) { const L = []; const add = (r, c, dr, dc) => { const cells = []; for (let i = 0; i < k; i++) { const rr = r + dr * i, cc = c + dc * i; if (rr < 0 || cc < 0 || rr >= n || cc >= n) return; cells.push(rr * n + cc); } L.push(cells); };
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { add(r, c, 0, 1); add(r, c, 1, 0); add(r, c, 1, 1); add(r, c, 1, -1); } return L; },
+  winner(b, L) { for (const l of L) { const v = b[l[0]]; if (v && l.every(i => b[i] === v)) return { v, line: l }; } return b.every(Boolean) ? { v: null } : null; }
+};
+const AI = {
+  eval(b, L, me) { const op = me === 'X' ? 'O' : 'X'; let s = 0; for (const l of L) { let m = 0, o = 0; for (const i of l) { if (b[i] === me) m++; else if (b[i] === op) o++; } if (m && !o) s += m * m * m; if (o && !m) s -= o * o * o * 1.1; } return s; },
+  search(b, L, turn, me, d, a, be, n) {
+    const w = Rules.winner(b, L); if (w) return w.v === me ? 1000 + d : w.v ? -1000 - d : 0;
+    if (d === 0) return this.eval(b, L, me);
+    const op = turn === 'X' ? 'O' : 'X'; const moves = this.order(b, n);
+    if (turn === me) { let v = -Infinity; for (const i of moves) { b[i] = turn; v = Math.max(v, this.search(b, L, op, me, d - 1, a, be, n)); b[i] = ''; a = Math.max(a, v); if (a >= be) break; } return v; }
+    let v = Infinity; for (const i of moves) { b[i] = turn; v = Math.min(v, this.search(b, L, op, me, d - 1, a, be, n)); b[i] = ''; be = Math.min(be, v); if (a >= be) break; } return v;
+  },
+  order(b, n) { const c = (n - 1) / 2; return b.map((v, i) => v ? -1 : i).filter(i => i >= 0).sort((x, y) => (Math.abs(x % n - c) + Math.abs(Math.floor(x / n) - c)) - (Math.abs(y % n - c) + Math.abs(Math.floor(y / n) - c))); },
+  pick(b0, L, me, lvl, n) {
+    const b = b0.slice(), op = me === 'X' ? 'O' : 'X', free = b.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+    const winNow = free.find(i => { b[i] = me; const w = Rules.winner(b, L); b[i] = ''; return w && w.v === me; }); if (winNow !== undefined) return winNow;
+    const block = free.find(i => { b[i] = op; const w = Rules.winner(b, L); b[i] = ''; return w && w.v === op; });
+    if (lvl === 'facil') return block !== undefined && Math.random() < .5 ? block : free[Math.floor(Math.random() * free.length)];
+    if (block !== undefined && lvl === 'medio') return block;
+    if (lvl === 'medio' && Math.random() < .3) return free[Math.floor(Math.random() * free.length)];
+    const depth = n === 3 ? 9 : lvl === 'dificil' ? (free.length > 16 ? 3 : 5) : 2;
+    let best = -Infinity, pick = []; for (const i of this.order(b, n)) { b[i] = me; const v = this.search(b, L, op, me, depth - 1, -Infinity, Infinity, n); b[i] = ''; if (v > best) { best = v; pick = [i]; } else if (v === best) pick.push(i); }
+    return pick[Math.floor(Math.random() * pick.length)];
+  }
+};
+const Game = {
+  cfg: null, b: [], L: [], moves: [], result: null, score: { X: 0, O: 0, D: 0 }, first: 'X', busy: false,
+  get turn() { return this.moves.length % 2 === 0 ? this.first : (this.first === 'X' ? 'O' : 'X'); },
+  newGame(cfg, keep) { HX.close(); const changed = !this.cfg || this.cfg.size !== cfg.size || this.cfg.mode !== cfg.mode; this.cfg = cfg; if (!keep || changed) { this.score = { X: 0, O: 0, D: 0 }; this.first = 'X'; } else this.first = this.first === 'X' ? 'O' : 'X';
+    const n = cfg.size; this.b = Array(n * n).fill(''); this.L = Rules.lines(n, n === 3 ? 3 : 4); this.moves = []; this.result = null; this.busy = false; View.build(); this.save(); View.render(); UI.turn(); this.maybeAI(); },
+  aiSide() { return this.cfg.mode === 'ai' ? (this.cfg.side === 'X' ? 'O' : 'X') : null; },
+  human() { return this.turn !== this.aiSide(); },
+  play(i) {
+    if (this.result || this.b[i]) return false; this.b[i] = this.turn; this.moves.push(i); HX.sfx('move'); HX.vibrate(8);
+    const w = Rules.winner(this.b, this.L); if (w) { this.result = w; if (w.v) this.score[w.v]++; else this.score.D++; this.record(); }
+    this.save(); View.render(); UI.turn(); if (this.result) { const R = this.result; setTimeout(() => this.result === R && UI.end(), 800); } else this.maybeAI(); return true;
+  },
+  maybeAI() { if (this.result || this.human()) return; this.busy = true; const n = this.moves.length; setTimeout(() => { this.busy = false; if (this.result || this.human() || this.moves.length !== n) return; this.play(AI.pick(this.b, this.L, this.turn, this.cfg.diff, this.cfg.size)); }, 380); },
+  undo() { if (!this.moves.length || this.busy) return HX.toast('Nada para desfazer'); if (this.result) { if (this.result.v) this.score[this.result.v]--; else this.score.D--; this.unrecord(); this.result = null; HX.close(); }
+    do { this.b[this.moves.pop()] = ''; } while (this.moves.length && this.cfg.mode === 'ai' && this.turn === this.aiSide());
+    this.save(); View.render(); UI.turn(); this.maybeAI(); },
+  key() { return (this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp') + this.cfg.size; },
+  record() { const h = S.get('hist', []); const r = this.result; h.unshift({ d: new Date().toLocaleDateString('pt-BR'), size: this.cfg.size, mode: this.cfg.mode, diff: this.cfg.diff, res: !r.v ? 'Empate' : this.cfg.mode === 'ai' ? (r.v === this.cfg.side ? 'Vitória' : 'Derrota') : `${r.v} venceu` }); S.set('hist', h.slice(0, 50)); },
+  unrecord() { const h = S.get('hist', []); h.shift(); S.set('hist', h); },
+  save() { S.set('cur', { cfg: this.cfg, moves: this.moves, score: this.score, first: this.first }); S.hub(this.result ? null : `Em andamento · ${this.cfg.size}×${this.cfg.size} · ${this.cfg.mode === 'ai' ? 'contra IA' : '2 jogadores'}`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg) return false; this.cfg = c.cfg; this.score = c.score; this.first = c.first || 'X'; const n = c.cfg.size; this.b = Array(n * n).fill(''); this.L = Rules.lines(n, n === 3 ? 3 : 4); this.moves = []; this.result = null; for (const i of c.moves) { this.b[i] = this.turn; this.moves.push(i); } this.result = Rules.winner(this.b, this.L); return true; }
+};
+const View = {
+  build() { const n = Game.cfg.size, bd = HX.$('#board'); bd.style.gridTemplateColumns = `repeat(${n},var(--c))`; bd.innerHTML = Array.from({ length: n * n }, (_, i) => `<button class="sq" data-i="${i}" aria-label="Casa ${i + 1}"></button>`).join(''); this.fit(); },
+  fit() { if (!Game.cfg) return; const st = HX.$('#stage'), n = Game.cfg.size; const c = Math.floor(Math.min((st.clientWidth - 40 - (n - 1) * 8) / n, (st.clientHeight - 40 - (n - 1) * 8) / n, 140)); document.documentElement.style.setProperty('--c', Math.max(48, c) + 'px'); },
+  render() {
+    const line = Game.result && Game.result.line || [], last = Game.moves[Game.moves.length - 1];
+    HX.$('#board').querySelectorAll('.sq').forEach((el, i) => { const v = Game.b[i]; if (el.dataset.v !== v) { el.dataset.v = v; el.innerHTML = v === 'X' ? '<svg class="x" viewBox="0 0 100 100"><path d="M18 18 82 82"/><path d="M82 18 18 82" style="animation-delay:.12s"/></svg>' : v === 'O' ? '<svg class="o" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38"/></svg>' : ''; } el.classList.toggle('win', line.includes(i)); el.classList.toggle('last', i === last && !Game.result); });
+    HX.$('#s-X').textContent = Game.score.X; HX.$('#s-O').textContent = Game.score.O;
+  }
+};
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  init() {
+    HX.$('#board').addEventListener('click', e => { const s = e.target.closest('.sq'); if (!s || HX.isOpen() || Game.busy || !Game.human()) return; Game.play(+s.dataset.i); });
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-restart').onclick = () => Game.newGame(Game.cfg, true); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.setup();
+    addEventListener('keydown', e => { if (HX.isOpen() || !Game.cfg || Game.cfg.size !== 3) return; const map = { 7: 0, 8: 1, 9: 2, 4: 3, 5: 4, 6: 5, 1: 6, 2: 7, 3: 8 }; if (e.key in map && Game.human()) Game.play(map[e.key]); });
+    new ResizeObserver(() => View.fit()).observe(HX.$('#stage'));
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { View.build(); View.render(); this.turn(); if (Game.result) this.end(); else { HX.toast('Partida retomada'); Game.maybeAI(); } } else this.setup();
+  },
+  name(x) { return Game.aiSide() === x ? `IA (${this.dn[Game.cfg.diff]})` : (Game.cfg.mode === 'ai' ? 'Você · ' : 'Jogador ') + x; },
+  turn() { for (const x of 'XO') { HX.$('#n-' + x).textContent = this.name(x); HX.$('#p-' + x).classList.toggle('on', !Game.result && Game.turn === x); } },
+  helpItems: ['Os jogadores alternam marcando X e O nas casas vazias. X começa a primeira partida; depois quem começa alterna.', 'No 3×3 vence quem fizer 3 em linha (horizontal, vertical ou diagonal). No 4×4 e no 5×5 é preciso fazer 4 em linha.', 'Se o tabuleiro encher sem vencedor, é empate. No 3×3 a IA difícil joga perfeitamente: o melhor resultado possível contra ela é o empate.', 'No PC, o 3×3 também pode ser jogado com o teclado numérico (7-8-9 em cima).'],
+  setup() {
+    HX.setup({ title: 'Tic Tac Toe', text: 'Jogo da velha clássico e variantes maiores.', values: Object.assign({ mode: 'ai', diff: 'medio', side: 'X', size: 3 }, S.get('cfg', {})),
+      groups: [{ key: 'size', label: 'Tabuleiro', opts: [[3, '3×3'], [4, '4×4'], [5, '5×5']] }, { key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'side', label: 'Você joga com', opts: [['X', 'X'], ['O', 'O']], show: x => x.mode === 'ai' }],
+      start: 'Nova partida', help: this.helpItems, onStart: x => { S.set('cfg', x); Game.cfg = null; Game.newGame(Object.assign({}, x)); } });
+  },
+  hist() { const h = S.get('hist', []), cnt = k => h.filter(x => x.res === k).length; const c = HX.overlay(`<h3>Resultados</h3><div class="kv"><div><b>${cnt('Vitória')}</b><small>Vitórias</small></div><div><b>${cnt('Empate')}</b><small>Empates</small></div><div><b>${cnt('Derrota')}</b><small>Derrotas</small></div></div><div class="hist">${h.length ? `<ol>${h.map(x => `<li>${x.d} · ${x.size}×${x.size} · ${x.mode === 'ai' ? 'IA ' + this.dn[x.diff] : '2 jogadores'}: ${x.res}</li>`).join('')}</ol>` : 'Nenhuma partida ainda.'}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => Game.result ? this.end() : HX.close()); },
+  end() {
+    const r = Game.result, cf = Game.cfg; const t = !r.v ? 'Empate' : cf.mode === 'ai' ? (r.v === cf.side ? 'Vitória!' : 'Derrota') : `${r.v} venceu!`;
+    HX.sfx(t === 'Derrota' ? 'lose' : 'win'); S.hub(null);
+    const o = HX.overlay(`<h3>${t}</h3><div class="kv"><div><b>${Game.score.X}</b><small>X</small></div><div><b>${Game.score.D}</b><small>Empates</small></div><div><b>${Game.score.O}</b><small>O</small></div></div><button class="btn-primary" id="ag">Próxima partida</button><div class="row2"><button class="btn" id="bd">Ver tabuleiro</button><button class="btn" id="nw">Mudar modo</button></div>`);
+    HX.on(o, '#ag', () => Game.newGame(Game.cfg, true)); HX.on(o, '#bd', () => HX.close()); HX.on(o, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.TT = { Rules, AI, Game, View, UI, S };
+</script>
+</body>
+</html>

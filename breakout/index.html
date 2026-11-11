@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07060c">
+<title>H-LUX Breakout</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#07060c;--bg2:radial-gradient(ellipse at 50% 20%,#1d1630 0%,#07060c 70%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Break<b>out</b></div><button class="ib" id="menu" aria-label="Pausa"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc"><small>Vidas</small><b id="lives">3</b></div><div class="sc"><small>Pontos</small><b id="score">0</b></div><div class="sc"><small>Recorde</small><b id="best">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX BREAKOUT v1.0 — 12 fases desenhadas, 5 tipos de bloco, 4 bônus, física com subpassos e resolução por eixo de menor penetração.
+   Blocos: 1 normal · 2/3 resistentes · X explosivo · # indestrutível · . vazio.  Bônus: Largo, Multibola, Lento, Vida.
+   Módulos: LEVELS · Game · View · Input · UI */
+const S = HX.store('breakout');
+const W = 360, H = 600, BR = 6, COLS = 10, BW = 33, BH = 14, GX = 3, TOP = 70;
+const LEVELS = [
+  ['..........', '1111111111', '1111111111', '1111111111', '1111111111'],
+  ['1.1.1.1.1.', '.2.2.2.2.2', '1.1.1.1.1.', '.2.2.2.2.2', '1.1.1.1.1.'],
+  ['....22....', '...2112...', '..211112..', '.21111112.', '2111111112', '.21111112.'],
+  ['2222222222', '1........1', '1.111111.1', '1.1XXXX1.1', '1.111111.1', '1........1', '2222222222'],
+  ['#........#', '#1111111.#', '#.111111.#', '#11XX111.#', '#.111111.#', '#1111111.#', '###....###'],
+  ['3333333333', '2222222222', '1111111111', 'X........X', '1111111111'],
+  ['1.1.11.1.1', '2.2.22.2.2', '3.3.33.3.3', '2.2.22.2.2', '1.1.11.1.1', '#.#....#.#'],
+  ['..XXXXXX..', '.1111111..', '1122221111', '1123321111', '1122221111', '.1111111..', '..######..'],
+  ['3........3', '23......32', '123....321', '1X23..32X1', '123....321', '23......32', '3........3'],
+  ['2222222222', '#3333333.#', '#XXXXXXXX#', '#3333333.#', '2222222222', '...####...'],
+  ['1213121312', '2X2X2X2X2X', '3131313131', '#.#.#.#.#.', '2222222222', '1111111111'],
+  ['3333333333', '3XXXXXXXX3', '3#222222#3', '3#211112#3', '3#222222#3', '3XXXXXXXX3', '3333333333']
+];
+const PU = { wide: { c: '#6fb7ff', t: 'L' }, multi: { c: '#c86bff', t: 'M' }, slow: { c: '#3ddc84', t: 'S' }, life: { c: '#e5484d', t: '♥' } };
+const Game = {
+  lv: 0, lives: 3, score: 0, bricks: [], balls: [], drops: [], px: W / 2, pw: 70, wideT: 0, slowT: 0, state: 'idle', stuck: true, best: 0, levelScore: 0,
+  start(lv, keep) { HX.close(); this.lv = lv; if (!keep) { this.lives = 3; this.score = 0; } this.levelScore = this.score; this.build(); this.reset(); this.state = 'play'; HX.sfx('power'); this.save(); UI.hud(); },
+  build() { this.bricks = []; const L = LEVELS[this.lv % LEVELS.length], ox = (W - (COLS * BW + (COLS - 1) * GX)) / 2;
+    L.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '.') return; const hp = ch === '#' ? Infinity : ch === 'X' ? 1 : +ch; this.bricks.push({ x: ox + c * (BW + GX), y: TOP + r * (BH + GX), hp, max: hp, t: ch === '#' ? 'steel' : ch === 'X' ? 'bomb' : 'n', alive: true }); }));
+    // a partir do segundo ciclo de fases os blocos ficam mais resistentes
+    if (this.lv >= LEVELS.length) this.bricks.forEach(b => { if (b.t === 'n') { b.hp = Math.min(3, b.hp + 1); b.max = b.hp; } });
+  },
+  baseSpeed() { return 300 + Math.min(this.lv, 14) * 12; },
+  reset() { this.balls = [{ x: this.px, y: H - 46, vx: 0, vy: 0 }]; this.stuck = true; this.drops = []; this.wideT = 0; this.slowT = 0; this.pw = 70; },
+  launch() { if (!this.stuck || this.state !== 'play') return; this.stuck = false; const a = (Math.random() * .5 - .25), sp = this.baseSpeed(); this.balls.forEach(b => { b.vx = Math.sin(a) * sp; b.vy = -Math.cos(a) * sp; }); HX.sfx('shot'); },
+  step(dt) {
+    if (this.state !== 'play') return;
+    if (Input.keys.has('ArrowLeft')) this.px -= 460 * dt; if (Input.keys.has('ArrowRight')) this.px += 460 * dt;
+    this.pw = this.wideT > 0 ? 110 : 70; this.px = HX.clamp(this.px, this.pw / 2, W - this.pw / 2);
+    if (this.wideT > 0) this.wideT -= dt; if (this.slowT > 0) this.slowT -= dt;
+    if (!this.bricks.some(b => b.alive && b.t !== 'steel')) return this.clear();
+    if (this.stuck) { this.balls[0].x = this.px; this.balls[0].y = H - 46; return; }
+    const sf = this.slowT > 0 ? .65 : 1;
+    for (const b of this.balls) { const sp = Math.hypot(b.vx, b.vy) * sf, n = Math.max(1, Math.ceil(sp * dt / 3)); for (let k = 0; k < n; k++) this.sub(b, dt / n * sf); }
+    this.balls = this.balls.filter(b => b.y < H + 20);
+    if (!this.balls.length) return this.lose();
+    for (const d of this.drops) { d.y += 120 * dt; if (d.y > H - 40 && d.y < H - 22 && Math.abs(d.x - this.px) < this.pw / 2 + 10) { d.got = true; this.power(d.k); } }
+    this.drops = this.drops.filter(d => !d.got && d.y < H + 10);
+    if (!this.bricks.some(b => b.alive && b.t !== 'steel')) this.clear();
+  },
+  sub(b, dt) {
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < BR) { b.x = BR; b.vx = Math.abs(b.vx); } if (b.x > W - BR) { b.x = W - BR; b.vx = -Math.abs(b.vx); } if (b.y < BR + 30) { b.y = BR + 30; b.vy = Math.abs(b.vy); }
+    // raquete
+    const py = H - 32; if (b.vy > 0 && b.y + BR >= py && b.y + BR <= py + 12 && Math.abs(b.x - this.px) <= this.pw / 2 + BR) {
+      const off = HX.clamp((b.x - this.px) / (this.pw / 2), -1, 1), sp = Math.min(Math.hypot(b.vx, b.vy) * 1.01, this.baseSpeed() * 1.6), a = HX.clamp(off * 1.1 + (Math.random() - .5) * .08, -1.15, 1.15); b.vx = Math.sin(a) * sp; b.vy = -Math.cos(a) * sp; b.y = py - BR; HX.sfx('tap'); }
+    // blocos: círculo × retângulo, separa pelo eixo de menor penetração
+    for (const k of this.bricks) { if (!k.alive) continue;
+      const cx = HX.clamp(b.x, k.x, k.x + BW), cy = HX.clamp(b.y, k.y, k.y + BH), dx = b.x - cx, dy = b.y - cy; if (dx * dx + dy * dy > BR * BR) continue;
+      const ox = Math.min(b.x + BR - k.x, k.x + BW - (b.x - BR)), oy = Math.min(b.y + BR - k.y, k.y + BH - (b.y - BR));
+      if (ox < oy) { b.vx = b.x < k.x + BW / 2 ? -Math.abs(b.vx) : Math.abs(b.vx); b.x += b.x < k.x + BW / 2 ? -ox : ox; } else { b.vy = b.y < k.y + BH / 2 ? -Math.abs(b.vy) : Math.abs(b.vy); b.y += b.y < k.y + BH / 2 ? -oy : oy; }
+      this.hit(k); break; }
+  },
+  hit(k) {
+    if (k.t === 'steel') { HX.sfx('tap'); return; }
+    k.hp--; if (k.hp > 0) { this.score += 5; HX.sfx('hit'); return; }
+    k.alive = false; this.score += 10 * k.max; HX.sfx('coin');
+    if (k.t === 'bomb') { HX.sfx('boom'); HX.vibrate(25); for (const o of this.bricks) if (o.alive && o !== k && o.t !== 'steel' && Math.abs(o.x - k.x) <= BW + GX + 1 && Math.abs(o.y - k.y) <= BH + GX + 1) { o.hp = 1; this.hit(o); } }
+    if (Math.random() < .13) { const ks = Object.keys(PU); this.drops.push({ x: k.x + BW / 2, y: k.y + BH / 2, k: ks[Math.floor(Math.random() * ks.length)] }); }
+    UI.hud();
+  },
+  power(k) {
+    HX.sfx('power'); HX.toast({ wide: 'Raquete larga!', multi: 'Multibola!', slow: 'Bola lenta!', life: '+1 vida' }[k], 900);
+    if (k === 'wide') this.wideT = 14; if (k === 'slow') this.slowT = 10; if (k === 'life') this.lives = Math.min(6, this.lives + 1);
+    if (k === 'multi') { const extra = []; for (const b of this.balls.slice(0, 3)) for (const a of [-.4, .4]) { const sp = Math.hypot(b.vx, b.vy), ang = Math.atan2(b.vx, -b.vy) + a; extra.push({ x: b.x, y: b.y, vx: Math.sin(ang) * sp, vy: -Math.abs(Math.cos(ang) * sp) }); } this.balls.push(...extra); }
+    this.score += 25; UI.hud();
+  },
+  lose() { this.lives--; HX.sfx('lose'); HX.vibrate(40); UI.hud(); if (this.lives <= 0) return this.over(); this.reset(); this.save(); },
+  clear() { this.state = 'clear'; this.score += 200 + this.lives * 50; this.record(); const p = S.get('progress', { unlocked: 0 }); p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length * 2 - 1)); S.set('progress', p); this.save(true); HX.sfx('win'); UI.hud(); setTimeout(() => UI.clear(), 600); },
+  over() { this.state = 'over'; this.record(); S.del('cur'); S.hub(null); setTimeout(() => UI.over(), 500); },
+  record() { const b = S.get('best', 0); if (this.score > b) { S.set('best', this.score); this.newBest = true; } else this.newBest = false; },
+  pause() { if (this.state !== 'play') return; this.state = 'pause'; this.save(); UI.pause(); },
+  resume() { if (this.state !== 'pause') return; HX.close(); this.state = 'play'; },
+  // salva no início da fase (a fase recomeça ao voltar), com vidas e pontos atuais
+  save(next) { if (this.state === 'over') return; S.set('cur', { lv: next ? this.lv + 1 : this.lv, lives: this.lives, score: next ? this.score : this.levelScore }); S.hub(`Fase ${(next ? this.lv + 1 : this.lv) + 1} · ${this.lives} vidas · ${this.score} pts`); }
+};
+const View = {
+  cv: null, x: null, k: 1, dpr: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); this.size(); },
+  size() { const st = HX.$('#stage'); this.k = Math.min((st.clientWidth - 8) / W, (st.clientHeight - 8) / H); this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = W * this.k * this.dpr; this.cv.height = H * this.k * this.dpr; this.cv.style.width = W * this.k + 'px'; this.cv.style.height = H * this.k + 'px'; },
+  draw() {
+    const x = this.x, g = Game; x.setTransform(this.k * this.dpr, 0, 0, this.k * this.dpr, 0, 0);
+    const bg = x.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#120f1f'); bg.addColorStop(1, '#07060c'); x.fillStyle = bg; x.fillRect(0, 0, W, H);
+    x.fillStyle = 'rgba(201,164,92,.5)'; x.fillRect(0, 28, W, 2);
+    const col = { 1: '#e0b14a', 2: '#e07b3a', 3: '#d6463d' };
+    for (const k of g.bricks) { if (!k.alive) continue; let c = k.t === 'steel' ? '#8a8f9c' : k.t === 'bomb' ? '#c86bff' : col[k.hp] || '#e0b14a';
+      const gr = x.createLinearGradient(0, k.y, 0, k.y + BH); gr.addColorStop(0, c); gr.addColorStop(1, '#0008'); x.fillStyle = c; x.beginPath(); x.roundRect(k.x, k.y, BW, BH, 3); x.fill(); x.fillStyle = 'rgba(255,255,255,.22)'; x.fillRect(k.x + 2, k.y + 2, BW - 4, 3);
+      if (k.t === 'bomb') { x.fillStyle = '#fff'; x.font = '800 10px Manrope'; x.textAlign = 'center'; x.fillText('✸', k.x + BW / 2, k.y + 11); }
+      if (k.t === 'n' && k.max > 1 && k.hp < k.max) { x.strokeStyle = 'rgba(0,0,0,.5)'; x.beginPath(); x.moveTo(k.x + 8, k.y + 2); x.lineTo(k.x + 14, k.y + 9); x.lineTo(k.x + 22, k.y + 5); x.stroke(); } }
+    for (const d of g.drops) { x.fillStyle = PU[d.k].c; x.beginPath(); x.roundRect(d.x - 12, d.y - 8, 24, 16, 8); x.fill(); x.fillStyle = '#111'; x.font = '800 11px Manrope'; x.textAlign = 'center'; x.fillText(PU[d.k].t, d.x, d.y + 4); }
+    x.fillStyle = g.wideT > 0 ? '#6fb7ff' : '#f1dca6'; x.shadowColor = x.fillStyle; x.shadowBlur = 12; x.beginPath(); x.roundRect(g.px - g.pw / 2, H - 32, g.pw, 11, 6); x.fill(); x.shadowBlur = 0;
+    for (const b of g.balls) { x.fillStyle = g.slowT > 0 ? '#9ff0c0' : '#fff6c8'; x.beginPath(); x.arc(b.x, b.y, BR, 0, 7); x.fill(); }
+    x.fillStyle = '#f1dca6'; x.font = '700 12px Manrope'; x.textAlign = 'left'; x.fillText(`FASE ${g.lv + 1}`, 10, 19); x.textAlign = 'right'; x.fillText('♥'.repeat(Math.max(0, g.lives)), W - 10, 19);
+    if (g.stuck && g.state === 'play') { x.textAlign = 'center'; x.font = '800 15px Manrope'; x.fillText('Toque para lançar', W / 2, H / 2 + 60); }
+  }
+};
+const Input = {
+  keys: new Set(), lastX: null,
+  init() {
+    const cv = View.cv, lx = e => (e.clientX - cv.getBoundingClientRect().left) / View.k;
+    // arrasto relativo: o dedo não precisa ficar sobre a raquete
+    cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (_) {} this.lastX = lx(e); this.downAt = performance.now(); this.moved = 0; if (e.pointerType === 'mouse') Game.px = lx(e); });
+    cv.addEventListener('pointermove', e => { const x = lx(e); if (e.pointerType === 'mouse') { Game.px = x; return; } if (this.lastX == null) return; Game.px += (x - this.lastX) * 1.15; this.moved += Math.abs(x - this.lastX); this.lastX = x; });
+    cv.addEventListener('pointerup', () => { if (Game.stuck && this.moved < 12) Game.launch(); this.lastX = null; });
+    addEventListener('keydown', e => { if (e.key === ' ') { e.preventDefault(); if (Game.stuck) Game.launch(); return; } if (e.key === 'p' || e.key === 'Escape') return Game.state === 'play' ? Game.pause() : Game.resume(); this.keys.add(e.key); });
+    addEventListener('keyup', e => this.keys.delete(e.key));
+  }
+};
+const UI = {
+  init() {
+    View.init(); Input.init();
+    HX.$('#menu').onclick = () => Game.state === 'play' ? Game.pause() : Game.state === 'pause' ? Game.resume() : this.home();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.033, (t - last) / 1000); last = t; Game.step(dt); View.draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => Game.pause() });
+    HX.$('#best').textContent = S.get('best', 0); this.home();
+  },
+  hud() { HX.$('#lv').textContent = Game.lv + 1; HX.$('#lives').textContent = Game.lives; HX.$('#score').textContent = Game.score; HX.$('#best').textContent = Math.max(S.get('best', 0), Game.score); },
+  helpItems: ['Mova a raquete arrastando o dedo em qualquer lugar da tela (ou com o mouse / setas). Toque para lançar a bola.', 'Quebre todos os blocos para passar de fase. Blocos laranja e vermelhos precisam de 2 ou 3 batidas; os cinza são indestrutíveis; os roxos ✸ explodem e quebram os vizinhos.', 'O ponto da raquete onde a bola bate muda o ângulo: as pontas mandam a bola mais de lado.', 'Bônus que caem: L raquete larga · M multibola · S bola lenta · ♥ vida extra.', 'Você tem 3 vidas. O progresso fica salvo no início de cada fase.', 'Teclado: ← → movem, espaço lança, P pausa.'],
+  home() {
+    Game.state = 'idle'; const cur = S.get('cur', null), p = S.get('progress', { unlocked: 0 });
+    const c = HX.overlay(`<h3>Breakout</h3><p>12 fases desenhadas; depois elas voltam mais resistentes. Recorde: ${S.get('best', 0)}</p>${cur ? `<button class="btn-primary" id="ct">Continuar fase ${cur.lv + 1} · ${cur.lives} vidas</button>` : ''}<button class="${cur ? 'btn' : 'btn-primary'}" id="nw">Novo jogo</button><div class="levels" style="margin-top:8px">${Array.from({ length: Math.min(LEVELS.length * 2, p.unlocked + 1) }, (_, k) => `<button class="lvb" data-k="${k}">${k + 1}<small>fase</small></button>`).join('')}</div><button class="btn" id="hw">Como jogar</button>`, { guard: false });
+    HX.on(c, '#ct', () => { Game.lives = cur.lives; Game.score = cur.score; Game.start(cur.lv, true); }); HX.on(c, '#nw', () => { S.del('cur'); Game.start(0); });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { S.del('cur'); Game.start(+b.dataset.k); });
+    HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => this.home()));
+  },
+  pause() { const c = HX.overlay(`<h3>Pausa</h3><p>Fase ${Game.lv + 1} · ${Game.score} pontos</p><button class="btn-primary" id="rs">Continuar</button><div class="row2"><button class="btn" id="rt">Reiniciar fase</button><button class="btn" id="hm">Menu</button></div><button class="btn" id="snd">Som: ${HX.sound() ? 'ligado' : 'desligado'}</button>`, { guard: false });
+    HX.on(c, '#rs', () => Game.resume()); HX.on(c, '#rt', () => { Game.score = Game.levelScore; Game.start(Game.lv, true); }); HX.on(c, '#hm', () => this.home()); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.pause(); }); },
+  clear() { const c = HX.overlay(`<h3>Fase ${Game.lv + 1} concluída!</h3><div class="kv"><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.lives}</b><small>Vidas</small></div><div><b>${S.get('best', 0)}</b><small>Recorde</small></div></div><button class="btn-primary" id="nx">Próxima fase</button><button class="btn" id="hm">Menu</button>`);
+    HX.on(c, '#nx', () => Game.start(Game.lv + 1, true)); HX.on(c, '#hm', () => this.home()); },
+  over() { const c = HX.overlay(`<h3>Fim de jogo</h3><p>${Game.newBest ? 'Novo recorde!' : 'Recorde: ' + S.get('best', 0)}</p><div class="kv"><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.lv + 1}</b><small>Fase</small></div></div><button class="btn-primary" id="ag">Jogar de novo</button><button class="btn" id="rt">Recomeçar a fase ${Game.lv + 1}</button><button class="btn" id="hm">Menu</button>`);
+    HX.on(c, '#ag', () => Game.start(0)); HX.on(c, '#rt', () => { Game.lives = 3; Game.score = 0; Game.start(Game.lv, true); }); HX.on(c, '#hm', () => this.home()); }
+};
+UI.init(); HX.sw();
+window.BO = { LEVELS, Game, View, Input, UI, S, W, H };
+</script>
+</body>
+</html>
