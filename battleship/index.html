@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#04101c">
+<title>H-LUX Battleship</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#04101c;--bg2:radial-gradient(ellipse at 50% 0%,#0d2a44 0%,#04101c 64%);--c:30px;--m:13px}
+.boards{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+@media (min-aspect-ratio:1/1){.boards{flex-direction:row;justify-content:center;align-items:flex-start;gap:24px}}
+.bw{display:flex;flex-direction:column;align-items:center;gap:4px}
+.bw small{font-size:10.5px;letter-spacing:1.3px;font-weight:800;color:var(--muted);text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(11,var(--c));grid-template-rows:repeat(11,var(--c));gap:1px;background:rgba(127,180,255,.12);padding:1px;border-radius:8px;box-shadow:0 0 0 2px #c9a45c,0 14px 30px rgba(0,0,0,.5);touch-action:manipulation;user-select:none}
+.grid.mini{--c:var(--m)}
+.g{background:linear-gradient(160deg,#0b3355,#082640);position:relative;display:flex;align-items:center;justify-content:center;font-size:calc(var(--c)*.42);font-weight:800}
+.lab{background:transparent;color:var(--muted);font-size:calc(var(--c)*.36)}
+.grid.mini .lab{font-size:0}
+.g.ship{background:linear-gradient(160deg,#8d96a3,#59616d);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.g.prev{background:rgba(241,220,166,.55)}.g.bad{background:rgba(255,80,80,.55)}
+.g.miss::after{content:'';width:22%;height:22%;border-radius:50%;background:#9cc4ea;opacity:.8}
+.g.hit{background:linear-gradient(160deg,#d0452f,#8b1d10)}
+.g.hit::after{content:'✕';color:#fff2c8;font-size:calc(var(--c)*.6);line-height:1}
+.grid.mini .g.hit::after{font-size:0}
+.g.sunk{background:linear-gradient(160deg,#4a1a10,#2a0c06);box-shadow:inset 0 0 0 2px #f1dca6}
+.g.sunk::after{content:'';width:40%;height:40%;border-radius:2px;background:#f1dca6;opacity:.7}
+.g.last{outline:2px solid #fff6c8;outline-offset:-2px;z-index:1}
+.target .g:not(.lab){cursor:crosshair}
+.target .g.can:hover{background:#13426b}
+.fleet{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:420px}
+.sh{display:flex;align-items:center;gap:5px;padding:6px 9px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:12px;font-weight:700;color:var(--muted);min-height:40px}
+.sh i{display:inline-flex;gap:2px}.sh i b{width:9px;height:9px;border-radius:2px;background:#8d96a3}
+.sh.on{border-color:var(--accent);color:var(--accent2)}.sh.done{opacity:.4}.sh.dead{text-decoration:line-through;opacity:.45}
+.sh.dead i b{background:#d0452f}
+.place{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%}
+.prow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.prow .btn{min-height:42px;padding:0 14px;width:auto}
+.msg{font-weight:800;color:var(--accent2);font-size:14px;min-height:20px;text-align:center}
+.cover{position:fixed;inset:0;background:#04101c;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+.cover h2{font-family:'Cormorant Garamond',serif;color:var(--accent2);font-size:30px;margin:0}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Battle<b>ship</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-0"><span class="dot" style="background:#c9a45c"></span><span class="nm" id="n-0">Jogador 1</span><span class="ct" id="s-0">5</span></div><div class="pl" id="p-1"><span class="dot" style="background:#7fb4ff"></span><span class="nm" id="n-1">IA</span><span class="ct" id="s-1">5</span></div></div>
+  <div class="stage" id="stage"><div id="view" style="width:100%"></div></div>
+  <div class="tools">
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Ataques</button>
+    <button class="tool" id="t-fleet"><svg class="i"><path d="M3 15h18l-2.5 4h-13zM6 15V9h8l3 6M10 9V5"/></svg>Frotas</button>
+    <button class="tool" id="t-help"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Regras</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX BATTLESHIP v1.0 — batalha naval 10×10. Frota: 5, 4, 3, 3, 2. Navios não podem se sobrepor nem encostar (nem na diagonal).
+   Disparos alternados (ou "acertou, joga de novo", opcional). Módulos: Fleet (regras) · AI (caça/alvo + densidade) · Game · View · UI */
+const S = HX.store('battleship');
+const N = 10, LET = 'ABCDEFGHIJ';
+const SHIPS = [{ n: 'Porta-aviões', len: 5 }, { n: 'Encouraçado', len: 4 }, { n: 'Cruzador', len: 3 }, { n: 'Submarino', len: 3 }, { n: 'Destróier', len: 2 }];
+const nm = i => LET[i % N] + (Math.floor(i / N) + 1);
+const Fleet = {
+  cells(s) { const out = []; for (let k = 0; k < s.len; k++) { const r = s.r + (s.v ? k : 0), c = s.c + (s.v ? 0 : k); out.push(r * N + c); } return out; },
+  fits(ships, s, ignore = -1) {
+    if (s.r < 0 || s.c < 0 || s.r + (s.v ? s.len - 1 : 0) >= N || s.c + (s.v ? 0 : s.len - 1) >= N) return false;
+    const mine = this.cells(s);
+    for (let k = 0; k < ships.length; k++) { if (k === ignore || !ships[k]) continue; for (const a of this.cells(ships[k])) for (const b of mine) { if (Math.abs(Math.floor(a / N) - Math.floor(b / N)) <= 1 && Math.abs(a % N - b % N) <= 1) return false; } }
+    return true;
+  },
+  random(rnd = Math.random) {
+    for (let t = 0; t < 200; t++) { const ships = []; let ok = true;
+      for (const d of SHIPS) { let placed = false; for (let k = 0; k < 300 && !placed; k++) { const s = { len: d.len, v: rnd() < .5, r: Math.floor(rnd() * N), c: Math.floor(rnd() * N) }; if (this.fits(ships, s)) { ships.push(s); placed = true; } } if (!placed) { ok = false; break; } }
+      if (ok) return ships; }
+    return null;
+  },
+  at(ships, i) { return ships.findIndex(s => s && this.cells(s).includes(i)); },
+  sunk(ships, shots, k) { return this.cells(ships[k]).every(i => shots[i]); },
+  alive(ships, shots) { return ships.filter((s, k) => !this.sunk(ships, shots, k)).length; }
+};
+const AI = {
+  // estado: shots do adversário (o que já sabemos) + navios afundados. Casas vizinhas de afundados ficam proibidas (navios não encostam).
+  pick(shots, ships, lvl) {
+    const known = Array(N * N).fill(0); // 0 desconhecido, 1 água/proibido, 2 acerto em navio vivo, 3 afundado
+    const sunkCells = [];
+    for (let i = 0; i < N * N; i++) if (shots[i]) { const k = Fleet.at(ships, i); if (k < 0) known[i] = 1; else if (Fleet.sunk(ships, shots, k)) { known[i] = 3; sunkCells.push(i); } else known[i] = 2; }
+    for (const i of sunkCells) for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { const r = Math.floor(i / N) + dr, c = i % N + dc; if (r >= 0 && c >= 0 && r < N && c < N && !known[r * N + c]) known[r * N + c] = 1; }
+    const free = []; for (let i = 0; i < N * N; i++) if (!shots[i] && !(lvl !== 'facil' && known[i] === 1)) free.push(i);
+    const rand = a => a[Math.floor(Math.random() * a.length)];
+    if (lvl === 'facil') { const hits = []; for (let i = 0; i < N * N; i++) if (known[i] === 2) hits.push(i); if (hits.length && Math.random() < .6) { const nb = this.nbs(rand(hits)).filter(j => !shots[j]); if (nb.length) return rand(nb); } return rand(free); }
+    const hits = []; for (let i = 0; i < N * N; i++) if (known[i] === 2) hits.push(i);
+    // vizinhas diagonais de acertos são água (navios retos e sem encostar)
+    for (const h of hits) for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) { const r = Math.floor(h / N) + dr, c = h % N + dc; if (r >= 0 && c >= 0 && r < N && c < N && !known[r * N + c]) known[r * N + c] = 1; }
+    if (lvl === 'medio') {
+      if (hits.length) { let cand = [];
+        // grupo de acertos ligados ao primeiro acerto (um mesmo navio)
+        const grp = [hits[0]]; for (let q = 0; q < grp.length; q++) for (const j of this.nbs(grp[q])) if (known[j] === 2 && !grp.includes(j)) grp.push(j);
+        if (grp.length >= 2) { const v = grp.every(h => h % N === grp[0] % N); const sorted = grp.slice().sort((a, b) => a - b), st = v ? N : 1; for (const j of [sorted[0] - st, sorted[sorted.length - 1] + st]) if (j >= 0 && j < N * N && !shots[j] && known[j] !== 1 && (v || Math.floor(j / N) === Math.floor(sorted[0] / N))) cand.push(j); }
+        if (!cand.length) cand = this.nbs(grp[0]).filter(j => !shots[j] && known[j] !== 1);
+        if (!cand.length) for (const h of hits) cand.push(...this.nbs(h).filter(j => !shots[j] && known[j] !== 1));
+        if (cand.length) return rand(cand); }
+      const par = free.filter(i => (Math.floor(i / N) + i % N) % 2 === 0 && known[i] !== 1); return rand(par.length ? par : free);
+    }
+    // difícil: mapa de probabilidade com os navios restantes
+    const left = SHIPS.map((d, k) => k).filter(k => !Fleet.sunk(ships, shots, k)).map(k => ships[k].len);
+    const heat = Array(N * N).fill(0);
+    for (const len of left) for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) for (const v of [0, 1]) {
+      if (v ? r + len > N : c + len > N) continue; let ok = true, cover = 0; const cs = [];
+      for (let k = 0; k < len; k++) { const i = (r + (v ? k : 0)) * N + c + (v ? 0 : k); if (known[i] === 1 || known[i] === 3) { ok = false; break; } if (known[i] === 2) cover++; cs.push(i); }
+      if (!ok) continue; const w = hits.length ? (cover ? 1 + cover * 40 : 0) : 1;
+      if (!w) continue; for (const i of cs) if (!known[i]) heat[i] += w;
+    }
+    let best = -1, pick = []; for (const i of free) { if (known[i]) continue; if (heat[i] > best) { best = heat[i]; pick = [i]; } else if (heat[i] === best) pick.push(i); }
+    return pick.length ? rand(pick) : rand(free);
+  },
+  nbs(i) { const r = Math.floor(i / N), c = i % N, o = []; if (r > 0) o.push(i - N); if (r < N - 1) o.push(i + N); if (c > 0) o.push(i - 1); if (c < N - 1) o.push(i + 1); return o; }
+};
+const Game = {
+  cfg: null, phase: 'setup', P: [], turn: 0, log: [], result: null, placing: 0, busy: false,
+  // P[k] = { ships:[], shots: shots recebidos neste tabuleiro }
+  newGame(cfg) { HX.close(); this.cfg = cfg; this.P = [{ ships: [], shots: Array(N * N).fill(0) }, { ships: [], shots: Array(N * N).fill(0) }]; this.turn = 0; this.log = []; this.result = null; this.placing = 0; this.phase = 'place'; Place.start(0); this.save(); },
+  isAI(k) { return this.cfg.mode === 'ai' && k === 1; },
+  doneplacing(k) {
+    if (k === 0 && this.cfg.mode === 'pvp') { this.placing = 1; this.save(); return UI.cover('Vez do Jogador 2', 'Passe o aparelho para o Jogador 2 posicionar a frota. O Jogador 1 não deve olhar.', () => Place.start(1)); }
+    if (k === 0) this.P[1].ships = Fleet.random();
+    this.phase = 'battle'; this.turn = 0; this.save();
+    if (this.cfg.mode === 'pvp') UI.cover('Batalha!', 'Passe o aparelho para o Jogador 1 começar.', () => View.render()); else { View.render(); HX.toast('Sua vez: toque no mar inimigo para atirar'); }
+  },
+  fire(i) {
+    const me = this.turn, foe = 1 - me, T = this.P[foe]; if (this.phase !== 'battle' || this.result || T.shots[i]) return false;
+    T.shots[i] = 1; const k = Fleet.at(T.ships, i); const sunk = k >= 0 && Fleet.sunk(T.ships, T.shots, k);
+    this.log.push({ p: me, i, hit: k >= 0, sunk: sunk ? k : -1 });
+    let msg = k < 0 ? 'Água' : sunk ? `Afundou o ${SHIPS[k].n}!` : 'Acertou!';
+    HX.sfx(k < 0 ? 'tap' : sunk ? 'boom' : 'hit'); if (k >= 0) HX.vibrate(sunk ? 40 : 15);
+    if (!Fleet.alive(T.ships, T.shots)) { this.result = { win: me }; this.record(); this.save(); View.render(i, msg); setTimeout(() => UI.end(), 1100); return true; }
+    const again = k >= 0 && this.cfg.again;
+    if (!again) this.turn = foe;
+    this.save(); View.render(i, msg);
+    if (this.cfg.mode === 'pvp' && !again) { this.busy = true; setTimeout(() => { this.busy = false; UI.cover(`Vez do Jogador ${foe + 1}`, `${msg} em ${nm(i)}. Passe o aparelho para o Jogador ${foe + 1}.`, () => View.render()); }, 1100); }
+    else this.maybeAI();
+    return true;
+  },
+  maybeAI() { if (this.result || !this.isAI(this.turn) || this.phase !== 'battle') return; this.busy = true; View.render(); setTimeout(() => { this.busy = false; if (this.result || !this.isAI(this.turn)) return; this.fire(AI.pick(this.P[0].shots, this.P[0].ships, this.cfg.diff)); }, 750); },
+  record() { if (this.cfg.mode !== 'ai') return; const st = S.get('stats', {}), k = this.cfg.diff; st[k] = st[k] || { w: 0, l: 0 }; st[k][this.result.win === 0 ? 'w' : 'l']++; S.set('stats', st); },
+  save() { S.set('cur', { cfg: this.cfg, P: this.P, turn: this.turn, log: this.log, phase: this.phase, placing: this.placing, done: !!this.result }); S.hub(this.result || this.phase !== 'battle' ? null : `Em andamento · ${this.cfg.mode === 'ai' ? 'contra IA' : '2 jogadores'} · ${this.log.length} disparos`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg || c.done) return false; Object.assign(this, { cfg: c.cfg, P: c.P, turn: c.turn, log: c.log, phase: c.phase, placing: c.placing || 0, result: null }); return true; }
+};
+const Place = {
+  k: 0, ships: [], sel: 0, v: false, hover: -1,
+  start(k) { this.k = k; this.ships = SHIPS.map(() => null); this.sel = 0; this.v = false; Game.phase = 'place'; Game.placing = k; View.place(); },
+  tap(i) {
+    const r = Math.floor(i / N), c = i % N, on = Fleet.at(this.ships, i);
+    if (on >= 0 && this.sel !== on) { this.sel = on; this.v = this.ships[on].v; this.ships[on] = null; HX.sfx('tap'); return View.place(); }
+    if (this.sel < 0) return; const s = { len: SHIPS[this.sel].len, v: this.v, r, c };
+    if (!Fleet.fits(this.ships, s, this.sel)) { HX.sfx('tap'); return HX.toast('Não cabe aí (navios não podem encostar)'); }
+    this.ships[this.sel] = s; HX.sfx('move'); this.sel = this.ships.findIndex(x => !x); View.place();
+  },
+  auto() { this.ships = Fleet.random(); this.sel = -1; View.place(); },
+  clear() { this.ships = SHIPS.map(() => null); this.sel = 0; View.place(); },
+  ready() { if (this.ships.some(s => !s)) return HX.toast('Posicione todos os navios'); Game.P[this.k].ships = this.ships.slice(); Game.doneplacing(this.k); }
+};
+const View = {
+  grid(id, cls) { let h = `<div class="grid ${cls}" id="${id}"><div class="g lab"></div>`; for (let c = 0; c < N; c++) h += `<div class="g lab">${LET[c]}</div>`; for (let r = 0; r < N; r++) { h += `<div class="g lab">${r + 1}</div>`; for (let c = 0; c < N; c++) h += `<div class="g" data-i="${r * N + c}"></div>`; } return h + '</div>'; },
+  fit(mode) { const st = HX.$('#stage'), W = st.clientWidth, H = st.clientHeight, land = innerWidth > innerHeight * 1.1; let c, m;
+    if (mode === 'place') { c = Math.min((W - 12) / 11, (H - (W < 520 ? 190 : 150)) / 11); m = c; }
+    else if (land) { c = Math.min((W - 60) / 2 / 11, (H - 50) / 11); m = c; }
+    else { c = Math.min((W - 12) / 11, (H - 60 - 11 * 11) / 11); m = Math.max(10, Math.min(16, (H - c * 11 - 60) / 11)); }
+    c = Math.max(20, Math.min(48, Math.floor(c))); m = Math.min(c, Math.floor(m)); this.land = land && mode !== 'place'; document.documentElement.style.setProperty('--c', c + 'px'); document.documentElement.style.setProperty('--m', m + 'px'); },
+  place() {
+    const P = Place; this.fit('place');
+    HX.$('#view').innerHTML = `<div class="place"><div class="msg">${Game.cfg.mode === 'pvp' ? `Jogador ${P.k + 1}: ` : ''}posicione sua frota</div>${this.grid('pg', '')}<div class="fleet">${SHIPS.map((d, k) => `<button class="sh ${P.sel === k ? 'on' : ''} ${P.ships[k] ? 'done' : ''}" data-s="${k}"><i>${'<b></b>'.repeat(d.len)}</i>${d.n}</button>`).join('')}</div><div class="prow"><button class="btn" id="rot">Girar: ${P.v ? 'vertical' : 'horizontal'}</button><button class="btn" id="auto">Automático</button><button class="btn" id="clr">Limpar</button><button class="btn-primary" id="rdy" style="width:auto;padding:0 18px;min-height:42px">Pronto</button></div></div>`;
+    const g = HX.$('#pg'); const paint = () => { g.querySelectorAll('[data-i]').forEach(e => { const i = +e.dataset.i; e.className = 'g' + (Fleet.at(P.ships, i) >= 0 ? ' ship' : ''); });
+      if (P.hover >= 0 && P.sel >= 0) { const s = { len: SHIPS[P.sel].len, v: P.v, r: Math.floor(P.hover / N), c: P.hover % N }; const ok = Fleet.fits(P.ships, s, P.sel); for (const i of Fleet.cells(s)) { if (i % N < s.c && !s.v) continue; const e = g.querySelector(`[data-i="${i}"]`); if (e && i < N * N) e.classList.add(ok ? 'prev' : 'bad'); } } };
+    paint();
+    g.addEventListener('click', e => { const el = e.target.closest('[data-i]'); if (el) Place.tap(+el.dataset.i); });
+    g.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') return; const el = e.target.closest('[data-i]'); const h = el ? +el.dataset.i : -1; if (h !== P.hover) { P.hover = h; paint(); } });
+    g.addEventListener('pointerleave', () => { P.hover = -1; paint(); });
+    HX.$('#view').querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const k = +b.dataset.s; if (P.ships[k]) { P.v = P.ships[k].v; P.ships[k] = null; } P.sel = k; this.place(); });
+    HX.$('#rot').onclick = () => { P.v = !P.v; this.place(); }; HX.$('#auto').onclick = () => Place.auto(); HX.$('#clr').onclick = () => Place.clear(); HX.$('#rdy').onclick = () => Place.ready();
+    UI.turn();
+  },
+  render(last = -1, msg = '') {
+    if (Game.phase === 'place') return this.place();
+    const me = Game.cfg.mode === 'ai' ? 0 : Game.result ? Game.result.win : Game.turn, foe = 1 - me;
+    this.fit('battle');
+    const title = Game.cfg.mode === 'ai' ? 'Mar inimigo' : `Mar do Jogador ${foe + 1}`;
+    HX.$('#view').innerHTML = `<div class="boards"><div class="bw"><small>${title}</small>${this.grid('tg', 'target')}</div><div class="msg" id="msg">${msg}</div><div class="bw"><small>${Game.cfg.mode === 'ai' ? 'Sua frota' : `Frota do Jogador ${me + 1}`}</small>${this.grid('mg', this.land ? '' : 'mini')}</div></div>`;
+    const paint = (g, k, reveal) => { const T = Game.P[k]; g.querySelectorAll('[data-i]').forEach(e => { const i = +e.dataset.i, s = Fleet.at(T.ships, i), shot = T.shots[i]; let c = 'g';
+      if (shot) c += s < 0 ? ' miss' : Fleet.sunk(T.ships, T.shots, s) ? ' sunk' : ' hit'; else if (reveal && s >= 0) c += ' ship'; else if (!reveal && k === foe && !Game.result && !Game.busy && !Game.isAI(Game.turn)) c += ' can';
+      if (i === last && Game.log.length && Game.log[Game.log.length - 1].p !== k) c += ' last'; e.className = c; }); };
+    paint(HX.$('#tg'), foe, !!Game.result); paint(HX.$('#mg'), me, true);
+    HX.$('#tg').addEventListener('click', e => { const el = e.target.closest('[data-i]'); if (!el || HX.isOpen() || Game.busy || Game.result || Game.isAI(Game.turn) || Game.turn !== me) return; const i = +el.dataset.i; if (Game.P[foe].shots[i]) return HX.toast('Você já atirou aí'); Game.fire(i); });
+    if (!msg) HX.$('#msg').textContent = Game.result ? '' : Game.isAI(Game.turn) ? 'IA mirando…' : (Game.cfg.mode === 'ai' ? 'Sua vez de atirar' : `Jogador ${Game.turn + 1}: atire`);
+    UI.turn();
+  }
+};
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  init() {
+    HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-fleet').onclick = () => this.fleets(); HX.$('#t-help').onclick = () => HX.help('Regras', this.helpItems); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    addEventListener('resize', () => Game.cfg && (Game.phase === 'place' ? View.place() : View.render()));
+    if (Game.load()) {
+      if (Game.phase === 'place') { if (Game.placing === 1 && Game.cfg.mode === 'pvp') UI.cover('Vez do Jogador 2', 'Continue o posicionamento do Jogador 2.', () => Place.start(1)); else Place.start(0); }
+      else if (Game.cfg.mode === 'pvp') UI.cover('Partida retomada', `Vez do Jogador ${Game.turn + 1}. Passe o aparelho para ele.`, () => View.render());
+      else { View.render(); HX.toast('Partida retomada'); Game.maybeAI(); }
+    } else { Game.cfg = { mode: 'ai', diff: 'medio', again: false }; Game.P = [{ ships: [], shots: Array(100).fill(0) }, { ships: [], shots: Array(100).fill(0) }]; this.setup(); }
+  },
+  name(k) { if (!Game.cfg) return ''; return Game.cfg.mode === 'ai' ? (k ? `IA (${this.dn[Game.cfg.diff]})` : 'Você') : `Jogador ${k + 1}`; },
+  turn() { for (const k of [0, 1]) { HX.$('#n-' + k).textContent = this.name(k); const T = Game.P[k]; HX.$('#s-' + k).textContent = T && T.ships.length && T.ships.every(Boolean) ? Fleet.alive(T.ships, T.shots) : 5; HX.$('#p-' + k).classList.toggle('on', Game.phase === 'battle' ? !Game.result && Game.turn === k : Game.placing === k); } },
+  cover(title, text, go) { HX.close(); const d = document.createElement('div'); d.className = 'cover'; d.innerHTML = `<h2>${title}</h2><p>${text}</p><button class="btn-primary" style="max-width:320px">Estou pronto</button>`; HX.$('#view').innerHTML = ''; document.body.appendChild(d); d.querySelector('button').onclick = () => { d.remove(); go(); }; },
+  helpItems: ['Cada jogador tem um mar 10×10 com 5 navios: Porta-aviões (5), Encouraçado (4), Cruzador (3), Submarino (3) e Destróier (2).', 'Os navios ficam na horizontal ou vertical, sem se sobrepor e sem encostar uns nos outros (nem na diagonal).', 'Posicione tocando no navio da lista e depois na casa inicial. "Girar" troca a direção; toque num navio já colocado para movê-lo. "Automático" sorteia tudo.', 'Na batalha, toque numa casa do mar inimigo para atirar: ponto azul é água, ✕ vermelho é acerto, e o navio afundado fica marcado em dourado.', 'Por padrão os disparos se alternam. Na opção "Acertou, joga de novo", quem acerta atira outra vez.', 'Vence quem afundar a frota inteira do adversário primeiro.', 'Em 2 jogadores, uma tela de passagem esconde o tabuleiro entre as vezes.'],
+  setup() {
+    HX.setup({ title: 'Battleship', text: 'Esconda sua frota e afunde a do adversário.', values: Object.assign({ mode: 'ai', diff: 'medio', again: false }, S.get('cfg', {})),
+      groups: [{ key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'again', label: 'Ao acertar', opts: [[false, 'Passa a vez'], [true, 'Joga de novo']] }],
+      start: 'Posicionar frota', help: this.helpItems, onStart: x => { S.set('cfg', x); Game.newGame(Object.assign({}, x)); } });
+  },
+  hist() {
+    const c = HX.overlay(`<h3>Ataques</h3><div class="hist">${Game.log.length ? `<ol>${Game.log.map(m => `<li>${this.name(m.p)} → ${nm(m.i)}: ${m.sunk >= 0 ? 'afundou ' + SHIPS[m.sunk].n : m.hit ? 'acerto' : 'água'}</li>`).join('')}</ol>` : 'Nenhum disparo ainda.'}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#ok', () => Game.result ? this.end() : HX.close());
+  },
+  fleets() {
+    if (Game.phase !== 'battle') return HX.toast('A batalha ainda não começou');
+    const row = k => { const T = Game.P[k]; return `<p style="margin:8px 0 4px"><b>${this.name(k)}</b></p><div class="fleet">${SHIPS.map((d, j) => `<span class="sh ${Fleet.sunk(T.ships, T.shots, j) ? 'dead' : ''}"><i>${'<b></b>'.repeat(d.len)}</i>${d.n}</span>`).join('')}</div>`; };
+    const c = HX.overlay(`<h3>Frotas</h3>${row(0)}${row(1)}<p>Navios riscados já foram afundados.</p><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => HX.close());
+  },
+  menu() {
+    const st = S.get('stats', {}), cell = k => { const x = st[k] || { w: 0, l: 0 }; return `<div><b>${x.w}/${x.l}</b><small>${this.dn[k]}</small></div>`; };
+    const c = HX.overlay(`<h3>Battleship</h3><p>Contra a IA: vitórias / derrotas</p><div class="kv">${cell('facil')}${cell('medio')}${cell('dificil')}</div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hw">Regras</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#hw', () => HX.help('Regras', this.helpItems)); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  end() {
+    const w = Game.result.win, cf = Game.cfg; const t = cf.mode === 'ai' ? (w === 0 ? 'Vitória!' : 'Derrota') : `Jogador ${w + 1} vence!`;
+    const shots = Game.log.filter(m => m.p === w), hits = shots.filter(m => m.hit).length;
+    HX.sfx(cf.mode === 'ai' && w === 1 ? 'lose' : 'win'); S.hub(null); S.del('cur');
+    const o = HX.overlay(`<h3>${t}</h3><p>${cf.mode === 'ai' && w === 1 ? 'A IA afundou sua frota.' : 'Frota inimiga afundada.'}</p><div class="kv"><div><b>${shots.length}</b><small>Disparos</small></div><div><b>${hits}</b><small>Acertos</small></div><div><b>${Math.round(hits / Math.max(1, shots.length) * 100)}%</b><small>Precisão</small></div></div><button class="btn-primary" id="ag">Jogar de novo</button><div class="row2"><button class="btn" id="bd">Ver tabuleiros</button><button class="btn" id="nw">Mudar modo</button></div>`);
+    HX.on(o, '#ag', () => Game.newGame(Game.cfg)); HX.on(o, '#bd', () => HX.close()); HX.on(o, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.BS = { Fleet, AI, Game, Place, View, UI, S, SHIPS };
+</script>
+</body>
+</html>

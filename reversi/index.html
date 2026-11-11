@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#04110c">
+<title>H-LUX Reversi</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#04110c;--bg2:radial-gradient(ellipse at 50% 0%,#0f3324 0%,#04110c 64%);--c:44px}
+.board{display:grid;grid-template-columns:repeat(8,var(--c));grid-template-rows:repeat(8,var(--c));gap:2px;padding:8px;border-radius:14px;background:#0a1f16;box-shadow:0 0 0 3px #c9a45c,0 20px 50px rgba(0,0,0,.6);touch-action:manipulation;position:relative}
+.sq{background:linear-gradient(160deg,#1c6b47,#145236);border-radius:4px;position:relative;cursor:pointer}
+.sq.mv::after{content:'';position:absolute;left:50%;top:50%;width:26%;height:26%;transform:translate(-50%,-50%);border-radius:50%;background:rgba(241,220,166,.5);box-shadow:0 0 0 2px rgba(241,220,166,.25)}
+.sq.mv:hover::after{background:rgba(241,220,166,.85)}
+.pc{position:absolute;inset:9%;border-radius:50%;transition:transform .35s ease,background .2s .12s}
+.pc.b{background:radial-gradient(circle at 35% 30%,#4a4a52,#0b0b0e 70%);box-shadow:0 2px 4px rgba(0,0,0,.6),inset 0 0 0 2px rgba(201,164,92,.35)}
+.pc.w{background:radial-gradient(circle at 35% 30%,#ffffff,#d9d3c4 70%);box-shadow:0 2px 4px rgba(0,0,0,.6),inset 0 0 0 2px rgba(201,164,92,.55)}
+.pc.flip{transform:rotateY(90deg)}
+.sq.last .pc::after{content:'';position:absolute;left:50%;top:50%;width:18%;height:18%;transform:translate(-50%,-50%);border-radius:50%;background:#c9a45c}
+.dots i{position:absolute;width:6px;height:6px;border-radius:50%;background:#0a1f16;transform:translate(-50%,-50%);pointer-events:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Rever<b>si</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-b"><span class="dot" style="background:#111"></span><span class="nm" id="n-b">Pretas</span><span class="ct" id="s-b">2</span></div><div class="pl" id="p-w"><span class="dot" style="background:#eee"></span><span class="nm" id="n-w">Brancas</span><span class="ct" id="s-w">2</span></div></div>
+  <div class="stage" id="stage"><div class="board" id="board"></div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica</button>
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Lances</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX REVERSI v1.0 — regras oficiais do Reversi/Othello em 8×8. Pretas começam.
+   Módulos: Rules (puras) · AI (alfa-beta com peso posicional e mobilidade) · Game · View · UI */
+const S = HX.store('reversi');
+const N = 8, DIRS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+const COLS = 'abcdefgh';
+const Rules = {
+  init() { const b = Array(64).fill(''); b[27] = b[36] = 'w'; b[28] = b[35] = 'b'; return b; },
+  op: p => p === 'b' ? 'w' : 'b',
+  flips(b, i, p) {
+    if (b[i]) return []; const r = i >> 3, c = i & 7, o = this.op(p), out = [];
+    for (const [dr, dc] of DIRS) { const run = []; let rr = r + dr, cc = c + dc;
+      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && b[rr * 8 + cc] === o) { run.push(rr * 8 + cc); rr += dr; cc += dc; }
+      if (run.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && b[rr * 8 + cc] === p) out.push(...run); }
+    return out;
+  },
+  moves(b, p) { const m = []; for (let i = 0; i < 64; i++) if (!b[i] && this.flips(b, i, p).length) m.push(i); return m; },
+  play(b, i, p) { const f = this.flips(b, i, p); if (!f.length) return null; const n = b.slice(); n[i] = p; f.forEach(k => n[k] = p); return { b: n, f }; },
+  count(b) { let x = 0, y = 0; for (const v of b) if (v === 'b') x++; else if (v === 'w') y++; return { b: x, w: y }; },
+  over(b) { return !this.moves(b, 'b').length && !this.moves(b, 'w').length; },
+  name: i => COLS[i & 7] + (8 - (i >> 3))
+};
+const AI = {
+  W: [120, -20, 20, 5, 5, 20, -20, 120, -20, -40, -5, -5, -5, -5, -40, -20, 20, -5, 15, 3, 3, 15, -5, 20, 5, -5, 3, 3, 3, 3, -5, 5, 5, -5, 3, 3, 3, 3, -5, 5, 20, -5, 15, 3, 3, 15, -5, 20, -20, -40, -5, -5, -5, -5, -40, -20, 120, -20, 20, 5, 5, 20, -20, 120],
+  eval(b, me) {
+    const op = Rules.op(me); let s = 0, mine = 0, theirs = 0;
+    for (let i = 0; i < 64; i++) { if (b[i] === me) { s += this.W[i]; mine++; } else if (b[i] === op) { s -= this.W[i]; theirs++; } }
+    if (mine + theirs > 54) s += (mine - theirs) * 6; // reta final: contar peças importa mais
+    s += (Rules.moves(b, me).length - Rules.moves(b, op).length) * 4;
+    return s;
+  },
+  search(b, d, a, be, turn, me) {
+    const mv = Rules.moves(b, turn), op = Rules.op(turn);
+    if (!mv.length) {
+      if (!Rules.moves(b, op).length) { const c = Rules.count(b), diff = c[me] - c[Rules.op(me)]; return (turn === me ? 1 : -1) * (diff > 0 ? 100000 + diff : diff < 0 ? -100000 + diff : 0); }
+      return -this.search(b, d, -be, -a, op, me); // passa a vez
+    }
+    if (d === 0) return (turn === me ? 1 : -1) * this.eval(b, me);
+    mv.sort((x, y) => this.W[y] - this.W[x]);
+    let best = -Infinity;
+    for (const i of mv) { const v = -this.search(Rules.play(b, i, turn).b, d - 1, -be, -a, op, me); if (v > best) best = v; if (v > a) a = v; if (a >= be) break; }
+    return best;
+  },
+  pick(b, p, lvl) {
+    const mv = Rules.moves(b, p); if (!mv.length) return -1;
+    if (lvl === 'facil' && Math.random() < .45) return mv[Math.floor(Math.random() * mv.length)];
+    const empty = b.filter(x => !x).length;
+    const d = { facil: 1, medio: 3, dificil: empty <= 10 ? 10 : 5 }[lvl];
+    let best = -Infinity, pick = [];
+    for (const i of mv) { const v = -this.search(Rules.play(b, i, p).b, d - 1, -Infinity, Infinity, Rules.op(p), p); if (v > best) { best = v; pick = [i]; } else if (v === best) pick.push(i); }
+    return pick[Math.floor(Math.random() * pick.length)];
+  }
+};
+const Game = {
+  cfg: null, states: [], log: [], result: null,
+  get s() { return this.states[this.states.length - 1]; },
+  newGame(cfg) { HX.close(); this.cfg = cfg; this.states = [{ b: Rules.init(), turn: 'b' }]; this.log = []; this.result = null; this.save(); View.render(); UI.turn(); this.maybeAI(); },
+  aiSide() { return this.cfg.mode === 'ai' ? Rules.op(this.cfg.side) : null; },
+  human() { return this.s.turn !== this.aiSide(); },
+  play(i) {
+    if (this.result) return false; const s = this.s, r = Rules.play(s.b, i, s.turn); if (!r) return false;
+    let turn = Rules.op(s.turn), pass = false;
+    if (!Rules.moves(r.b, turn).length && Rules.moves(r.b, s.turn).length) { turn = s.turn; pass = true; }
+    this.states.push({ b: r.b, turn }); this.log.push({ p: s.turn, i, pass });
+    HX.sfx('move'); HX.vibrate(8);
+    if (Rules.over(r.b)) this.finish();
+    this.save(); View.render(i, r.f); UI.turn();
+    if (pass && !this.result) HX.toast(`${UI.color(Rules.op(s.turn))} sem jogadas — passa a vez`);
+    if (this.result) setTimeout(() => this.result && UI.end(), 900); else this.maybeAI();
+    return true;
+  },
+  finish() { const c = Rules.count(this.s.b); this.result = { win: c.b > c.w ? 'b' : c.w > c.b ? 'w' : null, c }; this.record(); },
+  record() { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp', r = this.result; st[k] = st[k] || { w: 0, l: 0, d: 0 }; st[k][!r.win ? 'd' : this.cfg.mode !== 'ai' || r.win === this.cfg.side ? 'w' : 'l']++; S.set('stats', st); },
+  maybeAI() {
+    if (this.result || this.human()) return; UI.think(true); const n = this.states.length;
+    setTimeout(() => { if (this.result || this.human() || this.states.length !== n) return UI.think(false); const i = AI.pick(this.s.b, this.s.turn, this.cfg.diff); UI.think(false); if (i >= 0) this.play(i); }, 380);
+  },
+  undo() {
+    if (this.states.length < 2) return HX.toast('Nada para desfazer');
+    if (this.result) { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp', r = this.result; if (st[k]) { const f = !r.win ? 'd' : this.cfg.mode !== 'ai' || r.win === this.cfg.side ? 'w' : 'l'; st[k][f] = Math.max(0, st[k][f] - 1); S.set('stats', st); } }
+    this.result = null; HX.close();
+    do { this.states.pop(); this.log.pop(); } while (this.states.length > 1 && this.cfg.mode === 'ai' && this.s.turn === this.aiSide());
+    this.save(); View.render(); UI.turn(); this.maybeAI();
+  },
+  save() { S.set('cur', { cfg: this.cfg, log: this.log }); const c = Rules.count(this.s.b); S.hub(this.result ? null : `Em andamento · ${this.cfg.mode === 'ai' ? 'contra IA' : '2 jogadores'} · ${c.b}×${c.w}`); },
+  load() {
+    const c = S.get('cur', null); if (!c || !c.cfg) return false; this.cfg = c.cfg; this.states = [{ b: Rules.init(), turn: 'b' }]; this.log = []; this.result = null;
+    for (const m of c.log) { const s = this.s, r = Rules.play(s.b, m.i, s.turn); if (!r) break; let turn = Rules.op(s.turn); if (!Rules.moves(r.b, turn).length && Rules.moves(r.b, s.turn).length) turn = s.turn; this.states.push({ b: r.b, turn }); this.log.push(m); }
+    if (Rules.over(this.s.b)) { const k = Rules.count(this.s.b); this.result = { win: k.b > k.w ? 'b' : k.w > k.b ? 'w' : null, c: k }; }
+    return true;
+  }
+};
+const View = {
+  hint: -1,
+  init() {
+    const bd = HX.$('#board'); bd.innerHTML = Array.from({ length: 64 }, (_, i) => `<div class="sq" data-i="${i}"></div>`).join('');
+    bd.addEventListener('click', e => { const sq = e.target.closest('.sq'); if (!sq || HX.isOpen() || !Game.human() || Game.result) return; if (!Game.play(+sq.dataset.i)) { HX.sfx('tap'); HX.toast('Jogada inválida: precisa virar peças'); } });
+    new ResizeObserver(() => this.fit()).observe(HX.$('#stage')); this.fit();
+  },
+  fit() { const st = HX.$('#stage'); const c = Math.floor(Math.min((st.clientWidth - 30) / 8, (st.clientHeight - 30) / 8, 74)); document.documentElement.style.setProperty('--c', Math.max(30, c - 2) + 'px'); },
+  render(placed, flipped = []) {
+    const s = Game.s, mv = !Game.result && Game.human() ? Rules.moves(s.b, s.turn) : [], sqs = HX.$('#board').children, last = Game.log.length ? Game.log[Game.log.length - 1].i : -1;
+    for (let i = 0; i < 64; i++) {
+      const el = sqs[i], v = s.b[i]; el.classList.toggle('mv', mv.includes(i)); el.classList.toggle('last', i === last); el.style.outline = i === this.hint ? '2px solid #f1dca6' : '';
+      if (!v) { el.innerHTML = ''; continue; }
+      if (!el.firstChild) el.innerHTML = `<div class="pc ${v}"></div>`;
+      const pc = el.firstChild;
+      if (flipped.includes(i)) { pc.classList.add('flip'); setTimeout(() => { pc.className = 'pc ' + v; }, 170); }
+      else pc.className = 'pc ' + v;
+    }
+    this.hint = -1; const c = Rules.count(s.b); HX.$('#s-b').textContent = c.b; HX.$('#s-w').textContent = c.w;
+  }
+};
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  color: p => p === 'b' ? 'Pretas' : 'Brancas',
+  init() {
+    View.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    HX.$('#t-hint').onclick = () => { if (Game.result || !Game.human()) return; const i = AI.pick(Game.s.b, Game.s.turn, 'medio'); if (i < 0) return; View.render(); View.hint = i; HX.$('#board').children[i].style.outline = '2px solid #f1dca6'; HX.toast('Sugestão: ' + Rules.name(i)); };
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { View.render(); this.turn(); if (Game.result) this.end(); else { HX.toast('Partida retomada'); Game.maybeAI(); } }
+    else { Game.cfg = { mode: 'ai', diff: 'medio', side: 'b' }; Game.states = [{ b: Rules.init(), turn: 'b' }]; View.render(); this.turn(); this.setup(); }
+  },
+  name(x) { return Game.aiSide() === x ? `IA (${this.dn[Game.cfg.diff]})` : (Game.cfg.mode === 'ai' ? 'Você · ' : '') + this.color(x); },
+  turn() { for (const x of 'bw') { HX.$('#n-' + x).textContent = this.name(x); HX.$('#p-' + x).classList.toggle('on', !Game.result && Game.s.turn === x); } },
+  think(on) { const ai = Game.aiSide(); if (ai) HX.$('#n-' + ai).textContent = on ? 'IA pensando…' : this.name(ai); },
+  helpItems: ['Toque numa casa marcada para colocar sua peça. A jogada precisa prender peças adversárias entre a nova peça e outra sua, em linha reta (horizontal, vertical ou diagonal).', 'Todas as peças presas viram para a sua cor.', 'Pretas começam. Quem não tiver jogada válida passa a vez automaticamente.', 'A partida acaba quando ninguém pode jogar. Vence quem tiver mais peças.', 'Cantos são valiosos: nunca podem ser virados.'],
+  setup() {
+    HX.setup({ title: 'Reversi', text: 'Prenda e vire as peças adversárias. Vence quem terminar com mais peças.', values: Object.assign({ mode: 'ai', diff: 'medio', side: 'b' }, S.get('cfg', {})),
+      groups: [{ key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'side', label: 'Você joga com', opts: [['b', 'Pretas (começam)'], ['w', 'Brancas']], show: x => x.mode === 'ai' }],
+      start: 'Nova partida', help: this.helpItems, onStart: x => { S.set('cfg', x); Game.newGame(Object.assign({}, x)); } });
+  },
+  hist() {
+    const rows = []; Game.log.forEach((m, k) => rows.push(`<li>${this.color(m.p)}: ${Rules.name(m.i)}${m.pass ? ` <small>(${this.color(Rules.op(m.p))} passa)</small>` : ''}</li>`));
+    const c = HX.overlay(`<h3>Lances</h3><div class="hist">${rows.length ? `<ol>${rows.join('')}</ol>` : 'Nenhum lance ainda.'}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#ok', () => Game.result ? this.end() : HX.close());
+  },
+  menu() {
+    const st = S.get('stats', {}), cell = k => { const x = st[k] || { w: 0, l: 0, d: 0 }; return `<div><b>${x.w}/${x.d}/${x.l}</b><small>${this.dn[k] || '2 jog.'}</small></div>`; };
+    const c = HX.overlay(`<h3>Reversi</h3><p>Contra a IA: vitórias / empates / derrotas</p><div class="kv">${cell('facil')}${cell('medio')}${cell('dificil')}</div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems)); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  end() {
+    const r = Game.result, cf = Game.cfg; let t = 'Empate';
+    if (r.win) t = cf.mode === 'ai' ? (r.win === cf.side ? 'Vitória!' : 'Derrota') : `${this.color(r.win)} vencem`;
+    HX.sfx(t === 'Derrota' ? 'lose' : 'win'); S.hub(null);
+    const o = HX.overlay(`<h3>${t}</h3><p>Fim de partida: nenhum jogador pode jogar.</p><div class="kv"><div><b>${r.c.b}</b><small>Pretas</small></div><div><b>${64 - r.c.b - r.c.w}</b><small>Vazias</small></div><div><b>${r.c.w}</b><small>Brancas</small></div></div><button class="btn-primary" id="ag">Jogar de novo</button><div class="row2"><button class="btn" id="bd">Ver tabuleiro</button><button class="btn" id="nw">Mudar modo</button></div>`);
+    HX.on(o, '#ag', () => Game.newGame(Game.cfg)); HX.on(o, '#bd', () => HX.close()); HX.on(o, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.RV = { Rules, AI, Game, View, UI, S };
+</script>
+</body>
+</html>

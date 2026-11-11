@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#120d06">
+<title>H-LUX Gomoku</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#120d06;--bg2:radial-gradient(ellipse at 50% 0%,#2e2210 0%,#120d06 64%)}
+#cv{display:block;touch-action:none;border-radius:12px;box-shadow:0 0 0 3px #c9a45c,0 20px 50px rgba(0,0,0,.6);cursor:pointer}
+.confirm{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;color:var(--accent2);background:rgba(0,0,0,.7);padding:5px 12px;border-radius:10px;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Gomo<b>ku</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-b"><span class="dot" style="background:#111"></span><span class="nm" id="n-b">Pretas</span><span class="ct" id="s-b">0</span></div><div class="pl" id="p-w"><span class="dot" style="background:#eee"></span><span class="nm" id="n-w">Brancas</span><span class="ct" id="s-w">0</span></div></div>
+  <div class="stage" id="stage" style="position:relative"><canvas id="cv"></canvas><div class="confirm hidden" id="cf">Toque de novo para confirmar</div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Lances</button>
+    <button class="tool" id="t-restart"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Reiniciar</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX GOMOKU v1.0 — regra livre: 5 ou mais em linha vencem. Tabuleiro 15×15, pretas começam.
+   Módulos: Rules · AI (avaliação de padrões + busca nas melhores casas) · Game · View · UI */
+const S = HX.store('gomoku');
+const N = 15, D4 = [[0, 1], [1, 0], [1, 1], [1, -1]], LET = 'ABCDEFGHJKLMNOP';
+const Rules = {
+  op: p => p === 'b' ? 'w' : 'b',
+  line(b, i) { const p = b[i], r = Math.floor(i / N), c = i % N; if (!p) return null;
+    for (const [dr, dc] of D4) { const cells = [i]; for (const s of [1, -1]) { let rr = r + dr * s, cc = c + dc * s; while (rr >= 0 && rr < N && cc >= 0 && cc < N && b[rr * N + cc] === p) { cells.push(rr * N + cc); rr += dr * s; cc += dc * s; } } if (cells.length >= 5) return cells; }
+    return null; },
+  name: i => LET[i % N] + (N - Math.floor(i / N))
+};
+const AI = {
+  // pontua uma casa vazia para o jogador p olhando as 4 direções (comprimento da sequência + pontas abertas)
+  lineScore(b, i, p) {
+    const r = Math.floor(i / N), c = i % N; let total = 0, fours = 0, threes = 0;
+    for (const [dr, dc] of D4) {
+      let cnt = 1, open = 0, gap = 0;
+      for (const s of [1, -1]) { let rr = r + dr * s, cc = c + dc * s, k = 0;
+        while (rr >= 0 && rr < N && cc >= 0 && cc < N && b[rr * N + cc] === p) { cnt++; rr += dr * s; cc += dc * s; k++; }
+        if (rr >= 0 && rr < N && cc >= 0 && cc < N && !b[rr * N + cc]) { open++; const r2 = rr + dr * s, c2 = cc + dc * s; if (r2 >= 0 && r2 < N && c2 >= 0 && c2 < N && b[r2 * N + c2] === p) gap++; } }
+      if (cnt >= 5) return 1e7;
+      let v = 0;
+      if (cnt === 4) { v = open === 2 ? 2e5 : open === 1 ? 2.2e4 : 0; if (open) fours++; }
+      else if (cnt === 3) { v = open === 2 ? 2e4 : open === 1 ? 1500 : 0; if (open === 2) threes++; if (gap && open) v += 1200; }
+      else if (cnt === 2) { v = open === 2 ? 900 : open === 1 ? 120 : 0; if (gap && open === 2) { v += 3000; threes += .5; } }
+      else v = open === 2 ? 40 : open ? 10 : 0;
+      total += v;
+    }
+    if (fours >= 2 || (fours && threes >= 1)) total += 1e5; else if (threes >= 2) total += 5e4; // garfos
+    return total;
+  },
+  cands(b) { const out = new Set(); let any = false;
+    for (let i = 0; i < N * N; i++) if (b[i]) { any = true; const r = Math.floor(i / N), c = i % N; for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) { const rr = r + dr, cc = c + dc; if (rr >= 0 && rr < N && cc >= 0 && cc < N && !b[rr * N + cc]) out.add(rr * N + cc); } }
+    if (!any) out.add(7 * N + 7); return [...out]; },
+  rank(b, p) { const o = Rules.op(p); return this.cands(b).map(i => ({ i, v: this.lineScore(b, i, p) * 1.05 + this.lineScore(b, i, o) })).sort((x, y) => y.v - x.v); },
+  pick(b, p, lvl) {
+    let rk = this.rank(b, p); if (!rk.length) return -1;
+    const o = Rules.op(p);
+    // vitória imediata e bloqueio obrigatório valem para todos os níveis
+    const win = rk.find(x => this.lineScore(b, x.i, p) >= 1e7); if (win) return win.i;
+    const block = rk.filter(x => this.lineScore(b, x.i, o) >= 1e7); if (block.length && lvl !== 'facil') return block[0].i;
+    if (lvl === 'facil') { const top = rk.slice(0, 6); return Math.random() < .35 ? top[Math.floor(Math.random() * top.length)].i : (block[0] || rk[0]).i; }
+    if (lvl === 'medio') { const top = rk.filter(x => x.v >= rk[0].v * .9).slice(0, 3); return top[Math.floor(Math.random() * top.length)].i; }
+    // difícil: busca negamax de 4 meias-jogadas nas melhores casas (com respostas forçadas)
+    let best = -Infinity, pick = rk[0].i;
+    const moves = block.length ? block : rk.slice(0, 9);
+    for (const c of moves) { const nb = b.slice(); nb[c.i] = p; const v = -this.nega(nb, o, 3, -Infinity, -best); if (v > best) { best = v; pick = c.i; } }
+    return pick;
+  },
+  nega(b, p, d, a, be) {
+    const o = Rules.op(p), rk = this.rank(b, p); if (!rk.length) return 0;
+    const mine = this.lineScore(b, rk[0].i, p); if (mine >= 1e7) return 1e9 + d;
+    const forced = rk.filter(x => this.lineScore(b, x.i, o) >= 1e7);
+    if (forced.length > 1) return -1e9 - d; // duas ameaças de cinco: não há defesa
+    if (d === 0) { let me = 0, op = 0; for (const x of rk.slice(0, 10)) { me = Math.max(me, this.lineScore(b, x.i, p)); op = Math.max(op, this.lineScore(b, x.i, o)); } return me * 1.2 - op; }
+    let best = -Infinity;
+    for (const c of forced.length ? forced : rk.slice(0, 7)) { const nb = b.slice(); nb[c.i] = p; const v = -this.nega(nb, o, d - 1, -be, -a); if (v > best) best = v; if (v > a) a = v; if (a >= be) break; }
+    return best;
+  }
+};
+const Game = {
+  cfg: null, b: null, moves: [], result: null, score: { b: 0, w: 0, d: 0 }, startWith: 'b',
+  get turn() { return this.moves.length % 2 === 0 ? this.startWith : Rules.op(this.startWith); },
+  newGame(cfg, keep) { HX.close(); this.cfg = cfg; if (!keep) { this.score = { b: 0, w: 0, d: 0 }; this.startWith = 'b'; } else this.startWith = Rules.op(this.startWith); this.b = Array(N * N).fill(''); this.moves = []; this.result = null; View.pend = -1; this.save(); View.draw(); UI.turn(); this.maybeAI(); },
+  aiSide() { return this.cfg.mode === 'ai' ? Rules.op(this.cfg.side) : null; },
+  human() { return this.turn !== this.aiSide(); },
+  play(i) {
+    if (this.result || this.b[i]) return false; const p = this.turn; this.b[i] = p; this.moves.push(i); HX.sfx('move'); HX.vibrate(8);
+    const line = Rules.line(this.b, i);
+    if (line) { this.result = { win: p, line }; this.score[p]++; this.record(); }
+    else if (this.moves.length === N * N) { this.result = { win: null }; this.score.d++; this.record(); }
+    View.pend = -1; this.save(); View.draw(); UI.turn();
+    if (this.result) setTimeout(() => this.result && UI.end(), 900); else this.maybeAI();
+    return true;
+  },
+  record() { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp', r = this.result; st[k] = st[k] || { w: 0, l: 0, d: 0 }; st[k][!r.win ? 'd' : this.cfg.mode !== 'ai' || r.win === this.cfg.side ? 'w' : 'l']++; S.set('stats', st); },
+  maybeAI() { if (this.result || this.human()) return; UI.think(true); const n = this.moves.length; setTimeout(() => { if (this.result || this.human() || this.moves.length !== n) return UI.think(false); const i = AI.pick(this.b, this.turn, this.cfg.diff); UI.think(false); if (i >= 0) this.play(i); }, 320); },
+  undo() {
+    if (!this.moves.length) return HX.toast('Nada para desfazer');
+    if (this.result) { if (this.result.win) this.score[this.result.win]--; else this.score.d--; this.result = null; HX.close(); }
+    do { this.b[this.moves.pop()] = ''; } while (this.moves.length && this.cfg.mode === 'ai' && this.turn === this.aiSide());
+    View.pend = -1; this.save(); View.draw(); UI.turn(); this.maybeAI();
+  },
+  save() { S.set('cur', { cfg: this.cfg, moves: this.moves, score: this.score, startWith: this.startWith }); S.hub(this.result ? null : `Em andamento · ${this.cfg.mode === 'ai' ? 'contra IA' : '2 jogadores'} · ${this.moves.length} lances`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg) return false; this.cfg = c.cfg; this.score = c.score; this.startWith = c.startWith || 'b'; this.b = Array(N * N).fill(''); this.moves = []; this.result = null;
+    for (const i of c.moves) { this.b[i] = this.turn; this.moves.push(i); const l = Rules.line(this.b, i); if (l) { this.result = { win: this.b[i], line: l }; break; } }
+    if (!this.result && this.moves.length === N * N) this.result = { win: null }; return true; }
+};
+const View = {
+  cv: null, x: null, cs: 24, pad: 16, pend: -1, dpr: 1,
+  init() {
+    this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => { this.size(); this.draw(); }).observe(HX.$('#stage')); this.size();
+    this.cv.addEventListener('pointerup', e => {
+      if (HX.isOpen() || Game.result || !Game.human()) return; const r = this.cv.getBoundingClientRect();
+      const c = Math.round((e.clientX - r.left - this.pad) / this.cs), rr = Math.round((e.clientY - r.top - this.pad) / this.cs); if (c < 0 || rr < 0 || c >= N || rr >= N) return;
+      const i = rr * N + c; if (Game.b[i]) return;
+      if (e.pointerType === 'mouse' || this.pend === i) { HX.$('#cf').classList.add('hidden'); Game.play(i); }
+      else { this.pend = i; HX.sfx('tap'); HX.$('#cf').classList.remove('hidden'); this.draw(); }
+    });
+    this.cv.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse' || Game.result || !Game.human()) return; const r = this.cv.getBoundingClientRect(); const c = Math.round((e.clientX - r.left - this.pad) / this.cs), rr = Math.round((e.clientY - r.top - this.pad) / this.cs); const i = c >= 0 && rr >= 0 && c < N && rr < N && !Game.b[rr * N + c] ? rr * N + c : -1; if (i !== this.pend) { this.pend = i; this.draw(); } });
+  },
+  size() { const st = HX.$('#stage'); const W = Math.floor(Math.min(st.clientWidth - 6, st.clientHeight - 6, 720)); this.cs = (W - 2 * this.pad) / (N - 1); this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = W * this.dpr; this.cv.height = W * this.dpr; this.cv.style.width = this.cv.style.height = W + 'px'; this.W = W; },
+  draw() {
+    if (!Game.b) return; const x = this.x, s = this.cs, P = this.pad, W = this.W; x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const g = x.createLinearGradient(0, 0, W, W); g.addColorStop(0, '#d9b071'); g.addColorStop(1, '#b98a4a'); x.fillStyle = g; x.fillRect(0, 0, W, W);
+    x.strokeStyle = 'rgba(60,35,10,.75)'; x.lineWidth = 1; x.beginPath(); for (let k = 0; k < N; k++) { x.moveTo(P + k * s, P); x.lineTo(P + k * s, P + (N - 1) * s); x.moveTo(P, P + k * s); x.lineTo(P + (N - 1) * s, P + k * s); } x.stroke();
+    x.fillStyle = 'rgba(60,35,10,.9)'; for (const [r, c] of [[3, 3], [3, 11], [7, 7], [11, 3], [11, 11]]) { x.beginPath(); x.arc(P + c * s, P + r * s, Math.max(2.5, s * .12), 0, 7); x.fill(); }
+    const line = Game.result && Game.result.line || [], last = Game.moves[Game.moves.length - 1];
+    const stone = (i, p, a) => { const cx = P + (i % N) * s, cy = P + Math.floor(i / N) * s, rad = s * .45; x.globalAlpha = a; const gr = x.createRadialGradient(cx - rad * .35, cy - rad * .4, rad * .1, cx, cy, rad); if (p === 'b') { gr.addColorStop(0, '#5a5a62'); gr.addColorStop(1, '#0b0b0e'); } else { gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#cfc8b8'); } x.fillStyle = gr; x.beginPath(); x.arc(cx, cy, rad, 0, 7); x.fill(); x.globalAlpha = 1; };
+    for (let i = 0; i < N * N; i++) if (Game.b[i]) stone(i, Game.b[i], 1);
+    if (this.pend >= 0 && !Game.b[this.pend] && !Game.result) stone(this.pend, Game.turn, .5);
+    if (last !== undefined && !Game.result) { x.fillStyle = '#e04848'; x.beginPath(); x.arc(P + (last % N) * s, P + Math.floor(last / N) * s, s * .13, 0, 7); x.fill(); }
+    if (line.length) { x.strokeStyle = '#f1dca6'; x.lineWidth = 3; for (const i of line) { x.beginPath(); x.arc(P + (i % N) * s, P + Math.floor(i / N) * s, s * .48, 0, 7); x.stroke(); } }
+    HX.$('#s-b').textContent = Game.score.b; HX.$('#s-w').textContent = Game.score.w;
+  }
+};
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  color: p => p === 'b' ? 'Pretas' : 'Brancas',
+  init() {
+    View.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-restart').onclick = () => Game.newGame(Game.cfg, true); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { View.draw(); this.turn(); if (Game.result) this.end(); else { HX.toast('Partida retomada'); Game.maybeAI(); } }
+    else { Game.cfg = { mode: 'ai', diff: 'medio', side: 'b' }; Game.b = Array(N * N).fill(''); View.draw(); this.turn(); this.setup(); }
+  },
+  name(x) { return Game.aiSide() === x ? `IA (${this.dn[Game.cfg.diff]})` : (Game.cfg.mode === 'ai' ? 'Você · ' : '') + this.color(x); },
+  turn() { for (const x of 'bw') { HX.$('#n-' + x).textContent = this.name(x); HX.$('#p-' + x).classList.toggle('on', !Game.result && Game.turn === x); } },
+  think(on) { const ai = Game.aiSide(); if (ai) HX.$('#n-' + ai).textContent = on ? 'IA pensando…' : this.name(ai); },
+  helpItems: ['Os jogadores colocam uma pedra por vez nos cruzamentos das linhas.', 'Vence quem formar 5 ou mais pedras seguidas na horizontal, vertical ou diagonal (regra livre).', 'No celular: o primeiro toque mostra a pedra transparente; toque de novo no mesmo ponto para confirmar. No computador, o clique joga direto.', 'O ponto vermelho marca a última jogada.', 'Se o tabuleiro encher sem vencedor, é empate.', 'Em “Reiniciar”, o placar continua e quem começa alterna.'],
+  setup() {
+    HX.setup({ title: 'Gomoku', text: 'Forme uma linha de cinco pedras no tabuleiro 15×15.', values: Object.assign({ mode: 'ai', diff: 'medio', side: 'b' }, S.get('cfg', {})),
+      groups: [{ key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'side', label: 'Você joga com', opts: [['b', 'Pretas (começam)'], ['w', 'Brancas']], show: x => x.mode === 'ai' }],
+      start: 'Nova partida', help: this.helpItems, onStart: x => { S.set('cfg', x); Game.newGame(Object.assign({}, x)); } });
+  },
+  hist() { const c = HX.overlay(`<h3>Lances</h3><div class="hist">${Game.moves.length ? `<ol>${Game.moves.map((m, k) => `<li>${this.color(k % 2 === 0 ? Game.startWith : Rules.op(Game.startWith))}: ${Rules.name(m)}</li>`).join('')}</ol>` : 'Nenhum lance ainda.'}</div><p>Placar: Pretas ${Game.score.b} × ${Game.score.w} Brancas · empates ${Game.score.d}</p><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => Game.result ? this.end() : HX.close()); },
+  menu() {
+    const st = S.get('stats', {}), cell = k => { const x = st[k] || { w: 0, l: 0, d: 0 }; return `<div><b>${x.w}/${x.d}/${x.l}</b><small>${this.dn[k]}</small></div>`; };
+    const c = HX.overlay(`<h3>Gomoku</h3><p>Contra a IA: vitórias / empates / derrotas</p><div class="kv">${cell('facil')}${cell('medio')}${cell('dificil')}</div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems)); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  end() {
+    const r = Game.result, cf = Game.cfg; let t = 'Empate';
+    if (r.win) t = cf.mode === 'ai' ? (r.win === cf.side ? 'Vitória!' : 'Derrota') : `${this.color(r.win)} vencem`;
+    HX.sfx(t === 'Derrota' ? 'lose' : 'win'); S.hub(null);
+    const o = HX.overlay(`<h3>${t}</h3><p>${r.win ? 'Cinco em linha' : 'Tabuleiro cheio'} · ${Game.moves.length} lances</p><div class="kv"><div><b>${Game.score.b}</b><small>Pretas</small></div><div><b>${Game.score.d}</b><small>Empates</small></div><div><b>${Game.score.w}</b><small>Brancas</small></div></div><button class="btn-primary" id="ag">Próxima partida</button><div class="row2"><button class="btn" id="bd">Ver tabuleiro</button><button class="btn" id="nw">Mudar modo</button></div>`);
+    HX.on(o, '#ag', () => Game.newGame(Game.cfg, true)); HX.on(o, '#bd', () => HX.close()); HX.on(o, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.GM = { Rules, AI, Game, View, UI, S, N };
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#140b05">
+<title>H-LUX Mancala</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#140b05;--bg2:radial-gradient(ellipse at 50% 0%,#33200f 0%,#140b05 64%);--p:52px}
+.board{display:grid;grid-template-columns:calc(var(--p)*.95) repeat(6,var(--p)) calc(var(--p)*.95);grid-template-rows:var(--p) var(--p);gap:calc(var(--p)*.14);padding:calc(var(--p)*.22);border-radius:calc(var(--p)*.6);background:linear-gradient(170deg,#7a4a22,#4a2a10 60%,#3a200c);box-shadow:inset 0 2px 0 rgba(255,255,255,.15),0 0 0 3px #c9a45c,0 22px 50px rgba(0,0,0,.6);touch-action:manipulation}
+.pit,.store{position:relative;border-radius:50%;background:radial-gradient(circle at 50% 40%,#2b1607,#1a0c03);box-shadow:inset 0 4px 10px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.12);overflow:hidden}
+.store{grid-row:1/3;border-radius:calc(var(--p)*.5)}
+.pit.can{cursor:pointer;box-shadow:inset 0 4px 10px rgba(0,0,0,.8),0 0 0 2px #c9a45c}
+.pit.can:active{transform:scale(.96)}
+.pit.hl,.store.hl{box-shadow:inset 0 4px 10px rgba(0,0,0,.8),0 0 0 2px #fff6c8,0 0 16px rgba(255,246,200,.5)}
+.pit.last,.store.last{box-shadow:inset 0 4px 10px rgba(0,0,0,.8),0 0 0 3px #f1dca6}
+.n{position:absolute;left:50%;transform:translateX(-50%);font-weight:800;font-size:calc(var(--p)*.26);color:#f6e7c4;text-shadow:0 1px 2px #000;z-index:2;pointer-events:none}
+.pit .n{bottom:2px}.store .n{top:50%;transform:translate(-50%,-50%);font-size:calc(var(--p)*.42)}
+.seed{position:absolute;width:calc(var(--p)*.18);height:calc(var(--p)*.18);border-radius:50%;box-shadow:inset -1px -2px 2px rgba(0,0,0,.4),0 1px 1px rgba(0,0,0,.5)}
+.side{font-size:11px;letter-spacing:1.4px;font-weight:800;color:var(--muted);text-transform:uppercase;text-align:center;margin:6px 0}
+.wrap{display:flex;flex-direction:column;align-items:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Manca<b>la</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-A"><span class="dot" style="background:#e0b14a"></span><span class="nm" id="n-A">Sul</span><span class="ct" id="s-A">0</span></div><div class="pl" id="p-B"><span class="dot" style="background:#5fb7a6"></span><span class="nm" id="n-B">Norte</span><span class="ct" id="s-B">0</span></div></div>
+  <div class="stage" id="stage"><div class="wrap"><div class="side" id="lb-B">Norte ←</div><div class="board" id="board"></div><div class="side" id="lb-A">Sul →</div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Lances</button>
+    <button class="tool" id="t-rules"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Regras</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX MANCALA v1.0 — variante KALAH (6 cavidades por lado, depósito à direita de cada jogador).
+   Índices: 0–5 cavidades do Sul (A), 6 depósito do Sul, 7–12 cavidades do Norte (B), 13 depósito do Norte.
+   Módulos: Rules (puras) · AI (minimax alfa-beta) · Game · View · UI */
+const S = HX.store('mancala');
+const Rules = {
+  init(seeds) { const b = Array(14).fill(seeds); b[6] = b[13] = 0; return b; },
+  pits: p => p === 'A' ? [0, 1, 2, 3, 4, 5] : [7, 8, 9, 10, 11, 12],
+  store: p => p === 'A' ? 6 : 13,
+  op: p => p === 'A' ? 'B' : 'A',
+  owner: i => i < 6 ? 'A' : i > 6 && i < 13 ? 'B' : null,
+  moves(b, p) { return this.pits(p).filter(i => b[i] > 0); },
+  // semeia; devolve o novo tabuleiro, caminho, se joga de novo e captura
+  sow(b0, i, p, captureEmpty) {
+    const b = b0.slice(); let n = b[i]; b[i] = 0; let k = i; const path = [];
+    const skip = this.store(this.op(p));
+    while (n > 0) { k = (k + 1) % 14; if (k === skip) continue; b[k]++; n--; path.push(k); }
+    let again = k === this.store(p), cap = null;
+    if (!again && this.owner(k) === p && b[k] === 1) { const opp = 12 - k; if (b[opp] > 0 || captureEmpty) { cap = { at: k, opp, n: b[opp] + 1 }; b[this.store(p)] += b[opp] + 1; b[opp] = 0; b[k] = 0; } }
+    let over = false;
+    const sa = this.pits('A').reduce((s, j) => s + b[j], 0), sb = this.pits('B').reduce((s, j) => s + b[j], 0);
+    if (sa === 0 || sb === 0) { over = true; for (const j of this.pits('A')) { b[6] += b[j]; b[j] = 0; } for (const j of this.pits('B')) { b[13] += b[j]; b[j] = 0; } again = false; }
+    return { b, path, again, cap, over, last: k };
+  }
+};
+const AI = {
+  ev(b, me) { return (b[Rules.store(me)] - b[Rules.store(Rules.op(me))]) * 4 + (Rules.pits(me).reduce((s, j) => s + b[j], 0) - Rules.pits(Rules.op(me)).reduce((s, j) => s + b[j], 0)) * .5; },
+  search(b, p, d, a, be, me, ce) {
+    const mv = Rules.moves(b, p);
+    if (!mv.length || d === 0) return (p === me ? 1 : -1) * this.ev(b, me);
+    let best = -Infinity;
+    for (const i of mv) { const r = Rules.sow(b, i, p, ce); let v;
+      if (r.over) { const diff = r.b[Rules.store(p)] - r.b[Rules.store(Rules.op(p))]; v = diff > 0 ? 1000 + diff : diff < 0 ? -1000 + diff : 0; }
+      else if (r.again) v = this.search(r.b, p, d, a, be, me, ce); // jogar de novo não conta profundidade extra… mas evita laço infinito
+      else v = -this.search(r.b, Rules.op(p), d - 1, -be, -a, me, ce);
+      if (v > best) best = v; if (v > a) a = v; if (a >= be) break; }
+    return best;
+  },
+  pick(b, p, lvl, ce) {
+    const mv = Rules.moves(b, p); if (!mv.length) return -1;
+    if (lvl === 'facil' && Math.random() < .5) return mv[Math.floor(Math.random() * mv.length)];
+    const d = { facil: 1, medio: 3, dificil: 9 }[lvl]; let best = -Infinity, pick = [];
+    for (const i of mv) { const r = Rules.sow(b, i, p, ce); let v;
+      if (r.over) { const diff = r.b[Rules.store(p)] - r.b[Rules.store(Rules.op(p))]; v = diff > 0 ? 1000 + diff : diff < 0 ? -1000 + diff : 0; }
+      else if (r.again) v = this.search(r.b, p, d - 1, -Infinity, Infinity, p, ce) + .5; else v = -this.search(r.b, Rules.op(p), d - 1, -Infinity, Infinity, p, ce);
+      if (v > best) { best = v; pick = [i]; } else if (v === best) pick.push(i); }
+    return pick[Math.floor(Math.random() * pick.length)];
+  }
+};
+const Game = {
+  cfg: null, states: [], log: [], result: null, busy: false,
+  get s() { return this.states[this.states.length - 1]; },
+  newGame(cfg) { HX.close(); this.cfg = cfg; this.states = [{ b: Rules.init(cfg.seeds), turn: 'A' }]; this.log = []; this.result = null; this.busy = false; this.save(); View.render(); UI.turn(); this.maybeAI(); },
+  aiSide() { return this.cfg.mode === 'ai' ? Rules.op(this.cfg.side) : null; },
+  human() { return this.s.turn !== this.aiSide(); },
+  play(i, instant) {
+    const s = this.s; if (this.result || this.busy || Rules.owner(i) !== s.turn || !s.b[i]) return false;
+    const r = Rules.sow(s.b, i, s.turn, this.cfg.cap === 'sempre');
+    const turn = r.over ? s.turn : r.again ? s.turn : Rules.op(s.turn);
+    const after = () => {
+      this.states.push({ b: r.b, turn }); this.log.push({ p: s.turn, i, again: r.again, cap: r.cap ? r.cap.n : 0 });
+      if (r.cap) { HX.sfx('cap'); HX.toast(`Captura de ${r.cap.n} sementes!`); } else if (r.again) { HX.sfx('coin'); HX.toast('Última semente no depósito: jogue de novo'); }
+      if (r.over) { const a = r.b[6], bb = r.b[13]; this.result = { win: a > bb ? 'A' : bb > a ? 'B' : null, a, b: bb }; this.record(); }
+      this.busy = false; this.save(); View.render(r.last); UI.turn();
+      if (this.result) setTimeout(() => this.result && UI.end(), 900); else this.maybeAI();
+    };
+    if (instant) { after(); return true; }
+    this.busy = true; View.animate(s.b, i, r.path, after); return true;
+  },
+  record() { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp', r = this.result; st[k] = st[k] || { w: 0, l: 0, d: 0 }; st[k][!r.win ? 'd' : this.cfg.mode !== 'ai' || r.win === this.cfg.side ? 'w' : 'l']++; S.set('stats', st); },
+  maybeAI() { if (this.result || this.human()) return; UI.think(true); const n = this.states.length; setTimeout(() => { if (this.result || this.human() || this.states.length !== n || this.busy) return UI.think(false); const i = AI.pick(this.s.b, this.s.turn, this.cfg.diff, this.cfg.cap === 'sempre'); UI.think(false); if (i >= 0) this.play(i); }, 450); },
+  undo() {
+    if (this.busy) return; if (this.states.length < 2) return HX.toast('Nada para desfazer');
+    if (this.result) { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp', r = this.result, f = !r.win ? 'd' : this.cfg.mode !== 'ai' || r.win === this.cfg.side ? 'w' : 'l'; if (st[k]) { st[k][f] = Math.max(0, st[k][f] - 1); S.set('stats', st); } this.result = null; HX.close(); }
+    do { this.states.pop(); this.log.pop(); } while (this.states.length > 1 && this.cfg.mode === 'ai' && this.s.turn === this.aiSide());
+    this.save(); View.render(); UI.turn(); this.maybeAI();
+  },
+  save() { S.set('cur', { cfg: this.cfg, log: this.log }); const b = this.s.b; S.hub(this.result ? null : `Em andamento · ${this.cfg.mode === 'ai' ? 'contra IA' : '2 jogadores'} · ${b[6]}×${b[13]}`); },
+  load() {
+    const c = S.get('cur', null); if (!c || !c.cfg) return false; this.cfg = c.cfg; this.states = [{ b: Rules.init(c.cfg.seeds), turn: 'A' }]; this.log = []; this.result = null;
+    for (const m of c.log) { const s = this.s, r = Rules.sow(s.b, m.i, s.turn, this.cfg.cap === 'sempre'); this.states.push({ b: r.b, turn: r.over || r.again ? s.turn : Rules.op(s.turn) }); this.log.push(m); if (r.over) { const a = r.b[6], bb = r.b[13]; this.result = { win: a > bb ? 'A' : bb > a ? 'B' : null, a, b: bb }; break; } }
+    return true;
+  }
+};
+const View = {
+  // posição na grade: depósito Norte à esquerda, Sul à direita; Norte em cima (12→7 da esquerda p/ direita)
+  pos(i) { if (i === 13) return [1, 1]; if (i === 6) return [8, 1]; if (i < 6) return [i + 2, 2]; return [12 - i + 2, 1]; },
+  els: [], seedCache: {},
+  init() {
+    const bd = HX.$('#board');
+    for (let i = 0; i < 14; i++) { const e = document.createElement('div'); e.className = i === 6 || i === 13 ? 'store' : 'pit'; const [c, r] = this.pos(i); e.style.gridColumn = c; if (i !== 6 && i !== 13) e.style.gridRow = r; e.dataset.i = i; e.innerHTML = '<span class="n"></span><div class="sd"></div>'; bd.appendChild(e); this.els[i] = e; }
+    bd.addEventListener('click', e => { const el = e.target.closest('.pit'); if (!el || HX.isOpen() || !Game.human() || Game.busy) return; const i = +el.dataset.i; if (Rules.owner(i) !== Game.s.turn) return HX.toast('Escolha uma cavidade do seu lado'); if (!Game.s.b[i]) return HX.toast('Cavidade vazia'); Game.play(i); });
+    new ResizeObserver(() => this.fit()).observe(HX.$('#stage')); this.fit();
+  },
+  fit() { const st = HX.$('#stage'); const p = Math.floor(Math.min((st.clientWidth - 16) / (6 + 1.9 + 7 * .14 + .44), (st.clientHeight - 70) / (2 + .14 + .44), 92)); document.documentElement.style.setProperty('--p', Math.max(34, p) + 'px'); this.render(); },
+  seeds(i, n) {
+    const el = this.els[i].querySelector('.sd'); if (el.dataset.n === String(n)) return; el.dataset.n = n;
+    const big = i === 6 || i === 13, show = Math.min(n, big ? 40 : 16), cols = ['#e8c46a', '#d98b5f', '#7fc6b4', '#c9d27a', '#e9e2d0', '#b58fd6'];
+    let h = ''; const rnd = HX.rng(i * 97 + n * 13);
+    for (let k = 0; k < show; k++) { const a = rnd() * Math.PI * 2, rad = rnd() * (big ? 30 : 26); const x = 50 + Math.cos(a) * (big ? rad * .7 : rad), y = (big ? 50 : 44) + Math.sin(a) * (big ? rad * 1.4 : rad); h += `<span class="seed" style="left:calc(${x}% - var(--p)*.09);top:calc(${y}% - var(--p)*.09);background:${cols[k % cols.length]}"></span>`; }
+    el.innerHTML = h;
+  },
+  render(last = -1, b) {
+    if (!Game.states.length) return; b = b || Game.s.b;
+    const s = Game.s, can = !Game.result && Game.human() && !Game.busy ? Rules.moves(s.b, s.turn) : [];
+    for (let i = 0; i < 14; i++) { const e = this.els[i]; e.querySelector('.n').textContent = b[i]; this.seeds(i, b[i]); e.classList.toggle('can', can.includes(i)); e.classList.toggle('last', i === last); e.classList.remove('hl'); }
+    HX.$('#s-A').textContent = b[6]; HX.$('#s-B').textContent = b[13];
+  },
+  animate(b0, from, path, done) {
+    const b = b0.slice(); b[from] = 0; this.render(-1, b); this.els[from].classList.add('hl'); let k = 0;
+    const step = 110 * (path.length > 14 ? .6 : 1);
+    const tick = () => { if (k >= path.length) { done(); return; } const j = path[k++]; b[j]++; this.render(-1, b); this.els[j].classList.add('hl'); HX.sfx('tap'); setTimeout(tick, step); };
+    setTimeout(tick, step);
+  }
+};
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  color: p => p === 'A' ? 'Sul' : 'Norte',
+  init() {
+    View.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu(); HX.$('#t-rules').onclick = () => HX.help('Regras — Kalah', this.helpItems());
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { View.render(); this.turn(); if (Game.result) this.end(); else { HX.toast('Partida retomada'); Game.maybeAI(); } }
+    else { Game.cfg = { mode: 'ai', diff: 'medio', side: 'A', seeds: 4, cap: 'cheia' }; Game.states = [{ b: Rules.init(4), turn: 'A' }]; View.render(); this.turn(); this.setup(); }
+  },
+  name(x) { return Game.aiSide() === x ? `IA (${this.dn[Game.cfg.diff]})` : (Game.cfg.mode === 'ai' ? 'Você · ' : '') + this.color(x); },
+  turn() { for (const x of 'AB') { HX.$('#n-' + x).textContent = this.name(x); HX.$('#p-' + x).classList.toggle('on', !Game.result && Game.s.turn === x); } HX.$('#lb-A').textContent = (Game.cfg.mode === 'ai' && Game.cfg.side === 'A' ? 'Você · ' : '') + 'Sul →'; HX.$('#lb-B').textContent = '← Norte' + (Game.cfg.mode === 'ai' && Game.cfg.side === 'B' ? ' · Você' : ''); },
+  think(on) { const ai = Game.aiSide(); if (ai) HX.$('#n-' + ai).textContent = on ? 'IA pensando…' : this.name(ai); },
+  helpItems() { const c = Game.cfg || {}; return ['Variante Kalah: 6 cavidades por jogador e um depósito à direita de cada um. O Sul joga embaixo (sentido →) e o Norte em cima (sentido ←).', `Cada cavidade começa com ${c.seeds || 4} sementes. Na sua vez, toque numa cavidade do seu lado: as sementes são distribuídas uma a uma no sentido anti-horário, incluindo seu depósito e pulando o depósito adversário.`, 'Se a última semente cair no seu depósito, você joga de novo.', c.cap === 'sempre' ? 'Se a última semente cair numa cavidade vazia do seu lado, você captura essa semente e todas as da cavidade oposta (mesmo se ela estiver vazia, a sua semente vai para o depósito).' : 'Se a última semente cair numa cavidade vazia do seu lado e a cavidade oposta tiver sementes, você captura todas elas mais a sua.', 'Quando um lado fica sem sementes, a partida acaba: o outro jogador guarda no depósito as que restam do lado dele.', 'Vence quem tiver mais sementes no depósito.']; },
+  setup() {
+    HX.setup({ title: 'Mancala', text: 'Variante Kalah: semeie, capture e encha seu depósito.', values: Object.assign({ mode: 'ai', diff: 'medio', side: 'A', seeds: 4, cap: 'cheia' }, S.get('cfg', {})),
+      groups: [{ key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'side', label: 'Você joga com', opts: [['A', 'Sul (começa)'], ['B', 'Norte']], show: x => x.mode === 'ai' }, { key: 'seeds', label: 'Sementes por cavidade', opts: [[3, '3'], [4, '4 (padrão)'], [6, '6']] }, { key: 'cap', label: 'Captura', opts: [['cheia', 'Só se a oposta tiver sementes'], ['sempre', 'Sempre']] }],
+      start: 'Nova partida', help: this.helpItems(), onStart: x => { S.set('cfg', x); Game.newGame(Object.assign({}, x)); } });
+  },
+  hist() { const c = HX.overlay(`<h3>Lances</h3><div class="hist">${Game.log.length ? `<ol>${Game.log.map(m => `<li>${this.color(m.p)}: cavidade ${(m.p === 'A' ? m.i : m.i - 7) + 1}${m.again ? ' · joga de novo' : ''}${m.cap ? ` · captura ${m.cap}` : ''}</li>`).join('')}</ol>` : 'Nenhum lance ainda.'}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} }); HX.on(c, '#ok', () => Game.result ? this.end() : HX.close()); },
+  menu() {
+    const st = S.get('stats', {}), cell = k => { const x = st[k] || { w: 0, l: 0, d: 0 }; return `<div><b>${x.w}/${x.d}/${x.l}</b><small>${this.dn[k]}</small></div>`; };
+    const c = HX.overlay(`<h3>Mancala</h3><p>Contra a IA: vitórias / empates / derrotas</p><div class="kv">${cell('facil')}${cell('medio')}${cell('dificil')}</div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hw">Regras</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#hw', () => HX.help('Regras — Kalah', this.helpItems())); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  end() {
+    const r = Game.result, cf = Game.cfg; let t = 'Empate';
+    if (r.win) t = cf.mode === 'ai' ? (r.win === cf.side ? 'Vitória!' : 'Derrota') : `${this.color(r.win)} vence`;
+    HX.sfx(t === 'Derrota' ? 'lose' : 'win'); S.hub(null);
+    const o = HX.overlay(`<h3>${t}</h3><p>Um dos lados ficou sem sementes.</p><div class="kv"><div><b>${r.a}</b><small>Sul</small></div><div><b>${Game.log.length}</b><small>Lances</small></div><div><b>${r.b}</b><small>Norte</small></div></div><button class="btn-primary" id="ag">Jogar de novo</button><div class="row2"><button class="btn" id="bd">Ver tabuleiro</button><button class="btn" id="nw">Mudar modo</button></div>`);
+    HX.on(o, '#ag', () => Game.newGame(Game.cfg)); HX.on(o, '#bd', () => HX.close()); HX.on(o, '#nw', () => this.setup());
+  }
+};
+UI.init(); HX.sw();
+window.MC = { Rules, AI, Game, View, UI, S };
+</script>
+</body>
+</html>
