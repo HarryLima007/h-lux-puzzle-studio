@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0718">
+<title>H-LUX Merge</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0b0718;--bg2:radial-gradient(ellipse at 50% 0%,#2a1a4f 0%,#0b0718 62%);--panel:#160f2a;--panel2:#1f1638;--line:#352a57;--muted:#a79cc8}
+body{touch-action:none}
+#cv{display:block;touch-action:none;border-radius:0 0 22px 22px}
+.evo{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;max-width:640px;margin-top:6px;flex:none}
+.evo canvas{width:26px;height:26px}
+.evo span{color:var(--muted);font-size:10px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Mer<b>ge</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Pontos</small><b id="score">0</b></div><div class="sc"><small>Recorde</small><b id="best">0</b></div><div class="sc"><small>Próxima</small><canvas id="nextc" width="56" height="56" style="width:28px;height:28px;display:block;margin:0 auto"></canvas></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+  <div class="evo" id="evo"></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX MERGE v1.0 — fusão de objetos com física simples
+   Módulos: Kinds (sequência de evolução) · Physics (círculos estáveis) · Game · Render · Input · UI */
+const S = HX.store('merge');
+/* ---------- Kinds: 11 níveis de evolução ---------- */
+const KINDS = [
+  { n: 'Pérola', r: .045, a: '#ffffff', b: '#c9c2d8', pts: 1, motif: 'pearl' },
+  { n: 'Âmbar', r: .06, a: '#ffcf7a', b: '#c97a14', pts: 3, motif: 'drop' },
+  { n: 'Coral', r: .078, a: '#ff9fb0', b: '#d4456a', pts: 6, motif: 'dots' },
+  { n: 'Jade', r: .095, a: '#8ff0b8', b: '#1a8a55', pts: 10, motif: 'facet' },
+  { n: 'Safira', r: .115, a: '#8fb8ff', b: '#2747b8', pts: 15, motif: 'facet' },
+  { n: 'Ametista', r: .138, a: '#d4a3ff', b: '#6a2bb8', pts: 21, motif: 'facet' },
+  { n: 'Rubi', r: .162, a: '#ff8f8f', b: '#a3132b', pts: 28, motif: 'star' },
+  { n: 'Topázio', r: .188, a: '#ffe58f', b: '#c48a10', pts: 36, motif: 'star' },
+  { n: 'Lua', r: .214, a: '#eef0f5', b: '#8a90a3', pts: 45, motif: 'moon' },
+  { n: 'Saturno', r: .244, a: '#f3d9a6', b: '#a8743a', pts: 55, motif: 'ring' },
+  { n: 'Sol H-LUX', r: .278, a: '#fff3cf', b: '#c9a45c', pts: 66, motif: 'sun' }
+];
+
+/* ---------- Physics ---------- */
+const P = {
+  W: 300, H: 420, bodies: [], g: 1600, top: 0,
+  add(k, x, y, vx = 0, vy = 0) { const r = KINDS[k].r * this.W; const b = { k, x, y, vx, vy, r, m: r * r, age: 0, id: Math.random() }; this.bodies.push(b); return b; },
+  step(dt) {
+    const B = this.bodies, g = this.g * (this.W / 300);
+    for (const b of B) { b.vy += g * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.age += dt; b.vx *= .999; b.vy *= .999; }
+    for (let it = 0; it < 8; it++) {
+      for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+        const a = B[i], c = B[j], dx = c.x - a.x, dy = c.y - a.y, rr = a.r + c.r, d2 = dx * dx + dy * dy;
+        if (d2 >= rr * rr || d2 === 0) continue;
+        const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, over = rr - d, ia = 1 / a.m, ic = 1 / c.m, s = Math.max(0, over - .15) / (ia + ic);
+        a.x -= nx * s * ia; a.y -= ny * s * ia; c.x += nx * s * ic; c.y += ny * s * ic;
+        const rv = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
+        if (rv < 0) { const imp = -(1 + .12) * rv / (ia + ic); a.vx -= imp * nx * ia; a.vy -= imp * ny * ia; c.vx += imp * nx * ic; c.vy += imp * ny * ic;
+          const tx = -ny, ty = nx, rt = (c.vx - a.vx) * tx + (c.vy - a.vy) * ty, f = rt * .08 / (ia + ic); a.vx += f * tx * ia; a.vy += f * ty * ia; c.vx -= f * tx * ic; c.vy -= f * ty * ic; }
+      }
+      for (const b of B) {
+        if (b.x - b.r < 0) { b.x = b.r; if (b.vx < 0) b.vx *= -.15; }
+        if (b.x + b.r > this.W) { b.x = this.W - b.r; if (b.vx > 0) b.vx *= -.15; }
+        if (b.y + b.r > this.H) { b.y = this.H - b.r; if (b.vy > 0) b.vy *= -.15; b.vx *= .985; }
+      }
+    }
+    // repouso: objetos quase parados perdem a energia residual (evita tremores na pilha)
+    for (const b of B) { const v = Math.hypot(b.vx, b.vy); if (v < 25 * (this.W / 300)) { b.vx *= .82; b.vy *= .82; } }
+    // limite de velocidade evita "explosões" em empilhamentos grandes
+    const vmax = this.W * 4; for (const b of B) { const v = Math.hypot(b.vx, b.vy); if (v > vmax) { b.vx *= vmax / v; b.vy *= vmax / v; } }
+  },
+  // pares iguais que se tocam viram o próximo nível
+  merges() {
+    const out = [], B = this.bodies, used = new Set();
+    for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+      const a = B[i], c = B[j]; if (a.k !== c.k || used.has(a) || used.has(c)) continue;
+      if (Math.hypot(c.x - a.x, c.y - a.y) <= a.r + c.r + 1.5) { used.add(a); used.add(c); out.push([a, c]); }
+    }
+    return out;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  st: null, cur: 0, next: 0, dropX: 0, cool: 0, over: false, danger: 0, fx: [],
+  rollKind() { const w = [30, 26, 20, 14, 10], t = Math.random() * 100; let acc = 0; for (let k = 0; k < w.length; k++) { acc += w[k]; if (t < acc) return k; } return 0; },
+  newGame() { P.bodies = []; this.st = { score: 0, merges: 0, top: 0 }; this.cur = this.rollKind(); this.next = this.rollKind(); this.dropX = P.W / 2; this.over = false; this.danger = 0; this.fx = []; UI.hud(); this.save(); },
+  drop() {
+    if (this.over || this.cool > 0 || HX.isOpen()) return;
+    const r = KINDS[this.cur].r * P.W, x = HX.clamp(this.dropX, r, P.W - r);
+    P.add(this.cur, x, P.top + r + 2, 0, 40); this.cur = this.next; this.next = this.rollKind(); this.cool = .55; UI.hud();
+  },
+  tick(dt) {
+    if (this.over) return;
+    this.cool = Math.max(0, this.cool - dt);
+    const sub = 4; for (let k = 0; k < sub; k++) P.step(dt / sub);
+    for (const [a, c] of P.merges()) {
+      P.bodies = P.bodies.filter(b => b !== a && b !== c);
+      const x = (a.x + c.x) / 2, y = (a.y + c.y) / 2;
+      if (a.k + 1 < KINDS.length) { const nb = P.add(a.k + 1, x, y, (a.vx + c.vx) / 2 * .5, Math.min(0, (a.vy + c.vy) / 2) * .5); nb.age = 0.4; this.st.score += KINDS[a.k + 1].pts; this.st.top = Math.max(this.st.top, a.k + 1); }
+      else this.st.score += 200; // dois Sóis H-LUX somem com um bônus
+      this.st.merges++; this.fx.push({ x, y, r: a.r * 1.6, t0: performance.now(), k: Math.min(a.k + 1, KINDS.length - 1) }); HX.vibrate(a.k >= 5 ? 25 : 8);
+      UI.hud();
+    }
+    // fim de jogo: algo assentado acima da linha por mais de 2 segundos
+    const line = P.H * .14 + P.top, above = P.bodies.some(b => b.age > 1.2 && b.y - b.r < line && Math.abs(b.vy) < 60);
+    this.danger = above ? this.danger + dt : Math.max(0, this.danger - dt * 2);
+    if (this.danger > 2) this.end();
+  },
+  record() { // registra o resultado (recorde e estatísticas) e apaga o salvamento
+    const st = this.st, best = S.get('best', 0), rec = st.score > best; if (rec) S.set('best', st.score);
+    const stats = S.get('stats', { games: 0, top: 0 }); stats.games++; stats.top = Math.max(stats.top, st.top); S.set('stats', stats); S.del('game'); S.hub(`Recorde ${Math.max(best, st.score)} pts`);
+    return rec;
+  },
+  end() { this.over = true; const rec = this.record(); HX.vibrate([30, 40, 30]); setTimeout(() => UI.over(rec), 400); },
+  save() { if (this.over || !this.st) return; S.set('game', { st: this.st, cur: this.cur, next: this.next, W: P.W, bodies: P.bodies.map(b => ({ k: b.k, x: b.x / P.W, y: b.y / P.W })) }); if (this.st.score) S.hub(`Em andamento · ${this.st.score} pts`); },
+  load(g) { this.st = g.st; this.cur = g.cur; this.next = g.next; this.over = false; this.danger = 0; P.bodies = []; g.bodies.forEach(b => { const nb = P.add(b.k, b.x * P.W, b.y * P.W); nb.age = 2; }); UI.hud(); }
+};
+
+/* ---------- Render ---------- */
+const Rd = {
+  cv: null, x: null, dpr: 1, sc: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); },
+  size() {
+    const st = HX.$('#stage'), avW = st.clientWidth - 8, avH = st.clientHeight - 8, ratio = 1.42;
+    const w = Math.floor(Math.min(avW, avH / ratio, 520)), h = Math.floor(w * ratio);
+    const oldW = P.W; P.W = w; P.H = h; P.top = 0; this.dpr = Math.min(devicePixelRatio || 1, 2);
+    this.cv.width = w * this.dpr; this.cv.height = h * this.dpr; this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
+    if (oldW && oldW !== w) { const k = w / oldW; P.bodies.forEach(b => { b.x *= k; b.y *= k; b.r = KINDS[b.k].r * w; b.m = b.r * b.r; }); Game.dropX *= k; }
+  },
+  obj(x, cx, cy, k, r) {
+    const K = KINDS[k]; x.save(); x.translate(cx, cy);
+    if (K.motif === 'sun') { x.strokeStyle = 'rgba(232,205,140,.7)'; x.lineWidth = r * .08; for (let i = 0; i < 12; i++) { const a = i * .5236; x.beginPath(); x.moveTo(Math.cos(a) * r * .9, Math.sin(a) * r * .9); x.lineTo(Math.cos(a) * r * 1.06, Math.sin(a) * r * 1.06); x.stroke(); } }
+    const g = x.createRadialGradient(-r * .35, -r * .4, r * .08, 0, 0, r); g.addColorStop(0, '#fff'); g.addColorStop(.18, K.a); g.addColorStop(1, K.b);
+    x.fillStyle = g; x.beginPath(); x.arc(0, 0, r * (K.motif === 'sun' ? .88 : 1), 0, 7); x.fill();
+    x.strokeStyle = 'rgba(0,0,0,.18)'; x.lineWidth = Math.max(1, r * .03); x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,.35)'; x.fillStyle = 'rgba(255,255,255,.3)'; x.lineWidth = Math.max(1, r * .05);
+    switch (K.motif) {
+      case 'drop': x.beginPath(); x.arc(r * .1, r * .15, r * .35, 0, 7); x.fill(); break;
+      case 'dots': for (let i = 0; i < 5; i++) { const a = i * 1.2566; x.beginPath(); x.arc(Math.cos(a) * r * .5, Math.sin(a) * r * .5, r * .14, 0, 7); x.fill(); } break;
+      case 'facet': x.beginPath(); for (let i = 0; i < 6; i++) { const a = i * 1.0472; x.lineTo(Math.cos(a) * r * .55, Math.sin(a) * r * .55); } x.closePath(); x.stroke(); for (let i = 0; i < 6; i++) { const a = i * 1.0472; x.beginPath(); x.moveTo(Math.cos(a) * r * .55, Math.sin(a) * r * .55); x.lineTo(Math.cos(a) * r * .95, Math.sin(a) * r * .95); x.stroke(); } break;
+      case 'star': x.beginPath(); for (let i = 0; i < 10; i++) { const rr = i % 2 ? r * .28 : r * .62, a = i * .628 - 1.571; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill(); break;
+      case 'moon': x.fillStyle = 'rgba(80,86,105,.35)'; [[-.3, -.2, .18], [.25, .1, .24], [-.1, .4, .13], [.35, -.4, .1]].forEach(([a, b, c]) => { x.beginPath(); x.arc(a * r, b * r, c * r, 0, 7); x.fill(); }); break;
+      case 'ring': x.strokeStyle = 'rgba(255,240,210,.85)'; x.lineWidth = r * .1; x.beginPath(); x.ellipse(0, 0, r * 1.25, r * .32, -.35, 0, 7); x.stroke(); break;
+      case 'sun': x.fillStyle = 'rgba(80,58,20,.75)'; x.font = `700 ${Math.round(r * .95)}px "Cormorant Garamond",Georgia,serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('H', 0, r * .04); break;
+    }
+    x.fillStyle = 'rgba(255,255,255,.5)'; x.beginPath(); x.ellipse(-r * .35, -r * .42, r * .22, r * .12, -.6, 0, 7); x.fill();
+    x.restore();
+  },
+  draw() {
+    const x = this.x, W = P.W, H = P.H; x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#171033'); g.addColorStop(1, '#0d0820'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(201,164,92,.45)'; x.lineWidth = 2; x.strokeRect(1, -2, W - 2, H + 1);
+    const line = H * .14, dang = Game.danger > 0;
+    x.strokeStyle = dang ? `rgba(229,96,79,${.5 + .5 * Math.sin(performance.now() / 90)})` : 'rgba(255,255,255,.18)'; x.setLineDash([8, 8]); x.beginPath(); x.moveTo(0, line); x.lineTo(W, line); x.stroke(); x.setLineDash([]);
+    if (!Game.over && Game.st) { const r = KINDS[Game.cur].r * W, cx = HX.clamp(Game.dropX, r, W - r);
+      x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 2; x.beginPath(); x.moveTo(cx, r * 2 + 4); x.lineTo(cx, H); x.stroke();
+      x.globalAlpha = Game.cool > 0 ? .45 : 1; this.obj(x, cx, r + 2, Game.cur, r); x.globalAlpha = 1; }
+    for (const b of P.bodies) this.obj(x, b.x, b.y, b.k, b.r);
+    const now = performance.now(); Game.fx = Game.fx.filter(f => now - f.t0 < 350);
+    for (const f of Game.fx) { const p = (now - f.t0) / 350; x.strokeStyle = `rgba(255,243,207,${1 - p})`; x.lineWidth = 3; x.beginPath(); x.arc(f.x, f.y, f.r * (.7 + p * .6), 0, 7); x.stroke(); }
+  }
+};
+
+/* ---------- Input: arraste para posicionar, solte para largar ---------- */
+const Input = {
+  init() {
+    const cv = Rd.cv; let down = false;
+    const setX = e => { const r = cv.getBoundingClientRect(); Game.dropX = e.clientX - r.left; };
+    cv.addEventListener('pointerdown', e => { if (HX.isOpen() || Game.over) return; down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} setX(e); });
+    cv.addEventListener('pointermove', e => { if (down || e.pointerType === 'mouse') setX(e); });
+    cv.addEventListener('pointerup', e => { if (!down) return; down = false; setX(e); Game.drop(); });
+    cv.addEventListener('pointercancel', () => { down = false; });
+    window.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') Game.dropX -= P.W * .03; if (e.key === 'ArrowRight') Game.dropX += P.W * .03; if (e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); Game.drop(); } });
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    Rd.init(); Input.init(); HX.$('#menu').onclick = () => this.menu();
+    HX.$('#evo').innerHTML = KINDS.map((k, i) => `<canvas data-k="${i}" width="52" height="52" title="${k.n}"></canvas>${i < KINDS.length - 1 ? '<span>›</span>' : ''}`).join('');
+    HX.$('#evo').querySelectorAll('canvas').forEach(c => { const x = c.getContext('2d'); x.scale(2, 2); Rd.obj(x, 13, 13, +c.dataset.k, 11); });
+    let last = performance.now(), saveT = 0;
+    const loop = t => { const dt = Math.min(1 / 30, (t - last) / 1000); last = t; if (Game.st && !HX.isOpen()) Game.tick(dt); if (Game.st) Rd.draw(); saveT += dt; if (saveT > 3) { saveT = 0; Game.save(); } requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+    HX.life({ onHide: () => Game.save() });
+    this.home();
+  },
+  hud() { const st = Game.st; HX.$('#score').textContent = st.score; HX.$('#best').textContent = Math.max(S.get('best', 0), st.score); const c = HX.$('#nextc'), x = c.getContext('2d'); x.setTransform(2, 0, 0, 2, 0, 0); x.clearRect(0, 0, 28, 28); Rd.obj(x, 14, 14, Game.next, 12); },
+  home() {
+    const saved = S.get('game', null), stats = S.get('stats', { games: 0, top: 0 });
+    if (!Game.st) { Rd.size(); if (saved) Game.load(saved); else Game.newGame(); }
+    const c = HX.overlay(`<h3>Merge</h3><p>Solte as joias no recipiente. Duas iguais se fundem na próxima da evolução, até chegar ao <b>Sol H-LUX</b>.</p><div class="kv"><div><b>${S.get('best', 0)}</b><small>Recorde</small></div><div><b>${stats.games}</b><small>Partidas</small></div><div><b>${KINDS[stats.top || 0].n}</b><small>Maior joia</small></div></div>
+      ${saved ? '<button class="btn-primary" id="cont">▶ Continuar</button>' : ''}<button class="${saved ? 'btn' : 'btn-primary'}" id="new">Nova partida</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    HX.on(c, '#cont', () => HX.close()); HX.on(c, '#new', () => { Game.newGame(); HX.close(); }); HX.on(c, '#how', () => this.howTo(() => this.home()));
+  },
+  howTo(back) { HX.help('Como jogar', ['Arraste o dedo (ou mova o mouse) para escolher onde soltar e solte para largar a joia.', 'Duas joias iguais que se tocam viram a próxima da evolução, mostrada embaixo do recipiente.', 'Cada fusão dá pontos. As joias maiores valem mais.', 'Se alguma joia ficar acima da linha tracejada por mais de 2 segundos, a partida acaba.', 'Teclado: ← → posicionam e Espaço solta.'], back); },
+  menu() { const c = HX.overlay(`<h3>Pausa</h3><p>${Game.st.score} pontos</p><button class="btn-primary" id="go">Continuar</button><button class="btn" id="rs">Reiniciar</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    HX.on(c, '#go', () => HX.close()); HX.on(c, '#rs', () => { if (Game.st.score) Game.record(); Game.newGame(); HX.close(); }); HX.on(c, '#how', () => this.howTo(() => HX.close())); },
+  over(rec) { const st = Game.st; const c = HX.overlay(`<h3>Recipiente cheio</h3><p>${rec ? '<b style="color:var(--accent2)">Novo recorde!</b>' : 'As joias passaram da linha.'}</p><div class="kv"><div><b>${st.score}</b><small>Pontos</small></div><div><b>${st.merges}</b><small>Fusões</small></div><div><b>${KINDS[st.top].n}</b><small>Maior joia</small></div></div><button class="btn-primary" id="new">Jogar de novo</button>`);
+    HX.on(c, '#new', () => { Game.newGame(); HX.close(); }); }
+};
+UI.init(); HX.sw();
+window.MG = { P, Game, KINDS, S, Rd };
+</script>
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#140a1c">
+<title>H-LUX Match</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#140a1c;--bg2:radial-gradient(ellipse at 50% 0%,#3a1d4a 0%,#140a1c 62%);--panel:#1f1229;--panel2:#2a1838;--line:#43294f;--muted:#b49dc0}
+body{touch-action:none}
+#cv{display:block;touch-action:none}
+.goal{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.gi{display:inline-flex;align-items:center;gap:4px;font-weight:800;font-size:16px}
+.gi canvas{width:22px;height:22px}
+.gi.done{color:#7be0a0}
+.lvwrap{max-height:56vh;overflow:auto;padding:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Mat<b>ch</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc" style="flex:2"><small>Objetivo</small><div class="goal" id="goal"></div></div><div class="sc"><small>Jogadas</small><b id="moves">0</b></div><div class="sc"><small>Pontos</small><b id="score">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX MATCH v1.0 — combinar 3 ou mais
+   Módulos: Levels · Board (regras: combinações, especiais, gravidade) · Anim · Render · Input · Game · UI */
+const S = HX.store('match');
+const C = 8, R = 8;
+/* ---------- Fases: máscara por coluna [topo, base], cores, jogadas e objetivo ---------- */
+const MASK = {
+  full: () => Array.from({ length: C }, () => [0, 7]),
+  castle: () => Array.from({ length: C }, (_, c) => [c % 2 ? 1 : 0, 7]),
+  diamond: () => [[3, 4], [2, 5], [1, 6], [0, 7], [0, 7], [1, 6], [2, 5], [3, 4]],
+  pyramid: () => [[4, 7], [3, 7], [2, 7], [0, 7], [0, 7], [2, 7], [3, 7], [4, 7]],
+  arch: () => [[0, 7], [0, 7], [0, 5], [0, 4], [0, 4], [0, 5], [0, 7], [0, 7]],
+  cup: () => [[0, 3], [0, 5], [0, 7], [0, 7], [0, 7], [0, 7], [0, 5], [0, 3]],
+  narrow: () => [[0, -1], [0, 7], [0, 7], [0, 7], [0, 7], [0, 7], [0, 7], [0, -1]],
+  stairs: () => Array.from({ length: C }, (_, c) => [Math.max(0, 7 - c - 3), 7])
+};
+const L = (mask, colors, moves, goal, stars) => ({ mask, colors, moves, goal, stars });
+const LEVELS = [
+  L('full', 4, 20, { score: 1200 }, [1200, 2000, 2800]),
+  L('full', 4, 18, { collect: { 0: 15, 1: 15 } }, [1000, 1800, 2600]),
+  L('castle', 5, 20, { score: 1800 }, [1800, 2800, 3800]),
+  L('diamond', 4, 18, { collect: { 2: 20 } }, [900, 1600, 2400]),
+  L('full', 5, 22, { collect: { 0: 18, 3: 18 } }, [1500, 2500, 3500]),
+  L('pyramid', 5, 20, { score: 2200 }, [2200, 3200, 4200]),
+  L('arch', 5, 20, { collect: { 1: 22, 4: 15 } }, [1600, 2600, 3600]),
+  L('cup', 5, 18, { score: 2400 }, [2400, 3400, 4400]),
+  L('full', 6, 24, { collect: { 5: 20 } }, [1400, 2400, 3400]),
+  L('narrow', 5, 18, { collect: { 0: 15, 2: 15, 4: 15 } }, [1800, 2800, 3800]),
+  L('diamond', 5, 18, { score: 2600 }, [2600, 3600, 4600]),
+  L('stairs', 6, 22, { collect: { 1: 25, 3: 20 } }, [2000, 3000, 4000]),
+  L('castle', 6, 20, { score: 3200 }, [3200, 4400, 5600]),
+  L('pyramid', 6, 20, { collect: { 2: 25, 5: 20 } }, [2200, 3200, 4200]),
+  L('arch', 6, 18, { score: 3400 }, [3400, 4600, 5800]),
+  L('full', 6, 20, { collect: { 0: 20, 1: 20, 2: 20 } }, [2800, 3800, 4800]),
+  L('cup', 6, 18, { collect: { 3: 28 } }, [2000, 3000, 4000]),
+  L('narrow', 6, 18, { score: 3800 }, [3800, 5000, 6200]),
+  L('diamond', 6, 18, { collect: { 4: 22, 5: 22 } }, [2400, 3400, 4400]),
+  L('stairs', 6, 18, { score: 4200 }, [4200, 5400, 6600]),
+  L('castle', 6, 17, { collect: { 0: 22, 3: 22, 5: 18 } }, [3000, 4200, 5400]),
+  L('full', 6, 16, { score: 4600 }, [4600, 5800, 7000]),
+  L('pyramid', 6, 16, { collect: { 1: 25, 2: 25, 4: 20 } }, [3200, 4400, 5600]),
+  L('arch', 6, 15, { score: 5000 }, [5000, 6200, 7600])
+];
+const GEMS = [ // cor, nome, forma
+  { a: '#ff6b7d', b: '#b3203a', shape: 'circle', name: 'rubis' }, { a: '#6fe39a', b: '#16884a', shape: 'square', name: 'esmeraldas' },
+  { a: '#7fb4ff', b: '#2b56c7', shape: 'diamond', name: 'safiras' }, { a: '#ffd36b', b: '#c08a12', shape: 'triangle', name: 'topázios' },
+  { a: '#c58cff', b: '#6d2fc0', shape: 'hex', name: 'ametistas' }, { a: '#f4efe6', b: '#a69d8a', shape: 'star', name: 'pérolas' }
+];
+
+/* ---------- Board (regras puras) ---------- */
+let uid = 1;
+const B = {
+  g: null, mask: null, colors: 4,
+  playable(r, c) { if (r < 0 || c < 0 || r >= R || c >= C) return false; const [t, b] = this.mask[c]; return r >= t && r <= b; },
+  at(r, c) { return this.playable(r, c) ? this.g[r * C + c] : null; },
+  newGem(color, sp = null) { return { id: uid++, color, sp, x: 0, y: 0, s: 1, a: 1 }; },
+  fill() {
+    this.g = new Array(R * C).fill(null);
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) if (this.playable(r, c)) {
+      let col; do { col = Math.floor(Math.random() * this.colors); } while (
+        (this.col(r, c - 1) === col && this.col(r, c - 2) === col) || (this.col(r - 1, c) === col && this.col(r - 2, c) === col));
+      const gm = this.newGem(col); gm.x = c; gm.y = r; this.g[r * C + c] = gm;
+    }
+    if (!this.hasMove()) this.fill();
+  },
+  col(r, c) { const g = this.at(r, c); return g && g.sp !== 'c' ? g.color : -1; },
+  // sequências de 3+ iguais (bombas de cor não combinam por cor)
+  runs() {
+    const out = [];
+    for (let r = 0; r < R; r++) { let c = 0; while (c < C) { const k = this.col(r, c); let e = c + 1; if (k >= 0) while (e < C && this.col(r, e) === k) e++; if (k >= 0 && e - c >= 3) out.push({ dir: 'h', cells: Array.from({ length: e - c }, (_, i) => r * C + c + i) }); c = e; } }
+    for (let c = 0; c < C; c++) { let r = 0; while (r < R) { const k = this.col(r, c); let e = r + 1; if (k >= 0) while (e < R && this.col(e, c) === k) e++; if (k >= 0 && e - r >= 3) out.push({ dir: 'v', cells: Array.from({ length: e - r }, (_, i) => (r + i) * C + c) }); r = e; } }
+    return out;
+  },
+  swap(a, b) { [this.g[a], this.g[b]] = [this.g[b], this.g[a]]; },
+  adj(a, b) { const ra = Math.floor(a / C), ca = a % C, rb = Math.floor(b / C), cb = b % C; return Math.abs(ra - rb) + Math.abs(ca - cb) === 1; },
+  wouldMatch(a, b) {
+    const ga = this.g[a], gb = this.g[b]; if (!ga || !gb) return false;
+    if (ga.sp === 'c' || gb.sp === 'c') return true;
+    if (ga.sp && gb.sp) return true;
+    this.swap(a, b); const ok = this.runs().length > 0; this.swap(a, b); return ok;
+  },
+  moves() { const out = []; for (let i = 0; i < R * C; i++) { if (!this.g[i]) continue; const r = Math.floor(i / C), c = i % C; for (const j of [c + 1 < C ? i + 1 : -1, r + 1 < R ? i + C : -1]) if (j >= 0 && this.g[j] && this.wouldMatch(i, j)) out.push([i, j]); } return out; },
+  hasMove() { return this.moves().length > 0; },
+  // expande o conjunto a limpar com os efeitos das peças especiais atingidas
+  expand(set, colorHint) {
+    const queue = [...set], fired = new Set();
+    while (queue.length) {
+      const i = queue.pop(); const gm = this.g[i]; if (!gm || !gm.sp || fired.has(i)) continue; fired.add(i);
+      const r = Math.floor(i / C), c = i % C, add = [];
+      if (gm.sp === 'h') for (let x = 0; x < C; x++) add.push(r * C + x);
+      if (gm.sp === 'v') for (let y = 0; y < R; y++) add.push(y * C + c);
+      if (gm.sp === 'b') for (let y = r - 1; y <= r + 1; y++) for (let x = c - 1; x <= c + 1; x++) if (y >= 0 && x >= 0 && y < R && x < C) add.push(y * C + x);
+      if (gm.sp === 'c') { const k = colorHint != null ? colorHint : this.mostColor(); for (let j = 0; j < R * C; j++) if (this.g[j] && this.g[j].color === k && this.g[j].sp !== 'c') add.push(j); }
+      for (const j of add) if (this.g[j] && !set.has(j)) { set.add(j); queue.push(j); }
+    }
+    return set;
+  },
+  mostColor() { const n = new Array(6).fill(0); this.g.forEach(g => { if (g && g.sp !== 'c') n[g.color]++; }); return n.indexOf(Math.max(...n)); },
+  // gravidade dentro de cada coluna jogável + reposição pelo topo
+  gravity() {
+    const falls = [];
+    for (let c = 0; c < C; c++) {
+      const [t, b] = this.mask[c]; if (b < t) continue; let w = b;
+      for (let r = b; r >= t; r--) { const gm = this.g[r * C + c]; if (gm) { if (w !== r) { this.g[w * C + c] = gm; this.g[r * C + c] = null; } w--; } }
+      let k = 0; for (let r = w; r >= t; r--) { const gm = this.newGem(Math.floor(Math.random() * this.colors)); gm.x = c; gm.y = t - 1 - k++; this.g[r * C + c] = gm; falls.push(gm); }
+    }
+    return falls;
+  },
+  reshuffle() {
+    const cells = [], gems = []; for (let i = 0; i < R * C; i++) if (this.g[i]) { cells.push(i); gems.push(this.g[i]); }
+    for (let t = 0; t < 200; t++) { HX.shuffle(gems); cells.forEach((i, k) => this.g[i] = gems[k]); if (!this.runs().length && this.hasMove()) return true; }
+    this.fill(); return true;
+  }
+};
+
+/* ---------- Anim: posições visuais seguem as posições lógicas ---------- */
+const Anim = {
+  pops: [], parts: [], waiters: [],
+  settled() { for (let i = 0; i < R * C; i++) { const g = B.g[i]; if (g && (Math.abs(g.x - i % C) > .01 || Math.abs(g.y - Math.floor(i / C)) > .01)) return false; } return !this.pops.length; },
+  wait() { return new Promise(res => this.waiters.push(res)); },
+  delay(ms) { return new Promise(r => setTimeout(r, ms)); },
+  step(dt) {
+    const sp = 11 * dt; // células por segundo
+    for (let i = 0; i < R * C; i++) { const g = B.g[i]; if (!g) continue; const tx = i % C, ty = Math.floor(i / C);
+      g.x += Math.sign(tx - g.x) * Math.min(Math.abs(tx - g.x), sp * 1.2); if (g.y < ty) { g.vy = (g.vy || 4) + 40 * dt; g.y = Math.min(ty, g.y + g.vy * dt); } else { g.y += Math.sign(ty - g.y) * Math.min(Math.abs(ty - g.y), sp * 1.2); g.vy = 0; } }
+    const now = performance.now(); this.pops = this.pops.filter(p => now - p.t0 < 230); this.parts = this.parts.filter(p => now - p.t0 < 600);
+    if (this.waiters.length && this.settled()) { const w = this.waiters; this.waiters = []; w.forEach(f => f()); }
+  }
+};
+
+/* ---------- Render ---------- */
+const Rd = {
+  cv: null, x: null, cs: 40, dpr: 1, ox: 0, oy: 0, sel: -1, hint: null,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); },
+  size() { const st = HX.$('#stage'), S2 = Math.min(st.clientWidth - 8, st.clientHeight - 8, 560); this.cs = Math.floor(S2 / C); this.dpr = Math.min(devicePixelRatio || 1, 2); const W = this.cs * C; this.cv.width = W * this.dpr; this.cv.height = W * this.dpr; this.cv.style.width = this.cv.style.height = W + 'px'; },
+  gem(x, px, py, s, gm, scale = 1, alpha = 1) {
+    const G = GEMS[gm.color] || GEMS[0], r = s * .4 * scale, cx = px + s / 2, cy = py + s / 2;
+    x.save(); x.globalAlpha = alpha; x.translate(cx, cy);
+    if (gm.sp === 'c') { const g = x.createRadialGradient(-r * .3, -r * .3, r * .1, 0, 0, r); g.addColorStop(0, '#fff'); g.addColorStop(.5, '#e8cd8c'); g.addColorStop(1, '#3a2a10'); x.fillStyle = g; x.beginPath(); x.arc(0, 0, r, 0, 7); x.fill(); for (let k = 0; k < 6; k++) { x.fillStyle = GEMS[k].a; x.beginPath(); x.arc(Math.cos(k * 1.047) * r * .55, Math.sin(k * 1.047) * r * .55, r * .17, 0, 7); x.fill(); } x.restore(); return; }
+    const g = x.createLinearGradient(-r, -r, r, r); g.addColorStop(0, G.a); g.addColorStop(1, G.b); x.fillStyle = g;
+    x.beginPath();
+    if (G.shape === 'circle') x.arc(0, 0, r, 0, 7);
+    else if (G.shape === 'square') { const q = r * .88; x.roundRect ? x.roundRect(-q, -q, q * 2, q * 2, r * .25) : x.rect(-q, -q, q * 2, q * 2); }
+    else if (G.shape === 'diamond') { x.moveTo(0, -r * 1.05); x.lineTo(r * .9, 0); x.lineTo(0, r * 1.05); x.lineTo(-r * .9, 0); }
+    else if (G.shape === 'triangle') { x.moveTo(0, -r * 1.05); x.lineTo(r, r * .8); x.lineTo(-r, r * .8); }
+    else if (G.shape === 'hex') for (let k = 0; k < 6; k++) x.lineTo(Math.cos(k * 1.047 + .52) * r, Math.sin(k * 1.047 + .52) * r);
+    else for (let k = 0; k < 10; k++) { const rr = k % 2 ? r * .5 : r * 1.05, a = k * .628 - 1.571; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    x.closePath(); x.fill(); x.strokeStyle = 'rgba(0,0,0,.25)'; x.lineWidth = 1; x.stroke();
+    x.fillStyle = 'rgba(255,255,255,.4)'; x.beginPath(); x.ellipse(-r * .3, -r * .38, r * .32, r * .16, -.5, 0, 7); x.fill();
+    if (gm.sp === 'h' || gm.sp === 'v') { x.strokeStyle = 'rgba(255,255,255,.9)'; x.lineWidth = r * .16; x.beginPath(); for (const o of [-.35, .35]) { if (gm.sp === 'h') { x.moveTo(-r * .8, o * r); x.lineTo(r * .8, o * r); } else { x.moveTo(o * r, -r * .8); x.lineTo(o * r, r * .8); } } x.stroke(); }
+    if (gm.sp === 'b') { x.strokeStyle = '#fff3cf'; x.lineWidth = r * .14; x.beginPath(); x.arc(0, 0, r * .55, 0, 7); x.stroke(); x.fillStyle = '#fff3cf'; x.beginPath(); x.arc(0, 0, r * .2, 0, 7); x.fill(); }
+    x.restore();
+  },
+  draw() {
+    const x = this.x, s = this.cs; x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); x.clearRect(0, 0, C * s, R * s);
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) if (B.playable(r, c)) { x.fillStyle = (r + c) % 2 ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.1)'; x.beginPath(); x.roundRect ? x.roundRect(c * s + 1, r * s + 1, s - 2, s - 2, s * .16) : x.rect(c * s, r * s, s, s); x.fill(); }
+    x.save(); x.beginPath(); for (let c = 0; c < C; c++) { const [t, b] = B.mask[c]; if (b >= t) x.rect(c * s, t * s, s, (b - t + 1) * s); } x.clip();
+    const now = performance.now(), hintOn = this.hint && Math.floor(now / 350) % 2 === 0;
+    for (let i = 0; i < R * C; i++) { const g = B.g[i]; if (!g) continue; let sc = 1; if (i === this.sel) sc = 1.12 + Math.sin(now / 120) * .04; if (hintOn && this.hint.includes(i)) sc = 1.15; this.gem(x, g.x * s, g.y * s, s, g, sc); }
+    for (const p of Anim.pops) { const k = (now - p.t0) / 230; this.gem(x, p.x * s, p.y * s, s, p.g, 1 + k * .4, 1 - k); }
+    x.restore();
+    for (const p of Anim.parts) { const k = (now - p.t0) / 600; x.globalAlpha = 1 - k; x.fillStyle = p.col; x.font = `800 ${Math.round(s * .42)}px Manrope,sans-serif`; x.textAlign = 'center'; x.fillText(p.txt, p.x * s + s / 2, (p.y - k) * s + s / 2); x.globalAlpha = 1; }
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  lv: 0, st: null, busy: false, idleAt: 0,
+  start(n) {
+    this.lv = n; const L = LEVELS[n]; B.mask = MASK[L.mask](); B.colors = L.colors; B.fill();
+    this.st = { moves: L.moves, score: 0, got: {}, status: 'play' }; Rd.sel = -1; Rd.hint = null; this.idleAt = performance.now();
+    // gemas entram de cima
+    for (let i = 0; i < R * C; i++) { const g = B.g[i]; if (g) g.y = -1 - (R - Math.floor(i / C)) * .3; }
+    UI.hud(); HX.close();
+    this.busy = true; Anim.wait().then(() => { this.busy = false; this.idleAt = performance.now(); });
+  },
+  goalDone() { const L = LEVELS[this.lv]; if (L.goal.score) return this.st.score >= L.goal.score; return Object.entries(L.goal.collect).every(([k, n]) => (this.st.got[k] || 0) >= n); },
+  async trySwap(a, b) {
+    if (this.busy || this.st.status !== 'play' || !B.adj(a, b) || !B.g[a] || !B.g[b]) return;
+    this.busy = true; Rd.sel = -1; Rd.hint = null;
+    const ga = B.g[a], gb = B.g[b];
+    B.swap(a, b); await Anim.wait();
+    let special = null;
+    if (ga.sp === 'c' || gb.sp === 'c') special = 'color';
+    else if (ga.sp && gb.sp) special = 'combo';
+    if (!special && !B.runs().length) { B.swap(a, b); await Anim.wait(); this.busy = false; HX.vibrate(8); return; }
+    this.st.moves--; UI.hud();
+    if (special === 'color') { // bomba de cor: limpa todas as gemas da cor trocada
+      const cb = ga.sp === 'c' ? b : a, other = ga.sp === 'c' ? gb : ga; const set = new Set([a, b]);
+      if (other.sp === 'c') { for (let i = 0; i < R * C; i++) if (B.g[i]) set.add(i); }
+      else for (let i = 0; i < R * C; i++) if (B.g[i] && B.g[i].color === other.color) { if (other.sp) B.g[i].sp = other.sp === 'b' ? 'b' : (Math.random() < .5 ? 'h' : 'v'); set.add(i); }
+      await this.clear(B.expand(set, other.color), 1, null);
+    } else if (special === 'combo') await this.clear(B.expand(new Set([a, b])), 1, null);
+    await this.cascade([a, b]);
+    this.busy = false; this.idleAt = performance.now(); this.check();
+  },
+  async cascade(swapCells) {
+    let mult = 1;
+    for (;;) {
+      const runs = B.runs(); if (!runs.length) break;
+      const set = new Set(), create = [];
+      // peças especiais: 5 em linha → bomba de cor; cruzamento (L/T) → bomba; 4 em linha → listrada
+      const count = new Map(); runs.forEach(r => r.cells.forEach(i => count.set(i, (count.get(i) || 0) + 1)));
+      const used = new Set();
+      for (const r of runs) {
+        r.cells.forEach(i => set.add(i));
+        const pivot = r.cells.find(i => swapCells && swapCells.includes(i)) ?? r.cells[Math.floor(r.cells.length / 2)];
+        if (r.cells.length >= 5) { create.push({ i: pivot, sp: 'c', color: B.g[pivot].color }); used.add(pivot); }
+      }
+      for (const [i, n] of count) if (n > 1 && !used.has(i)) { create.push({ i, sp: 'b', color: B.g[i].color }); used.add(i); }
+      for (const r of runs) if (r.cells.length === 4 && !r.cells.some(i => used.has(i))) { const pivot = r.cells.find(i => swapCells && swapCells.includes(i)) ?? r.cells[1]; create.push({ i: pivot, sp: r.dir, color: B.g[pivot].color }); used.add(pivot); }
+      await this.clear(B.expand(set), mult, create);
+      swapCells = null; mult++;
+    }
+    if (!B.hasMove()) { HX.toast('Sem jogadas: embaralhando'); B.reshuffle(); await Anim.delay(300); }
+  },
+  async clear(set, mult, create) {
+    const now = performance.now(); let n = 0;
+    for (const i of set) { const g = B.g[i]; if (!g) continue; if (create && create.some(c => c.i === i)) continue;
+      Anim.pops.push({ g: { ...g }, x: i % C, y: Math.floor(i / C), t0: now }); this.st.got[g.color] = (this.st.got[g.color] || 0) + 1; B.g[i] = null; n++; }
+    if (create) for (const c of create) { const g = B.g[c.i]; if (g) { g.sp = c.sp; g.color = c.color; } else { const ng = B.newGem(c.color, c.sp); ng.x = c.i % C; ng.y = Math.floor(c.i / C); B.g[c.i] = ng; } }
+    const pts = n * 10 * mult + (create ? create.length * 30 : 0); this.st.score += pts;
+    if (n) { const any = [...set][0]; Anim.parts.push({ txt: '+' + pts, x: any % C, y: Math.floor(any / C), t0: now, col: mult > 1 ? '#ffe28a' : '#fff' }); }
+    if (mult > 1) HX.vibrate(12);
+    UI.hud(); await Anim.delay(200); B.gravity(); await Anim.wait();
+  },
+  check() {
+    const L = LEVELS[this.lv];
+    if (this.goalDone()) return this.win();
+    if (this.st.moves <= 0) { this.st.status = 'lost'; setTimeout(() => UI.lose(), 300); }
+  },
+  win() {
+    const st = this.st, L = LEVELS[this.lv]; st.status = 'won';
+    const bonus = st.moves * 60; st.score += bonus;
+    const stars = st.score >= L.stars[2] ? 3 : st.score >= L.stars[1] ? 2 : 1;
+    const p = S.get('progress', { unlocked: 0, levels: {} }), prev = p.levels[this.lv] || { stars: 0, best: 0 };
+    p.levels[this.lv] = { stars: Math.max(prev.stars, stars), best: Math.max(prev.best, st.score) }; p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length - 1)); S.set('progress', p);
+    S.hub(`Fase ${p.unlocked + 1} de ${LEVELS.length}`);
+    setTimeout(() => UI.win(stars, bonus, st.score > prev.best && prev.best > 0), 350);
+  }
+};
+
+/* ---------- Input: arrastar para trocar, ou tocar em duas gemas vizinhas ---------- */
+const Input = {
+  d: null,
+  init() {
+    const cv = Rd.cv;
+    const cell = e => { const r = cv.getBoundingClientRect(), c = Math.floor((e.clientX - r.left) / Rd.cs), y = Math.floor((e.clientY - r.top) / Rd.cs); return B.playable(y, c) ? y * C + c : -1; };
+    cv.addEventListener('pointerdown', e => { if (Game.busy || HX.isOpen() || !Game.st || Game.st.status !== 'play') return; const i = cell(e); if (i < 0) return; this.d = { i, x: e.clientX, y: e.clientY, done: false }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+    cv.addEventListener('pointermove', e => {
+      const d = this.d; if (!d || d.done) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; if (Math.max(Math.abs(dx), Math.abs(dy)) < Rd.cs * .35) return;
+      d.done = true; const r = Math.floor(d.i / C), c = d.i % C, [tr, tc] = Math.abs(dx) > Math.abs(dy) ? [r, c + Math.sign(dx)] : [r + Math.sign(dy), c];
+      if (B.playable(tr, tc)) Game.trySwap(d.i, tr * C + tc);
+    });
+    cv.addEventListener('pointerup', () => {
+      const d = this.d; this.d = null; if (!d || d.done) return;
+      if (Rd.sel >= 0 && B.adj(Rd.sel, d.i)) Game.trySwap(Rd.sel, d.i); else Rd.sel = Rd.sel === d.i ? -1 : d.i;
+    });
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    Rd.init(); Input.init(); HX.$('#menu').onclick = () => this.menu();
+    let last = performance.now();
+    const loop = t => { const dt = Math.min(.05, (t - last) / 1000); last = t; Anim.step(dt);
+      if (Game.st && Game.st.status === 'play' && !Game.busy && t - Game.idleAt > 6000 && !Rd.hint) { const m = B.moves(); if (m.length) Rd.hint = m[Math.floor(Math.random() * m.length)]; }
+      if (B.g) Rd.draw(); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+    HX.life({});
+    this.levels();
+  },
+  icon(k, size = 22) { const c = document.createElement('canvas'); c.width = c.height = size * 2; const x = c.getContext('2d'); x.scale(2, 2); Rd.gem(x, 0, 0, size, { color: +k }); return c; },
+  hud() {
+    const st = Game.st, L = LEVELS[Game.lv]; if (!st) return;
+    HX.$('#lv').textContent = Game.lv + 1; HX.$('#moves').textContent = st.moves; HX.$('#score').textContent = st.score;
+    const g = HX.$('#goal'); g.innerHTML = '';
+    if (L.goal.score) { const s = document.createElement('span'); s.className = 'gi' + (st.score >= L.goal.score ? ' done' : ''); s.textContent = `${Math.min(st.score, L.goal.score)}/${L.goal.score} pts`; g.appendChild(s); }
+    else for (const [k, n] of Object.entries(L.goal.collect)) { const s = document.createElement('span'); s.className = 'gi' + ((st.got[k] || 0) >= n ? ' done' : ''); s.appendChild(this.icon(k)); s.appendChild(document.createTextNode(Math.max(0, n - (st.got[k] || 0)))); g.appendChild(s); }
+  },
+  levels() {
+    const p = S.get('progress', { unlocked: 0, levels: {} });
+    const c = HX.overlay(`<h3>Match</h3><p>Troque gemas vizinhas para formar 3 ou mais iguais. Cumpra o objetivo de cada fase antes de acabarem as jogadas.</p>
+      <div class="lvwrap"><div class="levels">${LEVELS.map((L, k) => { const d = p.levels[k]; return `<button class="lvb ${k > p.unlocked ? 'locked' : ''} ${k === p.unlocked ? 'next' : ''}" data-k="${k}">${k + 1}<small>${d ? '★'.repeat(d.stars) + '☆'.repeat(3 - d.stars) : k > p.unlocked ? '🔒' : ''}</small></button>`; }).join('')}</div></div>
+      <button class="btn-primary" id="go">Jogar fase ${p.unlocked + 1}</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Conclua a fase anterior'); Game.start(k); });
+    HX.on(c, '#go', () => Game.start(p.unlocked)); HX.on(c, '#how', () => this.howTo(() => this.levels()));
+    if (!B.g) { B.mask = MASK.full(); B.colors = 5; B.fill(); }
+  },
+  howTo(back) {
+    HX.help('Como jogar', ['Arraste uma gema para a vizinha, ou toque nas duas, para trocá-las. A troca só vale se formar 3 ou mais iguais em linha.', '<b>4 em linha</b> cria uma gema listrada, que limpa a linha ou coluna inteira.', '<b>Formato L ou T</b> cria uma bomba, que explode uma área 3×3.', '<b>5 em linha</b> cria a joia dourada. Troque-a com qualquer gema para limpar todas daquela cor.', 'Gemas que caem e formam novas combinações multiplicam os pontos.', 'Cumpra o objetivo antes de acabarem as jogadas. As que sobrarem viram pontos extras.'], back);
+  },
+  menu() {
+    const c = HX.overlay(`<h3>Pausa</h3><p>Fase ${Game.lv + 1}</p><button class="btn-primary" id="go">Continuar</button><button class="btn" id="rs">Reiniciar fase</button><button class="btn" id="lv">Escolher fase</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    HX.on(c, '#go', () => HX.close()); HX.on(c, '#rs', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels()); HX.on(c, '#how', () => this.howTo(() => HX.close()));
+  },
+  win(stars, bonus, rec) {
+    const st = Game.st, last = Game.lv + 1 >= LEVELS.length;
+    const c = HX.overlay(`<h3>Fase concluída!</h3><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><div class="kv"><div><b>${st.score}</b><small>Pontos</small></div><div><b>+${bonus}</b><small>Jogadas extras</small></div><div><b>${Game.lv + 1}</b><small>Fase</small></div></div>${rec ? '<p style="color:var(--accent2)">Novo recorde nesta fase!</p>' : ''}
+      ${last ? '<p>Você concluiu todas as fases!</p>' : '<button class="btn-primary" id="nx">Próxima fase</button>'}<div class="row2"><button class="btn" id="rp">Repetir</button><button class="btn" id="lv">Fases</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.lv + 1)); HX.on(c, '#rp', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels());
+  },
+  lose() {
+    const c = HX.overlay(`<h3>Sem jogadas</h3><p>O objetivo da fase ${Game.lv + 1} não foi cumprido.</p><button class="btn-primary" id="rp">Tentar de novo</button><button class="btn" id="lv">Fases</button>`);
+    HX.on(c, '#rp', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels());
+  }
+};
+UI.init(); HX.sw();
+window.MT = { B, Game, Anim, LEVELS, UI, S, Rd };
+</script>
+</body>
+</html>

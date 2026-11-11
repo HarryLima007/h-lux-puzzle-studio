@@ -87,5 +87,20 @@ window.HLUX_GAMES = [
     id: 'woodblocks', name: 'Wood Blocks', tagline: 'Encaixe em tabuleiro de madeira',
     description: 'Peças de madeira num tabuleiro 10×10. Complete linhas e colunas e encadeie combos.',
     path: 'woodblocks/', cover: 'covers/woodblocks.svg', accent: '#b8743e', tags: ['Lógica', 'Relaxante', 'Recordes']
+  },
+  {
+    id: 'match', name: 'Match', tagline: 'Combine 3 ou mais joias',
+    description: 'Troque gemas vizinhas, crie peças especiais e cumpra os objetivos de 24 fases com jogadas limitadas.',
+    path: 'match/', cover: 'covers/match.svg', accent: '#c58cff', tags: ['Combinação', 'Campanha', '24 fases']
+  },
+  {
+    id: 'bubble', name: 'Bubble', tagline: 'Atirador de bolhas',
+    description: 'Mire com precisão, junte 3 bolhas da mesma cor e derrube grupos inteiros antes que o teto desça.',
+    path: 'bubble/', cover: 'covers/bubble.svg', accent: '#7fb4ff', tags: ['Arcade', 'Mira', '20 fases']
+  },
+  {
+    id: 'merge', name: 'Merge', tagline: 'Funda joias até o Sol H-LUX',
+    description: 'Solte joias num recipiente com física. Iguais se fundem e evoluem por 11 níveis até o Sol H-LUX.',
+    path: 'merge/', cover: 'covers/merge.svg', accent: '#d4a3ff', tags: ['Física', 'Evolução', 'Recordes']
   }
 ];

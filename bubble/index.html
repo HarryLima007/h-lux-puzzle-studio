@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#071422">
+<title>H-LUX Bubble</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#071422;--bg2:radial-gradient(ellipse at 50% 0%,#123a5c 0%,#071422 64%);--panel:#0d2033;--panel2:#13304a;--line:#1f4364;--muted:#8fb3cf}
+body{touch-action:none}
+#cv{display:block;border-radius:16px;border:1px solid #2a5376;box-shadow:0 0 0 1px rgba(201,164,92,.18),0 18px 50px rgba(0,0,0,.5);touch-action:none}
+.lvwrap{max-height:52vh;overflow:auto;padding:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Bub<b>ble</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc"><small>Pontos</small><b id="score">0</b></div><div class="sc"><small>Disparos</small><b id="shots">0</b></div><div class="sc"><small>Desce em</small><b id="desc">—</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX BUBBLE v1.0 — atirador de bolhas
+   Módulos: Levels · Grid (hexágonos, grupos, bolhas soltas) · Shot (trajetória e encaixe) · Render · Input · Game · UI */
+const S = HX.store('bubble');
+const COLS = 11, LOSE_ROW = 13;
+const PAL = [['#ff7a8a', '#b3203a'], ['#ffd36b', '#c08a12'], ['#6fe39a', '#16884a'], ['#7fb4ff', '#2b56c7'], ['#c58cff', '#6d2fc0'], ['#5fe0e8', '#127f8a']];
+
+/* ---------- Fases (geradas com semente fixa: sempre iguais) ---------- */
+const PATTERNS = ['random', 'stripes', 'checker', 'pyramid', 'rings', 'columns', 'zigzag'];
+const LEVELS = Array.from({ length: 20 }, (_, k) => ({ rows: Math.min(4 + Math.floor(k / 2), 9), colors: Math.min(3 + Math.floor(k / 4), 6), descend: Math.max(4, 8 - Math.floor(k / 4)), pattern: PATTERNS[k % PATTERNS.length], seed: 1000 + k * 77, par: 18 + k * 2 }));
+
+/* ---------- Grid ---------- */
+const Gd = {
+  rows: [], shift: 0, R: 16,
+  off(r) { return (r + this.shift) % 2 ? 1 : 0; },
+  width(r) { return this.off(r) ? COLS - 1 : COLS; },
+  pos(r, c) { const R = this.R; return [R + c * 2 * R + this.off(r) * R, R + r * R * Math.sqrt(3)]; },
+  get(r, c) { return r >= 0 && r < this.rows.length && c >= 0 && c < this.width(r) ? this.rows[r][c] : null; },
+  ensure(r) { while (this.rows.length <= r) this.rows.push(new Array(COLS).fill(null)); },
+  nb(r, c) { const o = this.off(r), out = [[r, c - 1], [r, c + 1]]; for (const dr of [-1, 1]) { if (o) out.push([r + dr, c], [r + dr, c + 1]); else out.push([r + dr, c - 1], [r + dr, c]); } return out.filter(([rr, cc]) => rr >= 0 && cc >= 0 && cc < this.width(rr)); },
+  build(L) {
+    const rnd = HX.rng(L.seed); this.rows = []; this.shift = 0;
+    for (let r = 0; r < L.rows; r++) { this.ensure(r); for (let c = 0; c < this.width(r); c++) {
+      let col = Math.floor(rnd() * L.colors), keep = true;
+      switch (L.pattern) {
+        case 'stripes': col = Math.floor(r / 2) % L.colors; if (rnd() < .2) col = Math.floor(rnd() * L.colors); break;
+        case 'checker': col = (Math.floor(c / 2) + Math.floor(r / 2)) % L.colors; break;
+        case 'pyramid': keep = Math.abs(c - (this.width(r) - 1) / 2) <= (L.rows - r) * .9 + 1; break;
+        case 'rings': col = Math.min(Math.round(Math.hypot(c - 5, r - L.rows / 2)), 9) % L.colors; break;
+        case 'columns': col = Math.floor(c / 2) % L.colors; if (c % 4 === 3 && r > 1) keep = false; break;
+        case 'zigzag': col = (c + r) % L.colors; break;
+      }
+      if (keep) this.rows[r][c] = col;
+    } }
+  },
+  count() { let n = 0; this.rows.forEach((row, r) => row.forEach((v, c) => { if (v != null && c < this.width(r)) n++; })); return n; },
+  colorsLeft() { const s = new Set(); this.rows.forEach((row, r) => row.forEach((v, c) => { if (v != null && c < this.width(r)) s.add(v); })); return [...s]; },
+  group(r, c) { const col = this.get(r, c), seen = new Set([r + ',' + c]), st = [[r, c]], out = []; while (st.length) { const [a, b] = st.pop(); out.push([a, b]); for (const [x, y] of this.nb(a, b)) { const k = x + ',' + y; if (!seen.has(k) && this.get(x, y) === col) { seen.add(k); st.push([x, y]); } } } return out; },
+  // bolhas que não estão ligadas ao teto caem
+  floating() {
+    const seen = new Set(), st = []; for (let c = 0; c < this.width(0); c++) if (this.get(0, c) != null) { st.push([0, c]); seen.add('0,' + c); }
+    while (st.length) { const [a, b] = st.pop(); for (const [x, y] of this.nb(a, b)) { const k = x + ',' + y; if (!seen.has(k) && this.get(x, y) != null) { seen.add(k); st.push([x, y]); } } }
+    const out = []; this.rows.forEach((row, r) => row.forEach((v, c) => { if (v != null && c < this.width(r) && !seen.has(r + ',' + c)) out.push([r, c]); })); return out;
+  },
+  pushRow(colors, rnd) { this.rows.unshift(new Array(COLS).fill(null)); this.shift = (this.shift + 1) % 2; for (let c = 0; c < this.width(0); c++) this.rows[0][c] = colors[Math.floor(rnd() * colors.length)]; },
+  lowest() { for (let r = this.rows.length - 1; r >= 0; r--) for (let c = 0; c < this.width(r); c++) if (this.rows[r][c] != null) return r; return -1; }
+};
+
+/* ---------- Shot: simulação da trajetória (usada na mira e no disparo) ---------- */
+const Shot = {
+  // devolve pontos do caminho e a célula final
+  trace(x0, y0, ang, W) {
+    const R = Gd.R, pts = [[x0, y0]]; let x = x0, y = y0, dx = Math.cos(ang), dy = -Math.sin(ang); const step = R / 3;
+    for (let k = 0; k < 4000; k++) {
+      x += dx * step; y += dy * step;
+      if (x < R) { x = 2 * R - x; dx = -dx; pts.push([x, y]); } if (x > W - R) { x = 2 * (W - R) - x; dx = -dx; pts.push([x, y]); }
+      if (y <= R) { pts.push([x, R]); return { pts, cell: this.snap(x, R) }; }
+      // colisão com bolhas (tolerância de 88% do diâmetro deixa o encaixe mais justo)
+      const r0 = Math.max(0, Math.floor((y - R) / (R * 1.732)) - 1);
+      for (let r = r0; r <= r0 + 2 && r < Gd.rows.length; r++) for (let c = 0; c < Gd.width(r); c++) { if (Gd.rows[r][c] == null) continue; const [bx, by] = Gd.pos(r, c); if ((bx - x) ** 2 + (by - y) ** 2 < (2 * R * .88) ** 2) { pts.push([x, y]); return { pts, cell: this.snap(x, y) }; } }
+    }
+    return { pts, cell: null };
+  },
+  snap(x, y) {
+    const R = Gd.R, rr = Math.round((y - R) / (R * 1.732)); let best = null, bd = 1e9;
+    for (let r = Math.max(0, rr - 1); r <= rr + 1; r++) { Gd.ensure(r); for (let c = 0; c < Gd.width(r); c++) { if (Gd.rows[r][c] != null) continue; const attached = r === 0 || Gd.nb(r, c).some(([a, b]) => Gd.get(a, b) != null); if (!attached) continue; const [bx, by] = Gd.pos(r, c), d = (bx - x) ** 2 + (by - y) ** 2; if (d < bd) { bd = d; best = [r, c]; } } }
+    return best;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  lv: 0, L: null, st: null, rnd: null, aim: Math.PI / 2, flying: null, falling: [], pops: [],
+  start(n) {
+    this.lv = n; this.L = LEVELS[n]; Gd.build(this.L); this.rnd = HX.rng(this.L.seed + 5);
+    this.st = { score: 0, shots: 0, misses: 0, status: 'play', cur: this.pick(), next: this.pick() };
+    this.flying = null; this.falling = []; this.pops = []; this.aim = Math.PI / 2; HX.close(); Rd.size(); UI.hud();
+  },
+  pick() { const cs = Gd.colorsLeft(); return cs.length ? cs[Math.floor(this.rnd() * cs.length)] : 0; },
+  swap() { if (this.flying || this.st.status !== 'play') return; [this.st.cur, this.st.next] = [this.st.next, this.st.cur]; },
+  fire() {
+    if (this.flying || this.st.status !== 'play') return;
+    const a = HX.clamp(this.aim, .17, Math.PI - .17), [lx, ly] = Rd.launcher(), tr = Shot.trace(lx, ly, a, Rd.W);
+    if (!tr.cell) return;
+    this.flying = { pts: tr.pts, cell: tr.cell, color: this.st.cur, seg: 0, t: 0, x: lx, y: ly };
+    this.st.shots++; this.st.cur = this.st.next; this.st.next = this.pick(); UI.hud();
+  },
+  land() {
+    const f = this.flying; this.flying = null; const [r, c] = f.cell; Gd.ensure(r); Gd.rows[r][c] = f.color;
+    const grp = Gd.group(r, c); let popped = 0, dropped = 0;
+    if (grp.length >= 3) {
+      grp.forEach(([a, b]) => { const [x, y] = Gd.pos(a, b); this.pops.push({ x, y, col: Gd.rows[a][b], t0: performance.now() }); Gd.rows[a][b] = null; }); popped = grp.length;
+      Gd.floating().forEach(([a, b]) => { const [x, y] = Gd.pos(a, b); this.falling.push({ x, y, vy: 0, vx: (Math.random() - .5) * 120, col: Gd.rows[a][b] }); Gd.rows[a][b] = null; dropped++; });
+      this.st.score += popped * 10 + dropped * 20 * Math.max(1, Math.floor(dropped / 3)); this.st.misses = 0; HX.vibrate(dropped ? 25 : 10);
+    } else {
+      this.st.misses++;
+      if (this.st.misses >= this.L.descend) { Gd.pushRow(Gd.colorsLeft().length ? Gd.colorsLeft() : [0], this.rnd); this.st.misses = 0; HX.toast('O teto desceu!'); }
+    }
+    while (Gd.rows.length && Gd.rows[Gd.rows.length - 1].every(v => v == null)) Gd.rows.pop();
+    if (!Gd.colorsLeft().includes(this.st.cur) && Gd.count()) this.st.cur = this.pick();
+    if (!Gd.colorsLeft().includes(this.st.next) && Gd.count()) this.st.next = this.pick();
+    UI.hud();
+    if (!Gd.count()) return this.win();
+    if (Gd.lowest() >= LOSE_ROW) return this.lose();
+  },
+  win() {
+    const st = this.st; st.status = 'won'; const bonus = Math.max(0, this.L.par - st.shots) * 50; st.score += bonus;
+    const stars = st.shots <= this.L.par * .75 ? 3 : st.shots <= this.L.par ? 2 : 1;
+    const p = S.get('progress', { unlocked: 0, levels: {} }), prev = p.levels[this.lv] || { stars: 0, best: 0 };
+    p.levels[this.lv] = { stars: Math.max(prev.stars, stars), best: Math.max(prev.best, st.score) }; p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length - 1)); S.set('progress', p);
+    S.set('best', Math.max(S.get('best', 0), st.score)); S.hub(`Fase ${p.unlocked + 1} de ${LEVELS.length}`);
+    setTimeout(() => UI.win(stars, bonus), 500);
+  },
+  lose() { this.st.status = 'lost'; HX.vibrate([30, 40, 30]); setTimeout(() => UI.lose(), 400); },
+  step(dt) {
+    const f = this.flying;
+    if (f) { // percorre o caminho calculado em velocidade constante
+      let dist = 1500 * dt * (Gd.R / 18);
+      while (dist > 0 && f.seg < f.pts.length - 1) { const [ax, ay] = f.pts[f.seg], [bx, by] = f.pts[f.seg + 1], L = Math.hypot(bx - ax, by - ay) || 1, rem = L * (1 - f.t); if (dist >= rem) { dist -= rem; f.seg++; f.t = 0; } else { f.t += dist / L; dist = 0; } }
+      if (f.seg >= f.pts.length - 1) this.land(); else { const [ax, ay] = f.pts[f.seg], [bx, by] = f.pts[f.seg + 1]; f.x = ax + (bx - ax) * f.t; f.y = ay + (by - ay) * f.t; }
+    }
+    this.falling.forEach(b => { b.vy += 1800 * dt; b.y += b.vy * dt; b.x += b.vx * dt; }); this.falling = this.falling.filter(b => b.y < Rd.H + 40);
+    const now = performance.now(); this.pops = this.pops.filter(p => now - p.t0 < 250);
+  }
+};
+
+/* ---------- Render ---------- */
+const Rd = {
+  cv: null, x: null, W: 0, H: 0, dpr: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); },
+  size() {
+    const st = HX.$('#stage'), avW = st.clientWidth - 6, avH = st.clientHeight - 6;
+    // altura necessária: linhas até a linha limite + área do lançador
+    const R = Math.floor(Math.min(avW / (COLS * 2), avH / ((LOSE_ROW + 1) * 1.732 + 5)));
+    Gd.R = Math.max(10, R); this.W = COLS * 2 * Gd.R; this.H = Math.ceil((LOSE_ROW + 1) * 1.732 * Gd.R + 5 * Gd.R);
+    this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = this.W * this.dpr; this.cv.height = this.H * this.dpr; this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
+  },
+  launcher() { return [this.W / 2, this.H - Gd.R * 2.1]; },
+  ball(x, cx, cy, col, r = Gd.R, a = 1) { const [c1, c2] = PAL[col]; x.globalAlpha = a; const g = x.createRadialGradient(cx - r * .35, cy - r * .4, r * .1, cx, cy, r); g.addColorStop(0, '#fff'); g.addColorStop(.25, c1); g.addColorStop(1, c2); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r * .96, 0, 7); x.fill(); x.globalAlpha = 1; },
+  draw() {
+    const x = this.x, R = Gd.R; if (!Game.st) return; x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const g = x.createLinearGradient(0, 0, 0, this.H); g.addColorStop(0, '#0e2b44'); g.addColorStop(1, '#081624'); x.fillStyle = g; x.fillRect(0, 0, this.W, this.H);
+    // linha limite
+    const ly = R + LOSE_ROW * R * 1.732 - R; x.strokeStyle = 'rgba(229,96,79,.45)'; x.setLineDash([6, 6]); x.beginPath(); x.moveTo(0, ly); x.lineTo(this.W, ly); x.stroke(); x.setLineDash([]);
+    Gd.rows.forEach((row, r) => row.forEach((v, c) => { if (v != null && c < Gd.width(r)) { const [bx, by] = Gd.pos(r, c); this.ball(x, bx, by, v); } }));
+    const now = performance.now(); Game.pops.forEach(p => { const k = (now - p.t0) / 250; this.ball(x, p.x, p.y, p.col, R * (1 + k * .5), 1 - k); });
+    Game.falling.forEach(b => this.ball(x, b.x, b.y, b.col, R, .9));
+    const [lx, lyy] = this.launcher();
+    if (Game.st.status === 'play' && !Game.flying) { // mira com a trajetória até o encaixe
+      const tr = Shot.trace(lx, lyy, HX.clamp(Game.aim, .17, Math.PI - .17), this.W);
+      x.strokeStyle = 'rgba(232,205,140,.65)'; x.lineWidth = 2; x.setLineDash([3, 7]); x.beginPath(); tr.pts.forEach(([px, py], k) => k ? x.lineTo(px, py) : x.moveTo(px, py)); x.stroke(); x.setLineDash([]);
+      if (tr.cell) { const [cx, cy] = Gd.pos(tr.cell[0], tr.cell[1]); x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 2; x.beginPath(); x.arc(cx, cy, R * .9, 0, 7); x.stroke(); }
+    }
+    if (Game.flying) this.ball(x, Game.flying.x, Game.flying.y, Game.flying.color);
+    // lançador
+    x.fillStyle = 'rgba(201,164,92,.25)'; x.beginPath(); x.arc(lx, lyy, R * 1.5, 0, 7); x.fill();
+    if (!Game.flying) this.ball(x, lx, lyy, Game.st.cur);
+    this.ball(x, lx - R * 3.4, lyy + R * .4, Game.st.next, R * .72); x.fillStyle = '#8fb3cf'; x.font = `700 ${Math.round(R * .6)}px Manrope,sans-serif`; x.textAlign = 'center'; x.fillText('próxima', lx - R * 3.4, lyy + R * 1.65);
+    // indicador de descida
+    for (let k = 0; k < Game.L.descend; k++) { x.fillStyle = k < Game.st.misses ? '#e5604f' : 'rgba(255,255,255,.2)'; x.beginPath(); x.arc(this.W - R * 1.2 - k * R * .7, lyy + R * .9, R * .22, 0, 7); x.fill(); }
+  }
+};
+
+/* ---------- Input: arrastar mira, soltar dispara; tocar na próxima troca ---------- */
+const Input = {
+  aiming: false,
+  init() {
+    const cv = Rd.cv;
+    const ang = e => { const r = cv.getBoundingClientRect(), [lx, ly] = Rd.launcher(), px = e.clientX - r.left, py = e.clientY - r.top; return Math.atan2(ly - py, px - lx); };
+    const onNext = e => { const r = cv.getBoundingClientRect(), [lx, ly] = Rd.launcher(); return Math.hypot(e.clientX - r.left - (lx - Gd.R * 3.4), e.clientY - r.top - (ly + Gd.R * .4)) < Gd.R * 1.4; };
+    cv.addEventListener('pointerdown', e => { if (HX.isOpen() || !Game.st || Game.st.status !== 'play') return; if (onNext(e)) { Game.swap(); return; } this.aiming = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} const a = ang(e); if (a > 0) Game.aim = a; });
+    cv.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' || this.aiming) { const a = ang(e); if (a > .05) Game.aim = a; } });
+    cv.addEventListener('pointerup', e => { if (!this.aiming) return; this.aiming = false; const a = ang(e); if (a > .05) { Game.aim = a; Game.fire(); } });
+    cv.addEventListener('pointercancel', () => { this.aiming = false; });
+    window.addEventListener('keydown', e => { if (!Game.st) return; if (e.key === 'ArrowLeft') Game.aim = Math.min(Math.PI - .17, Game.aim + .04); if (e.key === 'ArrowRight') Game.aim = Math.max(.17, Game.aim - .04); if (e.key === ' ' || e.key === 'ArrowUp') { e.preventDefault(); Game.fire(); } if (e.key === 'Tab') { e.preventDefault(); Game.swap(); } });
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  init() {
+    Rd.init(); Input.init(); HX.$('#menu').onclick = () => this.menu(); HX.life({});
+    let last = performance.now(); const loop = t => { const dt = Math.min(.04, (t - last) / 1000); last = t; if (Game.st) { Game.step(dt); Rd.draw(); } requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    Game.start(S.get('progress', { unlocked: 0 }).unlocked); this.levels();
+  },
+  hud() { const st = Game.st; HX.$('#lv').textContent = Game.lv + 1; HX.$('#score').textContent = st.score; HX.$('#shots').textContent = st.shots; HX.$('#desc').textContent = Game.L.descend - st.misses; },
+  levels() {
+    const p = S.get('progress', { unlocked: 0, levels: {} });
+    const c = HX.overlay(`<h3>Bubble</h3><p>Mire, dispare e junte 3 ou mais bolhas da mesma cor. Limpe todas as bolhas para vencer a fase.</p>
+      <div class="lvwrap"><div class="levels">${LEVELS.map((L, k) => { const d = p.levels[k]; return `<button class="lvb ${k > p.unlocked ? 'locked' : ''} ${k === p.unlocked ? 'next' : ''}" data-k="${k}">${k + 1}<small>${d ? '★'.repeat(d.stars) + '☆'.repeat(3 - d.stars) : k > p.unlocked ? '🔒' : ''}</small></button>`; }).join('')}</div></div>
+      <button class="btn-primary" id="go">Jogar fase ${p.unlocked + 1}</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Conclua a fase anterior'); Game.start(k); });
+    HX.on(c, '#go', () => Game.start(p.unlocked)); HX.on(c, '#how', () => this.howTo(() => this.levels()));
+  },
+  howTo(back) { HX.help('Como jogar', ['<b>Celular:</b> arraste o dedo para mirar e solte para disparar. A linha pontilhada mostra a trajetória, inclusive o quique nas paredes, e o círculo mostra onde a bolha vai parar.', '<b>Computador:</b> mova o mouse para mirar e clique para disparar. Setas e Espaço também funcionam.', 'Toque na bolha <b>próxima</b> para trocar a ordem.', 'Grupos de 3 ou mais da mesma cor estouram. Bolhas que ficam soltas caem e valem mais.', 'Depois de alguns disparos sem estourar nada, o teto desce. Se as bolhas passarem da linha vermelha, você perde.'], back); },
+  menu() { const c = HX.overlay(`<h3>Pausa</h3><p>Fase ${Game.lv + 1}</p><button class="btn-primary" id="go">Continuar</button><button class="btn" id="rs">Reiniciar fase</button><button class="btn" id="lv">Escolher fase</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    HX.on(c, '#go', () => HX.close()); HX.on(c, '#rs', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels()); HX.on(c, '#how', () => this.howTo(() => HX.close())); },
+  win(stars, bonus) { const st = Game.st, last = Game.lv + 1 >= LEVELS.length;
+    const c = HX.overlay(`<h3>Fase limpa!</h3><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><div class="kv"><div><b>${st.score}</b><small>Pontos</small></div><div><b>${st.shots}</b><small>Disparos</small></div><div><b>+${bonus}</b><small>Bônus</small></div></div>${last ? '<p>Você concluiu todas as fases!</p>' : '<button class="btn-primary" id="nx">Próxima fase</button>'}<div class="row2"><button class="btn" id="rp">Repetir</button><button class="btn" id="lv">Fases</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.lv + 1)); HX.on(c, '#rp', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels()); },
+  lose() { const c = HX.overlay(`<h3>As bolhas venceram</h3><p>Elas passaram da linha vermelha.</p><button class="btn-primary" id="rp">Tentar de novo</button><button class="btn" id="lv">Fases</button>`); HX.on(c, '#rp', () => Game.start(Game.lv)); HX.on(c, '#lv', () => this.levels()); }
+};
+UI.init(); HX.sw();
+window.BB = { Gd, Shot, Game, Rd, LEVELS, S };
+</script>
+</body>
+</html>
