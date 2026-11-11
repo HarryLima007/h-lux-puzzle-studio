@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#08040e">
+<title>H-LUX Pinball</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#08040e;--bg2:radial-gradient(ellipse at 50% 20%,#24123a 0%,#08040e 70%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Pin<b>ball</b></div><button class="ib" id="menu" aria-label="Pausa"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Bola</small><b id="ball">1/3</b></div><div class="sc"><small>Mult.</small><b id="mult">1×</b></div><div class="sc"><small>Pontos</small><b id="score">0</b></div><div class="sc"><small>Recorde</small><b id="best">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX PINBALL v1.0 — mesa com 3 bumpers, 2 estilingues, 3 pistas L-U-X (multiplicador), banco de 4 alvos e lançador.
+   Física: gravidade de mesa inclinada, 10 subpassos por quadro, colisão círculo × segmento/cápsula com velocidade das alavancas,
+   limite de velocidade e detector de bola parada (impede travar). Módulos: Table · Phys · Game · View · Input · UI */
+const S = HX.store('pinball');
+const W = 360, H = 600, R = 8, G = 820;
+const arc = (cx, cy, r, a0, a1, n) => { const s = []; for (let k = 0; k < n; k++) { const t0 = a0 + (a1 - a0) * k / n, t1 = a0 + (a1 - a0) * (k + 1) / n; s.push([cx + Math.cos(t0) * r, cy + Math.sin(t0) * r, cx + Math.cos(t1) * r, cy + Math.sin(t1) * r]); } return s; };
+const Table = {
+  walls: [
+    [16, 560, 16, 170], ...arc(180, 170, 164, Math.PI, Math.PI * 2, 24), [344, 170, 344, 600],
+    [318, 600, 318, 215], // parede interna do lançador
+    [16, 460, 112, 548], [318, 460, 248, 548], // rampas até as alavancas
+    [60, 420, 60, 470], [300, 420, 300, 470], // guias das pistas internas
+    [128, 112, 128, 150], [168, 108, 168, 146], [208, 108, 208, 146], [248, 112, 248, 150] // separadores das pistas L-U-X
+  ],
+  slings: [{ s: [70, 400, 104, 480], dir: [.92, -.4] }, { s: [290, 400, 256, 480], dir: [-.92, -.4] }],
+  bumpers: [{ x: 132, y: 240, r: 20 }, { x: 228, y: 240, r: 20 }, { x: 180, y: 310, r: 20 }],
+  lanes: [{ x: 148, y: 128 }, { x: 188, y: 126 }, { x: 228, y: 128 }],
+  targets: [[290, 280], [290, 304], [290, 328], [290, 352]],
+  flippers: [{ px: 112, py: 548, len: 52, rest: .52, up: -.48, side: 1 }, { px: 248, py: 548, len: 52, rest: Math.PI - .52, up: Math.PI + .48, side: -1 }]
+};
+const Phys = {
+  closest(px, py, s) { const [x1, y1, x2, y2] = s, dx = x2 - x1, dy = y2 - y1, l = dx * dx + dy * dy || 1; let t = ((px - x1) * dx + (py - y1) * dy) / l; t = Math.max(0, Math.min(1, t)); return [x1 + dx * t, y1 + dy * t]; },
+  // resolve colisão da bola com um segmento (raio extra r2); vc = velocidade do ponto de contato; e = restituição
+  seg(b, s, r2 = 0, e = .45, vc = null) {
+    const [cx, cy] = this.closest(b.x, b.y, s), dx = b.x - cx, dy = b.y - cy, d = Math.hypot(dx, dy), rr = R + r2; if (d >= rr || d === 0) return false;
+    const nx = dx / d, ny = dy / d; b.x = cx + nx * rr; b.y = cy + ny * rr;
+    const ux = vc ? vc[0] : 0, uy = vc ? vc[1] : 0, rvx = b.vx - ux, rvy = b.vy - uy, vn = rvx * nx + rvy * ny;
+    if (vn < 0) { b.vx = ux + rvx - (1 + e) * vn * nx; b.vy = uy + rvy - (1 + e) * vn * ny; return { nx, ny, vn: -vn }; } return { nx, ny, vn: 0 };
+  }
+};
+const Game = {
+  ball: null, balls: 3, ballNo: 1, score: 0, mult: 1, lit: [false, false, false], down: [false, false, false, false], fl: [0, 0], flw: [0, 0], plunge: 0, state: 'idle', save: 0, still: 0, combo: 0, comboT: 0, flash: {}, extra: false,
+  start() { HX.close(); this.score = 0; this.mult = 1; this.ballNo = 1; this.lit = [false, false, false]; this.down = [false, false, false, false]; this.extra = false; this.newBall(); this.state = 'play'; HX.sfx('power'); UI.hud(); },
+  newBall() { this.ball = { x: 331, y: 560, vx: 0, vy: 0, inLane: true }; this.plunge = 0; this.save = 0; this.still = 0; },
+  flipAngles() { return Table.flippers.map((f, i) => f.rest + (f.up - f.rest) * this.fl[i]); },
+  step(dt) {
+    if (this.state !== 'play') return;
+    // alavancas: sobem rápido e descem um pouco mais devagar; guarda a velocidade angular
+    const prev = this.flipAngles();
+    for (let i = 0; i < 2; i++) { const want = Input.flip[i] ? 1 : 0, sp = want ? 20 : 10; this.fl[i] += Math.sign(want - this.fl[i]) * Math.min(Math.abs(want - this.fl[i]), sp * dt); }
+    const now = this.flipAngles(); this.flw = now.map((a, i) => (a - prev[i]) / dt);
+    if (this.comboT > 0) this.comboT -= dt; else this.combo = 0;
+    for (const k in this.flash) if ((this.flash[k] -= dt) <= 0) delete this.flash[k];
+    const b = this.ball;
+    if (b.inLane && b.y > 540 && b.x > 318) { // no lançador
+      if (Input.plunger) this.plunge = Math.min(1, this.plunge + dt * 1.2);
+      else if (this.plunge > 0) { b.vy = -(920 + this.plunge * 620); b.vx = 0; this.plunge = 0; this.save = 6; HX.sfx('shot'); }
+      if (b.vy >= 0) { b.y = 560; b.vy = 0; b.vx = 0; return; }
+    }
+    if (this.save > 0 && !b.inLane) this.save -= dt;
+    const n = 14, h = dt / n;
+    // as alavancas também avançam em subpassos (evita a bola atravessar uma alavanca rápida)
+    for (let k = 0; k < n; k++) { const ak = prev.map((a, i) => a + (now[i] - a) * (k + 1) / n); b.vy += G * h; b.x += b.vx * h; b.y += b.vy * h; this.collide(b, ak, h); const sp = Math.hypot(b.vx, b.vy); if (sp > 1500) { b.vx *= 1500 / sp; b.vy *= 1500 / sp; } }
+    if (b.x < 318 && b.inLane && b.y < 220) b.inLane = false;
+    if (b.x > 318 && b.y > 220) b.inLane = true;
+    // bola parada fora do lançador: empurrão automático
+    if (!b.inLane && Math.hypot(b.vx, b.vy) < 25) { this.still += dt; if (this.still > 1.5) { b.vy = -380; b.vx = (Math.random() - .5) * 300; this.still = 0; } } else this.still = 0;
+    if (b.y > H + 20) this.drain();
+    UI.hud();
+  },
+  collide(b, ang, h) {
+    for (const s of Table.walls) Phys.seg(b, s, 0, .42);
+    Table.slings.forEach((sl, i) => { const c = Phys.seg(b, sl.s, 0, .4); if (c && c.vn > 60) { b.vx += sl.dir[0] * 360; b.vy += sl.dir[1] * 360; this.add(10, 's' + i); HX.sfx('hit'); } });
+    Table.bumpers.forEach((u, i) => { const dx = b.x - u.x, dy = b.y - u.y, d = Math.hypot(dx, dy); if (d < u.r + R && d > 0) { const nx = dx / d, ny = dy / d; b.x = u.x + nx * (u.r + R); b.y = u.y + ny * (u.r + R); const vn = b.vx * nx + b.vy * ny; if (vn < 0) { b.vx -= vn * nx; b.vy -= vn * ny; } b.vx += nx * 520; b.vy += ny * 520; this.combo++; this.comboT = 2; this.add(100 + (this.combo > 2 ? this.combo * 20 : 0), 'b' + i); HX.sfx('coin'); HX.vibrate(8); } });
+    Table.targets.forEach(([tx, ty], i) => { if (this.down[i]) return; const c = Phys.seg(b, [tx, ty - 9, tx, ty + 9], 3, .5); if (c) { this.down[i] = true; this.add(250, 't' + i); HX.sfx('hit'); if (this.down.every(Boolean)) { this.add(2000, 'tall'); HX.toast('Banco completo! +2000', 1100); if (!this.extra) { this.extra = true; this.balls++; HX.toast('Bola extra!', 1200); } setTimeout(() => this.down = [false, false, false, false], 1500); } } });
+    Table.lanes.forEach((l, i) => { if (Math.abs(b.x - l.x) < 12 && Math.abs(b.y - l.y) < 10 && b.vy > 0 && !this.flash['lane' + i]) { this.flash['lane' + i] = .5; if (!this.lit[i]) { this.lit[i] = true; this.add(500, 'l' + i); HX.sfx('power'); } if (this.lit.every(Boolean)) { this.mult = Math.min(5, this.mult + 1); this.lit = [false, false, false]; HX.toast(`L-U-X completo! Multiplicador ${this.mult}×`, 1200); HX.sfx('win'); } } });
+    Table.flippers.forEach((f, i) => { const a = ang[i], ex = f.px + Math.cos(a) * f.len, ey = f.py + Math.sin(a) * f.len, seg = [f.px, f.py, ex, ey];
+      const [cx, cy] = Phys.closest(b.x, b.y, seg), w = this.flw[i], vc = [-w * (cy - f.py), w * (cx - f.px)];
+      const c = Phys.seg(b, seg, 6, .25, vc); if (c && Math.abs(w) > 3 && c.vn > 100) HX.sfx('tap'); });
+  },
+  add(p, key) { this.score += p * this.mult; this.flash[key] = .18; },
+  drain() {
+    if (this.save > 0) { HX.toast('Bola salva!', 900); HX.sfx('power'); this.newBall(); return; }
+    HX.sfx('lose'); HX.vibrate(50);
+    if (this.ballNo >= this.balls) return this.over();
+    this.ballNo++; this.mult = Math.max(1, this.mult - 1); this.newBall(); HX.toast(`Bola ${this.ballNo}`, 900); UI.hud(); this.persist();
+  },
+  over() { this.state = 'over'; const b = S.get('best', 0); this.newBest = this.score > b; if (this.newBest) S.set('best', this.score); const hs = S.get('scores', []); hs.push(this.score); hs.sort((a, b) => b - a); S.set('scores', hs.slice(0, 10)); S.del('cur'); S.hub(null); setTimeout(() => UI.over(), 600); },
+  pause() { if (this.state !== 'play') return; this.state = 'pause'; this.persist(); UI.pause(); },
+  resume() { if (this.state !== 'pause') return; HX.close(); this.state = 'play'; },
+  persist() { if (this.state === 'over' || this.state === 'idle') return; S.set('cur', { score: this.score, ballNo: this.ballNo, balls: this.balls, mult: this.mult, lit: this.lit, extra: this.extra }); S.hub(`Bola ${this.ballNo}/${this.balls} · ${this.score} pts`); }
+};
+const View = {
+  cv: null, x: null, k: 1, dpr: 1,
+  init() { this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => this.size()).observe(HX.$('#stage')); this.size(); },
+  size() { const st = HX.$('#stage'); this.k = Math.min((st.clientWidth - 8) / W, (st.clientHeight - 8) / H); this.dpr = Math.min(devicePixelRatio || 1, 2); this.cv.width = W * this.k * this.dpr; this.cv.height = H * this.k * this.dpr; this.cv.style.width = W * this.k + 'px'; this.cv.style.height = H * this.k + 'px'; },
+  draw() {
+    const g = this.x, Gm = Game; g.setTransform(this.k * this.dpr, 0, 0, this.k * this.dpr, 0, 0);
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#1c0f2e'); bg.addColorStop(1, '#0b0614'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(201,164,92,.07)'; g.font = '700 110px "Cormorant Garamond",serif'; g.textAlign = 'center'; g.fillText('H', 180, 470);
+    g.strokeStyle = '#c9a45c'; g.lineWidth = 3; g.lineCap = 'round'; for (const s of Table.walls) { g.beginPath(); g.moveTo(s[0], s[1]); g.lineTo(s[2], s[3]); g.stroke(); }
+    Table.slings.forEach((sl, i) => { g.strokeStyle = Gm.flash['s' + i] ? '#fff6c8' : '#e5484d'; g.lineWidth = 5; g.beginPath(); g.moveTo(sl.s[0], sl.s[1]); g.lineTo(sl.s[2], sl.s[3]); g.stroke(); });
+    Table.bumpers.forEach((u, i) => { const on = Gm.flash['b' + i]; g.fillStyle = on ? '#fff6c8' : '#3d8bff'; g.shadowColor = '#6fb7ff'; g.shadowBlur = on ? 24 : 10; g.beginPath(); g.arc(u.x, u.y, u.r, 0, 7); g.fill(); g.shadowBlur = 0; g.fillStyle = '#0b0614'; g.beginPath(); g.arc(u.x, u.y, u.r * .55, 0, 7); g.fill(); g.fillStyle = '#f1dca6'; g.font = '800 11px Manrope'; g.fillText('100', u.x, u.y + 4); });
+    Table.lanes.forEach((l, i) => { g.fillStyle = Gm.lit[i] ? '#f1dca6' : 'rgba(241,220,166,.2)'; g.beginPath(); g.arc(l.x, l.y + 2, 9, 0, 7); g.fill(); g.fillStyle = Gm.lit[i] ? '#1a1408' : '#c9a45c'; g.font = '800 11px Manrope'; g.fillText('LUX'[i], l.x, l.y + 6); });
+    Table.targets.forEach(([tx, ty], i) => { g.fillStyle = Gm.down[i] ? 'rgba(229,72,77,.2)' : '#e5484d'; g.fillRect(tx - 4, ty - 9, 7, 18); });
+    g.fillStyle = 'rgba(241,220,166,.6)'; g.font = '700 10px Manrope'; g.fillText(`${Gm.mult}×`, 180, 380);
+    const ang = Gm.flipAngles(); Table.flippers.forEach((f, i) => { g.strokeStyle = '#f1dca6'; g.lineWidth = 12; g.beginPath(); g.moveTo(f.px, f.py); g.lineTo(f.px + Math.cos(ang[i]) * f.len, f.py + Math.sin(ang[i]) * f.len); g.stroke(); g.fillStyle = '#c9a45c'; g.beginPath(); g.arc(f.px, f.py, 6, 0, 7); g.fill(); });
+    // lançador
+    g.fillStyle = '#3a2a1a'; g.fillRect(320, 570 + Gm.plunge * 22, 22, 30); g.fillStyle = '#c9a45c'; g.fillRect(320, 566 + Gm.plunge * 22, 22, 5);
+    if (Gm.save > 0 && !Gm.ball.inLane) { g.fillStyle = 'rgba(61,220,132,.8)'; g.font = '800 10px Manrope'; g.fillText('BOLA SALVA', 180, 590); }
+    const b = Gm.ball; if (b) { const gr = g.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, R); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#a9a9b4'); g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, R, 0, 7); g.fill(); }
+    if (Gm.state === 'play' && b && b.inLane && b.y > 540) { g.fillStyle = '#f1dca6'; g.font = '800 12px Manrope'; g.fillText('Segure e solte', 270, 520); g.fillText('para lançar ▼', 270, 536); }
+  }
+};
+const Input = {
+  flip: [false, false], plunger: false, ptr: new Map(), keys: new Set(),
+  init() {
+    const cv = View.cv;
+    const upd = () => { const r = cv.getBoundingClientRect(); let l = false, rr = false, pl = false; for (const [x, y] of this.ptr.values()) { const lx = (x - r.left) / View.k, ly = (y - r.top) / View.k; if (Game.ball && Game.ball.inLane && Game.ball.y > 540 && lx > 250 && ly > 380) pl = true; else if (lx < W / 2) l = true; else rr = true; }
+      this.flip = [l || this.keys.has('z') || this.keys.has('ArrowLeft') || this.keys.has('Shift'), rr || this.keys.has('m') || this.keys.has('/') || this.keys.has('ArrowRight')]; this.plunger = pl || this.keys.has(' ') || this.keys.has('ArrowDown'); };
+    this.upd = upd;
+    cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (_) {} this.ptr.set(e.pointerId, [e.clientX, e.clientY]); upd(); if (this.flip[0] || this.flip[1]) HX.vibrate(4); });
+    cv.addEventListener('pointermove', e => { if (this.ptr.has(e.pointerId)) { this.ptr.set(e.pointerId, [e.clientX, e.clientY]); upd(); } });
+    const up = e => { this.ptr.delete(e.pointerId); upd(); }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'Escape') return Game.state === 'play' ? Game.pause() : Game.resume(); if (e.key === ' ' || e.key.startsWith('Arrow')) e.preventDefault(); this.keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key); upd(); });
+    addEventListener('keyup', e => { this.keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key); upd(); });
+  }
+};
+const UI = {
+  init() {
+    View.init(); Input.init();
+    HX.$('#menu').onclick = () => Game.state === 'play' ? Game.pause() : Game.state === 'pause' ? Game.resume() : this.home();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.025, (t - last) / 1000); last = t; Game.step(dt); View.draw(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => Game.pause() }); HX.$('#best').textContent = S.get('best', 0); this.home();
+  },
+  hud() { HX.$('#ball').textContent = `${Game.ballNo}/${Game.balls}`; HX.$('#mult').textContent = Game.mult + '×'; HX.$('#score').textContent = Game.score; HX.$('#best').textContent = Math.max(S.get('best', 0), Game.score); },
+  helpItems: ['Toque e segure no lado esquerdo da mesa para a alavanca esquerda e no lado direito para a direita (dá para usar as duas ao mesmo tempo).', 'Para lançar, segure no canto inferior direito (sobre o lançador) e solte: quanto mais tempo, mais forte.', 'Teclado: Z ou ← alavanca esquerda; M ou → alavanca direita; espaço ou ↓ para o lançador; P pausa.', 'Pontos: bumpers azuis 100 (combos rendem mais), estilingues 10, alvos vermelhos 250 (os quatro: +2000 e uma bola extra por partida), letras L-U-X 500.', 'Acenda L, U e X para aumentar o multiplicador (até 5×). Ao perder uma bola, o multiplicador cai 1.', 'Nos primeiros segundos após o lançamento a bola é salva se cair. São 3 bolas por partida.'],
+  home() {
+    Game.state = 'idle'; Game.ball = null; const hs = S.get('scores', []);
+    const c = HX.overlay(`<h3>Pinball</h3><p>Recorde: ${S.get('best', 0)}</p>${hs.length ? `<div class="hist"><ol>${hs.slice(0, 5).map(s => `<li>${s} pts</li>`).join('')}</ol></div>` : ''}<button class="btn-primary" id="go">Jogar</button><div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="snd">Som: ${HX.sound() ? 'on' : 'off'}</button></div>`, { guard: false });
+    HX.on(c, '#go', () => { S.del('cur'); Game.balls = 3; Game.start(); }); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => this.home())); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.home(); });
+    const cur = S.get('cur', null); if (cur) { const b = document.createElement('button'); b.className = 'btn'; b.textContent = `Continuar · bola ${cur.ballNo} · ${cur.score} pts`; c.insertBefore(b, c.querySelector('#go')); b.onclick = () => { HX.close(); Object.assign(Game, { score: cur.score, ballNo: cur.ballNo, balls: cur.balls, mult: cur.mult, lit: cur.lit, extra: cur.extra, down: [false, false, false, false] }); Game.newBall(); Game.state = 'play'; this.hud(); }; }
+  },
+  pause() { const c = HX.overlay(`<h3>Pausa</h3><p>Bola ${Game.ballNo}/${Game.balls} · ${Game.score} pontos</p><button class="btn-primary" id="rs">Continuar</button><div class="row2"><button class="btn" id="rt">Nova partida</button><button class="btn" id="hm">Menu</button></div>`, { guard: false });
+    HX.on(c, '#rs', () => Game.resume()); HX.on(c, '#rt', () => { Game.balls = 3; Game.start(); }); HX.on(c, '#hm', () => this.home()); },
+  over() { HX.sfx(Game.newBest ? 'win' : 'lose'); const c = HX.overlay(`<h3>Fim de jogo</h3><p>${Game.newBest ? 'Novo recorde!' : 'Recorde: ' + S.get('best', 0)}</p><div class="kv"><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.mult}×</b><small>Multiplicador</small></div></div><button class="btn-primary" id="ag">Jogar de novo</button><button class="btn" id="hm">Menu</button>`);
+    HX.on(c, '#ag', () => { Game.balls = 3; Game.start(); }); HX.on(c, '#hm', () => this.home()); }
+};
+UI.init(); HX.sw();
+window.PB = { Table, Phys, Game, View, Input, UI, S, W, H };
+</script>
+</body>
+</html>
