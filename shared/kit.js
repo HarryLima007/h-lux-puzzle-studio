@@ -63,6 +63,32 @@
         get running() { return !!start; }
       };
     },
+    // tela de configuração com grupos de opções (modo, dificuldade, variante...)
+    setup(o) {
+      const v = Object.assign({}, o.values || {});
+      const groups = o.groups.map(g => { if (!(g.key in v)) v[g.key] = g.opts[0][0]; return g; });
+      const c = this.overlay(`<h3>${o.title}</h3>${o.text ? `<p>${o.text}</p>` : ''}<div class="segs">${groups.map(g => `<div class="segg" data-g="${g.key}"><small>${g.label}</small><div class="seg">${g.opts.map(([val, t]) => `<button data-v="${this.esc(val)}">${t}</button>`).join('')}</div></div>`).join('')}</div><button class="btn-primary" id="hx-go">${o.start || 'Começar'}</button>${o.extra || ''}${o.help ? '<button class="btn" id="hx-how">Como jogar</button>' : ''}`, { guard: false });
+      const sync = () => groups.forEach(g => { const el = c.querySelector(`[data-g="${g.key}"]`); el.classList.toggle('hidden', !!(g.show && !g.show(v))); el.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(v[g.key]) === b.dataset.v)); });
+      groups.forEach(g => c.querySelectorAll(`[data-g="${g.key}"] button`).forEach(b => b.onclick = () => { const raw = g.opts.find(x => String(x[0]) === b.dataset.v)[0]; v[g.key] = raw; sync(); }));
+      sync();
+      this.on(c, '#hx-go', () => { this.close(); o.onStart(v); });
+      if (o.help) this.on(c, '#hx-how', () => this.help('Como jogar', o.help, () => this.setup(Object.assign({}, o, { values: v }))));
+      return c;
+    },
+    // efeitos sonoros sintetizados (sem arquivos). Preferência global de som: hlux.settings.sound
+    sound(on) { if (on === undefined) { try { return localStorage.getItem('hlux.settings.sound') !== '0'; } catch (e) { return true; } } try { localStorage.setItem('hlux.settings.sound', on ? '1' : '0'); } catch (e) {} return on; },
+    sfx(kind) {
+      if (!this.sound()) return;
+      try {
+        const A = this._ac || (this._ac = new (window.AudioContext || window.webkitAudioContext)()); if (A.state === 'suspended') A.resume();
+        const P = { tap: [520, .04, 'triangle', .12], move: [330, .06, 'triangle', .14], cap: [180, .12, 'square', .1], win: [660, .35, 'triangle', .16], lose: [140, .4, 'sawtooth', .1], shot: [880, .05, 'square', .06], boom: [90, .22, 'sawtooth', .14], hit: [240, .05, 'square', .09], coin: [990, .09, 'sine', .14], power: [440, .25, 'sine', .14], dice: [700, .03, 'square', .05] }[kind] || [440, .05, 'sine', .1];
+        const t = A.currentTime, os = A.createOscillator(), g = A.createGain();
+        os.type = P[2]; os.frequency.setValueAtTime(P[0], t);
+        if (kind === 'win' || kind === 'power' || kind === 'coin') os.frequency.exponentialRampToValueAtTime(P[0] * 1.6, t + P[1]); else if (kind === 'boom' || kind === 'lose' || kind === 'cap') os.frequency.exponentialRampToValueAtTime(Math.max(40, P[0] * .45), t + P[1]);
+        g.gain.setValueAtTime(P[3], t); g.gain.exponentialRampToValueAtTime(.0001, t + P[1]);
+        os.connect(g); g.connect(A.destination); os.start(t); os.stop(t + P[1] + .02);
+      } catch (e) {}
+    },
     sw() { try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {}); } catch (e) {} }
   };
   window.HX = H;

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0a08">
+<title>H-LUX Chess</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0b0a08;--bg2:radial-gradient(ellipse at 50% 0%,#2a2215 0%,#0b0a08 62%);--sq:44px}
+.board{position:relative;display:grid;grid-template-columns:repeat(8,var(--sq));grid-template-rows:repeat(8,var(--sq));border-radius:10px;overflow:hidden;
+  box-shadow:0 0 0 3px #6d5226,0 0 0 5px #c9a45c,0 22px 50px rgba(0,0,0,.65);touch-action:none;user-select:none;-webkit-user-select:none}
+.sq{position:relative;display:grid;place-items:center}
+.sq.l{background:#e9dcc0}.sq.d{background:#9c7a48}
+.sq.last.l{background:#f1dc94}.sq.last.d{background:#c49a4a}
+.sq.sel{box-shadow:inset 0 0 0 3px #fff6d8}
+.sq.chk{background:radial-gradient(circle,#ff5a4a 0%,rgba(255,60,40,.55) 45%,transparent 75%),#9c7a48}
+.sq.mv::after{content:'';width:30%;height:30%;border-radius:50%;background:rgba(30,22,8,.38)}
+.sq.cap::after{content:'';position:absolute;inset:3px;border-radius:50%;border:4px solid rgba(30,22,8,.42)}
+.sq .co{position:absolute;font:800 9px var(--sans);opacity:.7;pointer-events:none}
+.sq .co.r{left:3px;top:2px}.sq .co.f{right:3px;bottom:1px}
+.sq.l .co{color:#9c7a48}.sq.d .co{color:#f1e4c6}
+.pc{width:92%;height:92%;pointer-events:none;filter:drop-shadow(0 2px 1.5px rgba(0,0,0,.45))}
+.pc.w .b{fill:#fbf6ea;stroke:#3b2c14}.pc.k .b{fill:#1b1712;stroke:#d9b56a}
+.pc .d{fill:none;stroke-width:1.6}.pc.w .d{stroke:#3b2c14}.pc.k .d{stroke:#d9b56a}
+.pc .b{stroke-width:1.6;stroke-linejoin:round}
+.drag{position:fixed;z-index:50;pointer-events:none;width:calc(var(--sq) * 1.25);height:calc(var(--sq) * 1.25);transform:translate(-50%,-70%)}
+.strip{width:100%;max-width:640px;min-height:28px;margin-top:6px;overflow-x:auto;white-space:nowrap;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;scrollbar-width:none;flex:none}
+.strip span{padding:3px 6px;border-radius:8px}.strip b{color:var(--accent2);margin-left:6px}
+.strip span.cur{background:var(--panel2);color:var(--text)}
+.caps{font-size:15px;letter-spacing:-2px;color:var(--muted);margin-left:auto}
+.promo{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.promo button{aspect-ratio:1;border-radius:12px;background:#e9dcc0;display:grid;place-items:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Che<b>ss</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-b"><span class="dot" style="background:#1b1712;box-shadow:0 0 0 1.5px #d9b56a"></span><span class="nm" id="n-b">Pretas</span><span class="caps" id="c-b"></span></div><div class="pl" id="p-w"><span class="dot" style="background:#fbf6ea"></span><span class="nm" id="n-w">Brancas</span><span class="caps" id="c-w"></span></div></div>
+  <div class="stage" id="stage"><div class="board" id="board"></div></div>
+  <div class="strip" id="strip"></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-flip"><svg class="i"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg>Girar</button>
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Lances</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX CHESS v1.0 — xadrez com regras oficiais completas (FIDE):
+   roque, en passant, promoção, xeque, xeque-mate, afogamento, 50 lances, repetição tripla e material insuficiente.
+   Módulos: Chess (regras puras) · AI (busca alfa-beta) · Game (partida/salvamento) · View · UI */
+const S = HX.store('chess');
+
+/* ---------- Chess: regras. casa = linha*8 + coluna, linha 0 = 8ª fileira ---------- */
+const KN = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]], KG = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+const RD = [[-1, 0], [1, 0], [0, -1], [0, 1]], BD = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+const Chess = {
+  init() { const b = Array(64).fill(''), back = 'rnbqkbnr'; for (let i = 0; i < 8; i++) { b[i] = back[i]; b[8 + i] = 'p'; b[48 + i] = 'P'; b[56 + i] = back[i].toUpperCase(); } return { b, turn: 'w', cs: 'KQkq', ep: -1, half: 0, full: 1 }; },
+  fromFEN(f) { const [pl, t, cs, ep, h, fu] = f.split(' '), b = []; for (const ch of pl.replace(/\//g, '')) { if (/\d/.test(ch)) for (let k = 0; k < +ch; k++) b.push(''); else b.push(ch); } return { b, turn: t, cs: cs === '-' ? '' : cs, ep: ep === '-' ? -1 : (8 - +ep[1]) * 8 + ep.charCodeAt(0) - 97, half: +h || 0, full: +fu || 1 }; },
+  col: p => !p ? null : p === p.toUpperCase() ? 'w' : 'b',
+  attacked(b, sq, by) {
+    const r = sq >> 3, f = sq & 7, w = by === 'w', at = (rr, ff) => rr >= 0 && rr < 8 && ff >= 0 && ff < 8 ? b[rr * 8 + ff] : null;
+    const pr = r + (w ? 1 : -1), P = w ? 'P' : 'p'; if (at(pr, f - 1) === P || at(pr, f + 1) === P) return true;
+    const N = w ? 'N' : 'n'; for (const [a, c] of KN) if (at(r + a, f + c) === N) return true;
+    const K = w ? 'K' : 'k'; for (const [a, c] of KG) if (at(r + a, f + c) === K) return true;
+    const R = w ? 'R' : 'r', B = w ? 'B' : 'b', Q = w ? 'Q' : 'q';
+    for (const [a, c] of RD) { let rr = r + a, ff = f + c; while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) { const p = b[rr * 8 + ff]; if (p) { if (p === R || p === Q) return true; break; } rr += a; ff += c; } }
+    for (const [a, c] of BD) { let rr = r + a, ff = f + c; while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) { const p = b[rr * 8 + ff]; if (p) { if (p === B || p === Q) return true; break; } rr += a; ff += c; } }
+    return false;
+  },
+  pseudo(s) {
+    const b = s.b, me = s.turn, op = me === 'w' ? 'b' : 'w', out = [];
+    const add = (f, t, extra) => out.push(Object.assign({ f, t, p: b[f], c: b[t] }, extra));
+    for (let sq = 0; sq < 64; sq++) {
+      const p = b[sq]; if (!p || this.col(p) !== me) continue; const r = sq >> 3, f = sq & 7, u = p.toUpperCase();
+      if (u === 'P') {
+        const d = me === 'w' ? -1 : 1, start = me === 'w' ? 6 : 1, last = me === 'w' ? 0 : 7, r1 = r + d;
+        const push = (t, extra) => { if ((t >> 3) === last) for (const q of 'QRBN') add(sq, t, Object.assign({ promo: me === 'w' ? q : q.toLowerCase() }, extra)); else add(sq, t, extra); };
+        if (r1 >= 0 && r1 < 8 && !b[r1 * 8 + f]) { push(r1 * 8 + f); if (r === start && !b[(r + 2 * d) * 8 + f]) add(sq, (r + 2 * d) * 8 + f, { dbl: true }); }
+        for (const dc of [-1, 1]) { const ff = f + dc; if (ff < 0 || ff > 7 || r1 < 0 || r1 > 7) continue; const t = r1 * 8 + ff; if (b[t] && this.col(b[t]) === op) push(t); else if (t === s.ep) add(sq, t, { ep: true, c: me === 'w' ? 'p' : 'P' }); }
+      } else if (u === 'N' || u === 'K') {
+        for (const [a, c] of (u === 'N' ? KN : KG)) { const rr = r + a, ff = f + c; if (rr < 0 || rr > 7 || ff < 0 || ff > 7) continue; const t = rr * 8 + ff; if (!b[t] || this.col(b[t]) === op) add(sq, t); }
+        if (u === 'K') {
+          const w = me === 'w', home = w ? 60 : 4, cs = s.cs;
+          if (sq === home && !this.attacked(b, home, op)) {
+            if (cs.includes(w ? 'K' : 'k') && !b[home + 1] && !b[home + 2] && b[home + 3] === (w ? 'R' : 'r') && !this.attacked(b, home + 1, op) && !this.attacked(b, home + 2, op)) add(sq, home + 2, { castle: 'K' });
+            if (cs.includes(w ? 'Q' : 'q') && !b[home - 1] && !b[home - 2] && !b[home - 3] && b[home - 4] === (w ? 'R' : 'r') && !this.attacked(b, home - 1, op) && !this.attacked(b, home - 2, op)) add(sq, home - 2, { castle: 'Q' });
+          }
+        }
+      } else {
+        const dirs = u === 'R' ? RD : u === 'B' ? BD : RD.concat(BD);
+        for (const [a, c] of dirs) { let rr = r + a, ff = f + c; while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) { const t = rr * 8 + ff; if (b[t]) { if (this.col(b[t]) === op) add(sq, t); break; } add(sq, t); rr += a; ff += c; } }
+      }
+    }
+    return out;
+  },
+  make(s, m) {
+    const b = s.b.slice(), me = s.turn, w = me === 'w';
+    b[m.t] = m.promo || b[m.f]; b[m.f] = '';
+    if (m.ep) b[m.t + (w ? 8 : -8)] = '';
+    if (m.castle) { const home = w ? 60 : 4; if (m.castle === 'K') { b[home + 1] = b[home + 3]; b[home + 3] = ''; } else { b[home - 1] = b[home - 4]; b[home - 4] = ''; } }
+    let cs = s.cs;
+    if (m.p === 'K') cs = cs.replace(/[KQ]/g, ''); if (m.p === 'k') cs = cs.replace(/[kq]/g, '');
+    const strip = sq => { if (sq === 63) cs = cs.replace('K', ''); if (sq === 56) cs = cs.replace('Q', ''); if (sq === 7) cs = cs.replace('k', ''); if (sq === 0) cs = cs.replace('q', ''); };
+    strip(m.f); strip(m.t);
+    return { b, turn: w ? 'b' : 'w', cs, ep: m.dbl ? (m.f + m.t) >> 1 : -1, half: (m.p.toUpperCase() === 'P' || m.c) ? 0 : s.half + 1, full: s.full + (w ? 0 : 1) };
+  },
+  inCheck(s, side = s.turn) { const k = s.b.indexOf(side === 'w' ? 'K' : 'k'); return k >= 0 && this.attacked(s.b, k, side === 'w' ? 'b' : 'w'); },
+  legal(s) { return this.pseudo(s).filter(m => { const n = this.make(s, m); return !this.inCheck(n, s.turn); }); },
+  key(s) { return s.b.map(p => p || '.').join('') + s.turn + s.cs + (s.ep >= 0 && this.pseudo(s).some(m => m.ep) ? s.ep : '-'); },
+  insufficient(b) {
+    const ps = b.map((p, i) => [p, i]).filter(([p]) => p && p.toUpperCase() !== 'K');
+    if (!ps.length) return true;
+    if (ps.length === 1 && 'NBnb'.includes(ps[0][0])) return true;
+    if (ps.every(([p]) => 'Bb'.includes(p))) { const c = ps.map(([, i]) => ((i >> 3) + (i & 7)) % 2); return c.every(x => x === c[0]); }
+    return false;
+  },
+  // resultado: null (em jogo) ou {r:'1-0'|'0-1'|'½-½', why}
+  status(s, keys) {
+    const L = this.legal(s);
+    if (!L.length) return this.inCheck(s) ? { r: s.turn === 'w' ? '0-1' : '1-0', why: 'Xeque-mate' } : { r: '½-½', why: 'Afogamento' };
+    if (s.half >= 100) return { r: '½-½', why: 'Regra dos 50 lances' };
+    if (keys) { const k = this.key(s); if (keys.filter(x => x === k).length >= 3) return { r: '½-½', why: 'Repetição tripla' }; }
+    if (this.insufficient(s.b)) return { r: '½-½', why: 'Material insuficiente' };
+    return null;
+  },
+  sqName: i => 'abcdefgh'[i & 7] + (8 - (i >> 3)),
+  PT: { N: 'C', B: 'B', R: 'T', Q: 'D', K: 'R' }, // notação em português
+  san(s, m, L) {
+    let t;
+    if (m.castle) t = m.castle === 'K' ? 'O-O' : 'O-O-O';
+    else {
+      const u = m.p.toUpperCase(), to = this.sqName(m.t);
+      if (u === 'P') t = (m.c ? 'abcdefgh'[m.f & 7] + 'x' : '') + to + (m.promo ? '=' + this.PT[m.promo.toUpperCase()] : '');
+      else {
+        const amb = L.filter(o => o !== m && o.p === m.p && o.t === m.t && o.f !== m.f); let d = '';
+        if (amb.length) { const sf = amb.some(o => (o.f & 7) === (m.f & 7)), sr = amb.some(o => (o.f >> 3) === (m.f >> 3)); d = !sf ? 'abcdefgh'[m.f & 7] : !sr ? String(8 - (m.f >> 3)) : this.sqName(m.f); }
+        t = this.PT[u] + d + (m.c ? 'x' : '') + to;
+      }
+    }
+    const n = this.make(s, m); if (this.inCheck(n)) t += this.legal(n).length ? '+' : '#';
+    return t;
+  },
+  uci: m => Chess.sqName(m.f) + Chess.sqName(m.t) + (m.promo ? m.promo.toLowerCase() : ''),
+  perft(s, d) { if (!d) return 1; let n = 0; for (const m of this.legal(s)) n += d === 1 ? 1 : this.perft(this.make(s, m), d - 1); return n; }
+};
+
+/* ---------- AI: negamax alfa-beta + quiescência, tabelas posicionais ---------- */
+const VAL = { P: 100, N: 320, B: 330, R: 500, Q: 900, K: 0 };
+const PST = {
+  P: [0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30, 20, 10, 10, 5, 5, 10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10, 0, 0, -10, -5, 5, 5, 10, 10, -20, -20, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0],
+  N: [-50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30, 0, 10, 15, 15, 10, 0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20, 15, 0, -30, -30, 5, 10, 15, 15, 10, 5, -30, -40, -20, 0, 5, 5, 0, -20, -40, -50, -40, -30, -30, -30, -30, -40, -50],
+  B: [-20, -10, -10, -10, -10, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 10, 10, 5, 0, -10, -10, 5, 5, 10, 10, 5, 5, -10, -10, 0, 10, 10, 10, 10, 0, -10, -10, 10, 10, 10, 10, 10, 10, -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10, -10, -10, -10, -10, -10, -20],
+  R: [0, 0, 0, 0, 0, 0, 0, 0, 5, 10, 10, 10, 10, 10, 10, 5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, 0, 0, 0, 5, 5, 0, 0, 0],
+  Q: [-20, -10, -10, -5, -5, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 5, 5, 5, 0, -10, -5, 0, 5, 5, 5, 5, 0, -5, 0, 0, 5, 5, 5, 5, 0, -5, -10, 5, 5, 5, 5, 5, 0, -10, -10, 0, 5, 0, 0, 0, 0, -10, -20, -10, -10, -5, -5, -10, -10, -20],
+  K: [-30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -20, -30, -30, -40, -40, -30, -30, -20, -10, -20, -20, -20, -20, -20, -20, -10, 20, 20, 0, 0, 0, 0, 20, 20, 20, 30, 10, 0, 0, 10, 30, 20],
+  KE: [-50, -40, -30, -20, -20, -30, -40, -50, -30, -20, -10, 0, 0, -10, -20, -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -30, 0, 0, 0, 0, -30, -30, -50, -30, -30, -30, -30, -30, -30, -50]
+};
+const AI = {
+  nodes: 0, deadline: 0, abort: false,
+  evalW(b) { // positivo = vantagem das brancas
+    let sc = 0, mat = 0; for (const p of b) if (p) mat += VAL[p.toUpperCase()];
+    const end = mat <= 2600;
+    for (let i = 0; i < 64; i++) { const p = b[i]; if (!p) continue; const u = p.toUpperCase(), w = p === u, idx = w ? i : (7 - (i >> 3)) * 8 + (i & 7), t = u === 'K' && end ? PST.KE : PST[u]; sc += (w ? 1 : -1) * (VAL[u] + t[idx]); }
+    return sc;
+  },
+  ev(s) { const e = this.evalW(s.b); return s.turn === 'w' ? e : -e; },
+  order(ms) { return ms.sort((a, b) => ((b.c ? 10 * VAL[b.c.toUpperCase()] - VAL[b.p.toUpperCase()] / 10 : 0) + (b.promo ? 800 : 0)) - ((a.c ? 10 * VAL[a.c.toUpperCase()] - VAL[a.p.toUpperCase()] / 10 : 0) + (a.promo ? 800 : 0))); },
+  q(s, a, b, d) {
+    if ((++this.nodes & 1023) === 0 && performance.now() > this.deadline) this.abort = true;
+    const sp = this.ev(s); if (sp >= b) return sp; if (sp > a) a = sp; if (d <= 0) return a;
+    for (const m of this.order(Chess.pseudo(s).filter(m => m.c || m.promo))) { const n = Chess.make(s, m); if (Chess.inCheck(n, s.turn)) continue; const v = -this.q(n, -b, -a, d - 1); if (this.abort) return 0; if (v >= b) return v; if (v > a) a = v; }
+    return a;
+  },
+  search(s, d, a, b, ply) {
+    if ((++this.nodes & 1023) === 0 && performance.now() > this.deadline) this.abort = true;
+    if (this.abort) return 0;
+    if (s.half >= 100) return 0;
+    if (d <= 0) return this.q(s, a, b, 4);
+    let any = false, best = -1e9;
+    for (const m of this.order(Chess.pseudo(s))) {
+      const n = Chess.make(s, m); if (Chess.inCheck(n, s.turn)) continue; any = true;
+      const v = -this.search(n, d - 1, -b, -a, ply + 1); if (this.abort) return 0;
+      if (v > best) best = v; if (v > a) a = v; if (a >= b) break;
+    }
+    if (!any) return Chess.inCheck(s) ? -100000 + ply : 0;
+    return best;
+  },
+  // nível: 1 fácil, 2 médio, 3 difícil
+  pick(s, level, keys) {
+    const L = Chess.legal(s); if (L.length === 1) return L[0];
+    const maxD = level === 1 ? 1 : level === 2 ? 2 : 5, ms = level === 1 ? 300 : level === 2 ? 900 : 1800, margin = level === 1 ? 140 : level === 2 ? 12 : 0;
+    this.deadline = performance.now() + ms; this.abort = false; this.nodes = 0;
+    let scored = L.map(m => ({ m, v: 0 })), done = null;
+    for (let d = 1; d <= maxD; d++) {
+      const cur = []; let a = -1e9;
+      const order = done ? done.slice().sort((x, y) => y.v - x.v).map(x => x.m) : this.order(L.slice());
+      for (const m of order) { const n = Chess.make(s, m); const w = a - margin - 1; let v = -this.search(n, d - 1, -1e9, -w, 1); if (this.abort) break; if (keys && keys.includes(Chess.key(n))) v = Math.min(v, 0); cur.push({ m, v }); if (v > a) a = v; }
+      if (this.abort) break; done = cur; scored = cur; if (a > 90000) break;
+    }
+    scored.sort((x, y) => y.v - x.v);
+    if (level === 1) { // fácil: escolhe entre lances razoáveis com variação
+      const ok = scored.filter(x => x.v >= scored[0].v - margin); return ok[Math.floor(Math.random() * ok.length)].m;
+    }
+    const top = scored.filter(x => x.v >= scored[0].v - margin); return top[Math.floor(Math.random() * top.length)].m;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  cfg: null, states: [], moves: [], sans: [], keys: [], result: null, flip: false,
+  get s() { return this.states[this.states.length - 1]; },
+  newGame(cfg) {
+    this.cfg = cfg; this.states = [Chess.init()]; this.moves = []; this.sans = []; this.keys = [Chess.key(this.s)]; this.result = null;
+    this.flip = cfg.mode === 'ai' && this.aiSide() === 'w'; this.save(); View.render(); UI.turn();
+  },
+  aiSide() { if (this.cfg.mode !== 'ai') return null; return this.cfg.side === 'b' ? 'w' : 'b'; },
+  human() { return this.cfg.mode !== 'ai' || this.s.turn !== this.aiSide(); },
+  play(m) {
+    const s = this.s, L = Chess.legal(s); const mm = L.find(x => x.f === m.f && x.t === m.t && (x.promo || '') === (m.promo || '')); if (!mm) return false;
+    this.sans.push(Chess.san(s, mm, L)); this.moves.push(Chess.uci(mm)); const n = Chess.make(s, mm); this.states.push(n); this.keys.push(Chess.key(n));
+    HX.sfx(mm.c ? 'cap' : 'move'); HX.vibrate(mm.c ? 18 : 8);
+    this.result = Chess.status(n, this.keys); this.save(); View.render(); UI.turn();
+    if (this.result) { this.record(); const id = this.moves.length; setTimeout(() => { if (this.result && this.moves.length === id) UI.end(); }, 500); } else this.maybeAI();
+    return true;
+  },
+  maybeAI() {
+    if (this.result || this.human()) return; View.thinking(true);
+    setTimeout(() => { if (this.result || this.human()) return View.thinking(false); const lvl = { facil: 1, medio: 2, dificil: 3 }[this.cfg.diff]; const m = AI.pick(this.s, lvl, this.keys); View.thinking(false); this.play(m); }, 260);
+  },
+  undo() {
+    if (this.moves.length === 0) return HX.toast('Nada para desfazer');
+    let n = this.cfg.mode === 'ai' ? (this.s.turn === this.aiSide() && !this.result ? 1 : 2) : 1; n = Math.min(n, this.moves.length);
+    for (let i = 0; i < n; i++) { this.states.pop(); this.moves.pop(); this.sans.pop(); this.keys.pop(); }
+    this.result = null; this.save(); View.sel = -1; View.render(); UI.turn(); this.maybeAI();
+  },
+  outcome() { const r = this.result, c = this.cfg; if (r.r === '½-½') return 'd'; const w = r.r === '1-0' ? 'w' : 'b'; return c.mode === 'ai' ? (w === c.side ? 'w' : 'l') : 'w'; },
+  record() { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp'; st[k] = st[k] || { w: 0, l: 0, d: 0 }; st[k][this.outcome()]++; S.set('stats', st); },
+  save() {
+    S.set('cur', { cfg: this.cfg, moves: this.moves, result: this.result, flip: this.flip });
+    S.hub(this.result ? null : `Em andamento · ${this.cfg.mode === 'ai' ? 'contra IA ' + UI.dname[this.cfg.diff] : '2 jogadores'} · lance ${this.s.full}`);
+  },
+  load() {
+    const c = S.get('cur', null); if (!c || !c.cfg) return false;
+    this.cfg = c.cfg; this.states = [Chess.init()]; this.moves = []; this.sans = []; this.keys = [Chess.key(this.s)]; this.flip = !!c.flip;
+    for (const u of c.moves) { const s = this.s, L = Chess.legal(s), m = L.find(x => Chess.uci(x) === u); if (!m) break; this.sans.push(Chess.san(s, m, L)); this.moves.push(u); const n = Chess.make(s, m); this.states.push(n); this.keys.push(Chess.key(n)); }
+    this.result = Chess.status(this.s, this.keys); return true;
+  }
+};
+
+/* ---------- View ---------- */
+const SVGP = {
+  P: '<circle class="b" cx="22.5" cy="14" r="5"/><path class="b" d="M16.5 34c0-6 2.6-10 6-13.4 3.4 3.4 6 7.4 6 13.4z"/><rect class="b" x="12" y="33" width="21" height="5" rx="2"/>',
+  R: '<path class="b" d="M13 9h4v3h3V9h5v3h3V9h4v7l-3 3v13H16V19l-3-3z"/><rect class="b" x="11" y="32" width="23" height="6" rx="2"/><path class="d" d="M16 19h13"/>',
+  N: '<path class="b" d="M15 33c0-7 2-10 6.5-13.5-3.5.8-6.8 2.8-8.6.6-1.5-2 4-8 7.1-10.6l.9-4 2.5 3.2C30 9.6 33 15 33 24v9z"/><rect class="b" x="11" y="32" width="23" height="6" rx="2"/><circle cx="21" cy="12.6" r="1.3" class="eye"/>',
+  B: '<circle class="b" cx="22.5" cy="7.5" r="2.6"/><path class="b" d="M22.5 10c-5.5 4-7.6 9-7.6 13 0 4 3.3 6 7.6 6s7.6-2 7.6-6c0-4-2.1-9-7.6-13z"/><path class="b" d="M15 29h15l1.5 4h-18z"/><rect class="b" x="11" y="33" width="23" height="5" rx="2"/><path class="d" d="M22.5 15v7M19 18.5h7"/>',
+  Q: '<circle class="b" cx="9" cy="12" r="2.3"/><circle class="b" cx="15.5" cy="9" r="2.3"/><circle class="b" cx="22.5" cy="8" r="2.3"/><circle class="b" cx="29.5" cy="9" r="2.3"/><circle class="b" cx="36" cy="12" r="2.3"/><path class="b" d="M9.5 14l4 17h18l4-17-6.5 8-1.8-11-4.2 10-4.2-10-1.8 11z"/><rect class="b" x="11" y="31" width="23" height="7" rx="2"/>',
+  K: '<path class="b" d="M21 3.5h3v3h3v3h-3v4h-3v-4h-3v-3h3z"/><path class="b" d="M12.5 31c-2.6-7.6 0-14.6 10-15.2 10 .6 12.6 7.6 10 15.2z"/><rect class="b" x="11" y="31" width="23" height="7" rx="2"/><path class="d" d="M15 25.5h15"/>'
+};
+const pieceSVG = p => { const u = p.toUpperCase(), w = p === u; return `<svg class="pc ${w ? 'w' : 'k'}" viewBox="0 0 45 45">${SVGP[u].replace('class="eye"', `fill="${w ? '#3b2c14' : '#d9b56a'}"`)}</svg>`; };
+const View = {
+  sel: -1, board: null,
+  init() { this.board = HX.$('#board'); new ResizeObserver(() => this.fit()).observe(HX.$('#stage')); this.fit(); },
+  fit() { const st = HX.$('#stage'); const s = Math.floor(Math.min(st.clientWidth - 12, st.clientHeight - 12, 640) / 8); document.documentElement.style.setProperty('--sq', Math.max(32, s) + 'px'); },
+  idx(vis) { return Game.flip ? 63 - vis : vis; },
+  render() {
+    const s = Game.s, last = Game.moves.length ? Game.moves[Game.moves.length - 1] : null, L = this.sel >= 0 ? Chess.legal(s).filter(m => m.f === this.sel) : [];
+    const lastSq = last ? [last.slice(0, 2), last.slice(2, 4)] : [], chk = Chess.inCheck(s) ? s.b.indexOf(s.turn === 'w' ? 'K' : 'k') : -1;
+    let h = '';
+    for (let v = 0; v < 64; v++) {
+      const i = this.idx(v), r = i >> 3, f = i & 7, light = (r + f) % 2 === 0, mv = L.find(m => m.t === i);
+      const cls = ['sq', light ? 'l' : 'd', lastSq.includes(Chess.sqName(i)) ? 'last' : '', i === this.sel ? 'sel' : '', i === chk ? 'chk' : '', mv ? (s.b[i] || mv.ep ? 'cap' : 'mv') : ''].join(' ');
+      const vr = v >> 3, vf = v & 7;
+      h += `<div class="${cls}" data-i="${i}">${vf === 0 ? `<span class="co r">${8 - r}</span>` : ''}${vr === 7 ? `<span class="co f">${'abcdefgh'[f]}</span>` : ''}${s.b[i] ? pieceSVG(s.b[i]) : ''}</div>`;
+    }
+    this.board.innerHTML = h;
+    // capturadas
+    const start = { P: 8, N: 2, B: 2, R: 2, Q: 1 }, cnt = {}; s.b.forEach(p => { if (p) cnt[p] = (cnt[p] || 0) + 1; });
+    const lost = side => Object.keys(start).map(u => { const p = side === 'w' ? u : u.toLowerCase(); return { P: '♟', N: '♞', B: '♝', R: '♜', Q: '♛' }[u].repeat(Math.max(0, start[u] - (cnt[p] || 0))); }).reverse().join('');
+    HX.$('#c-w').textContent = lost('b'); HX.$('#c-b').textContent = lost('w');
+    const st = HX.$('#strip'); st.innerHTML = Game.sans.map((t, k) => `${k % 2 === 0 ? `<b>${k / 2 + 1}.</b>` : ''}<span class="${k === Game.sans.length - 1 ? 'cur' : ''}">${t}</span>`).join(' ') || '<span>Sua vez: toque numa peça para ver os lances.</span>'; st.scrollLeft = st.scrollWidth;
+  },
+  thinking(on) { const side = Game.aiSide(); if (!side) return; const el = HX.$('#n-' + side); el.textContent = on ? 'IA pensando…' : `IA (${UI.dname[Game.cfg.diff]})`; }
+};
+
+/* ---------- Input: toque para selecionar e toque no destino, ou arraste a peça ---------- */
+const Input = {
+  drag: null,
+  init() {
+    const B = View.board;
+    const at = (x, y) => { const el = document.elementFromPoint(x, y); const sq = el && el.closest('.sq'); return sq && B.contains(sq) ? +sq.dataset.i : -1; };
+    B.addEventListener('pointerdown', e => {
+      if (Game.result || !Game.human() || HX.isOpen()) return; const i = at(e.clientX, e.clientY); if (i < 0) return;
+      const s = Game.s, p = s.b[i];
+      if (View.sel >= 0 && View.sel !== i && Chess.legal(s).some(m => m.f === View.sel && m.t === i)) { this.go(View.sel, i); return; }
+      if (p && Chess.col(p) === s.turn) {
+        View.sel = i; View.render(); HX.sfx('tap');
+        const g = document.createElement('div'); g.className = 'drag'; g.innerHTML = pieceSVG(p); g.style.left = e.clientX + 'px'; g.style.top = e.clientY + 'px'; g.style.display = 'none'; document.body.appendChild(g);
+        this.drag = { i, g, x: e.clientX, y: e.clientY, moved: false }; try { B.setPointerCapture(e.pointerId); } catch (_) {}
+      } else { View.sel = -1; View.render(); }
+    });
+    B.addEventListener('pointermove', e => {
+      const d = this.drag; if (!d) return; if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8) { d.moved = true; d.g.style.display = ''; const el = B.querySelector(`[data-i="${d.i}"] .pc`); if (el) el.style.opacity = '.25'; }
+      d.g.style.left = e.clientX + 'px'; d.g.style.top = e.clientY + 'px';
+    });
+    const up = e => { const d = this.drag; if (!d) return; this.drag = null; d.g.remove(); if (!d.moved) return; const t = at(e.clientX, e.clientY); if (t >= 0 && t !== d.i && Chess.legal(Game.s).some(m => m.f === d.i && m.t === t)) this.go(d.i, t); else View.render(); };
+    B.addEventListener('pointerup', up); B.addEventListener('pointercancel', up);
+  },
+  go(f, t) {
+    const L = Chess.legal(Game.s).filter(m => m.f === f && m.t === t); View.sel = -1;
+    if (L[0].promo) return UI.promo(Game.s.turn, q => Game.play({ f, t, promo: q }));
+    Game.play({ f, t });
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  dname: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  init() {
+    View.init(); Input.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-flip').onclick = () => { Game.flip = !Game.flip; Game.save(); View.render(); UI.turn(); };
+    HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    window.addEventListener('keydown', e => { if (e.key === 'z' && (e.ctrlKey || e.metaKey)) Game.undo(); if (e.key === 'Escape') { View.sel = -1; View.render(); } });
+    if (Game.load()) { View.render(); this.turn(); if (Game.result) this.end(); else { HX.toast('Partida retomada'); Game.maybeAI(); } } else { Game.cfg = { mode: 'ai', diff: 'medio', side: 'w' }; Game.states = [Chess.init()]; Game.moves = []; Game.sans = []; Game.keys = []; View.render(); this.turn(); this.setup(); }
+  },
+  turn() {
+    const c = Game.cfg, ai = Game.aiSide(), s = Game.s;
+    HX.$('#n-w').textContent = ai === 'w' ? `IA (${this.dname[c.diff]})` : c.mode === 'ai' ? 'Você · Brancas' : 'Brancas';
+    HX.$('#n-b').textContent = ai === 'b' ? `IA (${this.dname[c.diff]})` : c.mode === 'ai' ? 'Você · Pretas' : 'Pretas';
+    HX.$('#p-w').classList.toggle('on', !Game.result && s.turn === 'w'); HX.$('#p-b').classList.toggle('on', !Game.result && s.turn === 'b');
+    // a fileira de cima do tabuleiro fica do lado do jogador de cima
+    const tb = HX.$('.turnbar'); tb.style.flexDirection = Game.flip ? 'row-reverse' : 'row';
+    if (!Game.result && Chess.inCheck(s)) HX.toast('Xeque!', 1000);
+  },
+  setup() {
+    const v = S.get('cfg', { mode: 'ai', diff: 'medio', side: 'w' });
+    HX.setup({ title: 'Chess', text: 'Xadrez com todas as regras oficiais.', values: v,
+      groups: [{ key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'side', label: 'Você joga com', opts: [['w', 'Brancas'], ['b', 'Pretas'], ['r', 'Sorteio']], show: x => x.mode === 'ai' }],
+      start: 'Nova partida', help: this.helpItems,
+      onStart: x => { S.set('cfg', x); const cfg = Object.assign({}, x); if (cfg.side === 'r') cfg.side = Math.random() < .5 ? 'w' : 'b'; Game.newGame(cfg); Game.maybeAI(); } });
+  },
+  helpItems: ['Toque numa peça para ver os lances possíveis e toque no destino — ou arraste a peça.', 'Pontos indicam casas livres; anéis indicam capturas. O rei em xeque fica destacado em vermelho.', 'Roque: mova o rei duas casas em direção à torre. En passant e promoção funcionam normalmente (você escolhe a peça).', 'Empates: afogamento, 50 lances sem captura ou movimento de peão, repetição tripla e material insuficiente.', 'Notação em português: R rei, D dama, T torre, B bispo, C cavalo.', 'Contra a IA, “Desfazer” volta o seu último lance e a resposta da IA.'],
+  menu() {
+    const st = S.get('stats', {}), line = k => { const x = st[k] || { w: 0, l: 0, d: 0 }; return `<div><b>${x.w}/${x.d}/${x.l}</b><small>${k === 'pvp' ? '2 jogadores' : this.dname[k]}</small></div>`; };
+    const c = HX.overlay(`<h3>Chess</h3><p>Vitórias / empates / derrotas</p><div class="kv">${line('facil')}${line('medio')}${line('dificil')}</div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="hs">Lances</button><button class="btn" id="hw">Como jogar</button></div><button class="btn" id="snd">Som: ${HX.sound() ? 'ligado' : 'desligado'}</button><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#hs', () => this.hist()); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems)); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  hist() {
+    const rows = []; for (let k = 0; k < Game.sans.length; k += 2) rows.push(`<li>${Game.sans[k]}${Game.sans[k + 1] ? ' &nbsp; ' + Game.sans[k + 1] : ''}</li>`);
+    const c = HX.overlay(`<h3>Lances</h3><div class="hist">${rows.length ? `<ol>${rows.join('')}</ol>` : 'Nenhum lance ainda.'}</div>${Game.result ? `<p>${Game.result.why} · ${Game.result.r}</p>` : ''}<button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#ok', () => Game.result ? this.end() : HX.close());
+  },
+  promo(side, cb) {
+    const c = HX.overlay(`<h3>Promoção</h3><p>Escolha a nova peça</p><div class="promo">${'QRBN'.split('').map(q => `<button data-q="${q}">${pieceSVG(side === 'w' ? q : q.toLowerCase())}</button>`).join('')}</div>`, { guard: false });
+    c.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { HX.close(); cb(side === 'w' ? b.dataset.q : b.dataset.q.toLowerCase()); });
+  },
+  end() {
+    const r = Game.result, c = Game.cfg; let title = 'Empate', res = 'd';
+    if (r.r !== '½-½') { const winner = r.r === '1-0' ? 'w' : 'b'; if (c.mode === 'ai') { res = winner === c.side ? 'w' : 'l'; title = res === 'w' ? 'Vitória!' : 'Derrota'; } else { title = winner === 'w' ? 'Brancas vencem' : 'Pretas vencem'; res = 'w'; } }
+    HX.sfx(res === 'l' ? 'lose' : 'win'); S.hub(null);
+    const o = HX.overlay(`<h3>${title}</h3><p>${r.why} · ${r.r} · ${Game.sans.length} lances</p><button class="btn-primary" id="ag">Jogar de novo</button><div class="row2"><button class="btn" id="hs">Lances</button><button class="btn" id="bd">Ver tabuleiro</button></div>`);
+    HX.on(o, '#ag', () => this.setup()); HX.on(o, '#hs', () => this.hist()); HX.on(o, '#bd', () => HX.close());
+  }
+};
+UI.init(); HX.sw();
+window.CH = { Chess, AI, Game, View, UI, S };
+</script>
+</body>
+</html>

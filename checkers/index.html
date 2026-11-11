@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#120806">
+<title>H-LUX Checkers</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#120806;--bg2:radial-gradient(ellipse at 50% 0%,#33150f 0%,#120806 62%);--sq:44px}
+.board{display:grid;grid-template-columns:repeat(8,var(--sq));grid-template-rows:repeat(8,var(--sq));border-radius:10px;overflow:hidden;touch-action:none;user-select:none;
+  box-shadow:0 0 0 4px #3a1a10,0 0 0 6px #c9a45c,0 22px 50px rgba(0,0,0,.65)}
+.sq{position:relative;display:grid;place-items:center}
+.sq.l{background:#e6d2b0}.sq.d{background:#5a2a1b}
+.sq.last{box-shadow:inset 0 0 0 999px rgba(232,205,140,.18)}
+.sq.path{box-shadow:inset 0 0 0 999px rgba(232,205,140,.32)}
+.sq.tg::after{content:'';width:30%;height:30%;border-radius:50%;background:rgba(232,205,140,.75);box-shadow:0 0 10px rgba(232,205,140,.8)}
+.pz{width:78%;height:78%;border-radius:50%;position:relative;transition:transform .15s}
+.pz.L{background:radial-gradient(circle at 35% 30%,#fffaf0,#e9dcc0 55%,#bfa87e);box-shadow:inset 0 0 0 3px #f6eedd,inset 0 0 0 5px #c4ae86,0 4px 6px rgba(0,0,0,.5)}
+.pz.D{background:radial-gradient(circle at 35% 30%,#4a3a30,#1c1410 60%,#0b0806);box-shadow:inset 0 0 0 3px #2d221b,inset 0 0 0 5px #c9a45c,0 4px 6px rgba(0,0,0,.6)}
+.pz.K::after{content:'♛';position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--sq) * .42);color:#b8862e;text-shadow:0 1px 0 rgba(0,0,0,.3)}
+.pz.D.K::after{color:#e8cd8c}
+.pz.can{box-shadow:0 0 0 3px rgba(232,205,140,.9),0 0 14px rgba(232,205,140,.6)}
+.pz.sel{transform:scale(1.1);box-shadow:0 0 0 3px #fff3cf,0 0 18px #e8cd8c}
+.pz.gone{opacity:.35}
+.strip{width:100%;max-width:640px;min-height:28px;margin-top:6px;overflow-x:auto;white-space:nowrap;font-size:13px;color:var(--muted);scrollbar-width:none;flex:none}
+.strip b{color:var(--accent2);margin-left:6px}.strip span{padding:3px 6px;border-radius:8px}.strip span.cur{background:var(--panel2);color:var(--text)}
+.var{font-size:11px;color:var(--accent2);font-weight:800;letter-spacing:1px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Check<b>ers</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="turnbar"><div class="pl" id="p-D"><span class="dot" style="background:#1c1410;box-shadow:0 0 0 1.5px #c9a45c"></span><span class="nm" id="n-D">Escuras</span><span class="ct" id="c-D">12</span></div><div class="pl" id="p-L"><span class="dot" style="background:#efe3c8"></span><span class="nm" id="n-L">Claras</span><span class="ct" id="c-L">12</span></div></div>
+  <div class="stage" id="stage"><div class="board" id="board"></div></div>
+  <div class="strip" id="strip"></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-hist"><svg class="i"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Lances</button>
+    <button class="tool" id="t-rules"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Regras</button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Nova</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX CHECKERS v1.0 — Dama em duas variantes separadas (nunca misturadas):
+   • Brasileira: damas de longo alcance, peões capturam para trás, captura obrigatória da MAIOR quantidade de peças,
+     peão só é promovido se terminar o lance na última fileira. Claras começam. Empate após 20 lances de cada lado sem captura nem movimento de peão.
+   • Americana (inglesa): damas andam e capturam uma casa, peões capturam só para frente, captura obrigatória (qualquer sequência),
+     peão que chega à última fileira capturando é promovido e o lance termina. Escuras começam. Empate após 40 lances de cada lado sem captura nem movimento de peão.
+   Peças: 'l' / 'L' claras (embaixo, sobem) · 'd' / 'D' escuras (em cima, descem). Casa = linha*8 + coluna. */
+const S = HX.store('checkers');
+const VARS = {
+  br: { name: 'Brasileira', flying: true, manBack: true, maxCapture: true, first: 'l', drawPlies: 40 },
+  us: { name: 'Americana', flying: false, manBack: false, maxCapture: false, first: 'd', drawPlies: 80 }
+};
+const DIRS = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+const Rules = {
+  init(v) { const b = Array(64).fill(''); for (let i = 0; i < 64; i++) { const r = i >> 3, f = i & 7; if ((r + f) % 2 !== 1) continue; if (r < 3) b[i] = 'd'; else if (r > 4) b[i] = 'l'; } return { b, turn: VARS[v].first, quiet: 0 }; },
+  side: p => p ? p.toLowerCase() : null,
+  king: p => p === 'L' || p === 'D',
+  in: (r, f) => r >= 0 && r < 8 && f >= 0 && f < 8,
+  // todos os lances completos: {path:[casas], caps:[casas capturadas]}
+  moves(s, v) {
+    const V = VARS[v], b = s.b, me = s.turn, fw = me === 'l' ? -1 : 1, caps = [];
+    for (let i = 0; i < 64; i++) { const p = b[i]; if (this.side(p) !== me) continue; this.captures(b, i, p, V, me, fw, [i], [], caps); }
+    if (caps.length) { if (V.maxCapture) { const mx = Math.max(...caps.map(c => c.caps.length)); return caps.filter(c => c.caps.length === mx); } return caps; }
+    const out = [];
+    for (let i = 0; i < 64; i++) {
+      const p = b[i]; if (this.side(p) !== me) continue; const r = i >> 3, f = i & 7, k = this.king(p);
+      for (const [dr, df] of DIRS) {
+        if (!k && dr !== fw) continue;
+        let rr = r + dr, ff = f + df;
+        while (this.in(rr, ff) && !b[rr * 8 + ff]) { out.push({ path: [i, rr * 8 + ff], caps: [] }); if (!(k && V.flying)) break; rr += dr; ff += df; }
+      }
+    }
+    return out;
+  },
+  captures(b, at, p, V, me, fw, path, taken, out) {
+    const r = at >> 3, f = at & 7, k = this.king(p), start = path[0]; let found = false;
+    const empty = sq => sq === start || !b[sq];
+    for (const [dr, df] of DIRS) {
+      if (!k && !V.manBack && dr !== fw) continue;
+      if (k && V.flying) {
+        let rr = r + dr, ff = f + df;
+        while (this.in(rr, ff) && empty(rr * 8 + ff)) { rr += dr; ff += df; }
+        if (!this.in(rr, ff)) continue; const ov = rr * 8 + ff;
+        if (this.side(b[ov]) === me || taken.includes(ov) || ov === start) continue;
+        rr += dr; ff += df;
+        while (this.in(rr, ff) && empty(rr * 8 + ff) && !taken.includes(rr * 8 + ff)) {
+          const to = rr * 8 + ff; found = true; this.captures(b, to, p, V, me, fw, path.concat(to), taken.concat(ov), out); rr += dr; ff += df;
+        }
+      } else {
+        const r1 = r + dr, f1 = f + df, r2 = r + 2 * dr, f2 = f + 2 * df; if (!this.in(r2, f2)) continue;
+        const ov = r1 * 8 + f1, to = r2 * 8 + f2;
+        if (!b[ov] || ov === start || this.side(b[ov]) === me || taken.includes(ov) || !empty(to)) continue;
+        found = true;
+        const lastRow = me === 'l' ? 0 : 7;
+        if (!k && !V.flying && r2 === lastRow) { out.push({ path: path.concat(to), caps: taken.concat(ov) }); continue; } // americana: promoção encerra o lance
+        this.captures(b, to, p, V, me, fw, path.concat(to), taken.concat(ov), out);
+      }
+    }
+    if (!found && taken.length) out.push({ path, caps: taken });
+  },
+  apply(s, m, v) {
+    const b = s.b.slice(), from = m.path[0], to = m.path[m.path.length - 1], p = b[from], man = !this.king(p);
+    b[from] = ''; m.caps.forEach(c => b[c] = ''); b[to] = p;
+    if (man && (to >> 3) === (s.turn === 'l' ? 0 : 7)) b[to] = p.toUpperCase();
+    return { b, turn: s.turn === 'l' ? 'd' : 'l', quiet: m.caps.length || man ? 0 : s.quiet + 1 };
+  },
+  key: s => s.b.map(p => p || '.').join('') + s.turn,
+  status(s, v, keys) {
+    if (!this.moves(s, v).length) return { win: s.turn === 'l' ? 'd' : 'l', why: s.b.some(p => this.side(p) === s.turn) ? 'Sem lances possíveis' : 'Todas as peças capturadas' };
+    if (s.quiet >= VARS[v].drawPlies) return { win: null, why: `${VARS[v].drawPlies / 2} lances de cada lado só com damas e sem captura` };
+    if (keys) { const k = this.key(s); if (keys.filter(x => x === k).length >= 3) return { win: null, why: 'Repetição tripla da posição' }; }
+    return null;
+  },
+  name: i => 'abcdefgh'[i & 7] + (8 - (i >> 3)),
+  note(m) { return m.path.map(Rules.name).join(m.caps.length ? '×' : '-'); }
+};
+
+/* ---------- IA: minimax alfa-beta ---------- */
+const AI = {
+  ev(s, me) {
+    let sc = 0;
+    for (let i = 0; i < 64; i++) { const p = s.b[i]; if (!p) continue; const r = i >> 3, f = i & 7, own = Rules.side(p) === me, k = Rules.king(p);
+      let v = k ? 290 : 100; if (!k) v += (Rules.side(p) === 'l' ? 7 - r : r) * 4; if (f >= 2 && f <= 5 && r >= 2 && r <= 5) v += 6; if (!k && (Rules.side(p) === 'l' ? r === 7 : r === 0)) v += 8;
+      sc += own ? v : -v; }
+    return sc;
+  },
+  search(s, v, d, a, b, me) {
+    const ms = Rules.moves(s, v);
+    if (!ms.length) return s.turn === me ? -10000 - d : 10000 + d;
+    if (d <= 0 && !ms[0].caps.length) return this.ev(s, me);
+    if (d <= -6) return this.ev(s, me);
+    const max = s.turn === me;
+    for (const m of ms) { const val = this.search(Rules.apply(s, m, v), v, d - 1, a, b, me); if (max) { if (val > a) a = val; } else if (val < b) b = val; if (a >= b) break; }
+    return max ? a : b;
+  },
+  pick(s, v, lvl) {
+    const ms = Rules.moves(s, v); if (ms.length === 1) return ms[0];
+    const d = { facil: 1, medio: 4, dificil: 7 }[lvl], me = s.turn;
+    const sc = ms.map(m => ({ m, v: this.search(Rules.apply(s, m, v), v, d - 1, -1e9, 1e9, me) + (lvl === 'facil' ? Math.random() * 60 : Math.random() * 2) }));
+    sc.sort((x, y) => y.v - x.v); return sc[0].m;
+  }
+};
+
+/* ---------- Game ---------- */
+const Game = {
+  cfg: null, states: [], hist: [], keys: [], result: null,
+  get s() { return this.states[this.states.length - 1]; },
+  newGame(cfg) { this.cfg = cfg; this.states = [Rules.init(cfg.v)]; this.hist = []; this.keys = [Rules.key(this.s)]; this.result = null; View.sel = []; this.save(); View.render(); UI.turn(); this.maybeAI(); },
+  aiSide() { return this.cfg.mode === 'ai' ? (this.cfg.side === 'l' ? 'd' : 'l') : null; },
+  human() { return this.s.turn !== this.aiSide(); },
+  play(m) {
+    const n = Rules.apply(this.s, m, this.cfg.v); this.states.push(n); this.hist.push(Rules.note(m)); this.keys.push(Rules.key(n));
+    HX.sfx(m.caps.length ? 'cap' : 'move'); HX.vibrate(m.caps.length ? 20 : 8);
+    this.result = Rules.status(n, this.cfg.v, this.keys); View.sel = []; this.save(); View.render(m); UI.turn();
+    if (this.result) { this.record(); const id = this.hist.length; setTimeout(() => { if (this.result && this.hist.length === id) UI.end(); }, 600); } else this.maybeAI();
+  },
+  maybeAI() {
+    if (this.result || this.human()) return; UI.think(true);
+    setTimeout(() => { if (this.result || this.human()) return UI.think(false); const m = AI.pick(this.s, this.cfg.v, this.cfg.diff); UI.think(false); this.play(m); }, 380);
+  },
+  undo() {
+    if (!this.hist.length) return HX.toast('Nada para desfazer');
+    let n = 1; if (this.cfg.mode === 'ai') { n = this.s.turn === this.aiSide() && !this.result ? 1 : 2; while (n < this.hist.length && this.states[this.states.length - 1 - n].turn === this.aiSide()) n++; }
+    n = Math.min(n, this.hist.length); for (let i = 0; i < n; i++) { this.states.pop(); this.hist.pop(); this.keys.pop(); }
+    this.result = null; View.sel = []; this.save(); View.render(); UI.turn(); this.maybeAI();
+  },
+  record() { const st = S.get('stats', {}), k = this.cfg.mode === 'ai' ? this.cfg.diff : 'pvp', r = this.result; st[k] = st[k] || { w: 0, l: 0, d: 0 }; const o = !r.win ? 'd' : this.cfg.mode !== 'ai' || r.win === this.cfg.side ? 'w' : 'l'; st[k][o]++; S.set('stats', st); },
+  save() { S.set('cur', { cfg: this.cfg, states: this.states.slice(-120), hist: this.hist.slice(-119), keys: this.keys.slice(-120), result: this.result }); S.hub(this.result ? null : `Em andamento · ${VARS[this.cfg.v].name} · ${this.cfg.mode === 'ai' ? 'contra IA' : '2 jogadores'}`); },
+  load() { const c = S.get('cur', null); if (!c || !c.cfg) return false; Object.assign(this, { cfg: c.cfg, states: c.states, hist: c.hist, keys: c.keys, result: c.result }); return true; }
+};
+
+/* ---------- View & entrada: toque na peça, depois em cada casa do caminho (ou direto no destino) ---------- */
+const View = {
+  sel: [], board: null, flip: false,
+  init() { this.board = HX.$('#board'); new ResizeObserver(() => this.fit()).observe(HX.$('#stage')); this.fit(); this.board.addEventListener('pointerdown', e => this.tap(e)); },
+  fit() { const st = HX.$('#stage'); document.documentElement.style.setProperty('--sq', Math.max(32, Math.floor(Math.min(st.clientWidth - 14, st.clientHeight - 14, 620) / 8)) + 'px'); },
+  idx(v) { return this.flip ? 63 - v : v; },
+  legal() { return Rules.moves(Game.s, Game.cfg.v); },
+  matching() { const L = this.legal(), p = this.sel; return L.filter(m => p.every((x, k) => m.path[k] === x)); },
+  render(lastMove) {
+    const s = Game.s, L = this.legal(), movable = new Set(L.map(m => m.path[0])), M = this.sel.length ? this.matching() : [], tg = new Set(M.map(m => m.path[this.sel.length]).filter(x => x !== undefined));
+    const lm = lastMove || this._last; if (lastMove) this._last = lastMove; if (!Game.hist.length) this._last = null;
+    let h = '';
+    for (let v = 0; v < 64; v++) {
+      const i = this.idx(v), dark = ((i >> 3) + (i & 7)) % 2 === 1, p = s.b[i];
+      const cls = ['sq', dark ? 'd' : 'l', this._last && this._last.path.includes(i) ? 'last' : '', this.sel.includes(i) ? 'path' : '', tg.has(i) ? 'tg' : ''].join(' ');
+      let pz = ''; if (p) { const side = p.toLowerCase() === 'l' ? 'L' : 'D'; pz = `<div class="pz ${side} ${Rules.king(p) ? 'K' : ''} ${this.sel[0] === i ? 'sel' : ''} ${!Game.result && Game.human() && !this.sel.length && movable.has(i) && L[0].caps.length ? 'can' : ''}"></div>`; }
+      h += `<div class="${cls}" data-i="${i}">${pz}</div>`;
+    }
+    this.board.innerHTML = h;
+    const cnt = c => s.b.filter(p => Rules.side(p) === c).length; HX.$('#c-L').textContent = cnt('l'); HX.$('#c-D').textContent = cnt('d');
+    const st = HX.$('#strip'); st.innerHTML = Game.hist.map((t, k) => `${k % 2 === 0 ? `<b>${k / 2 + 1}.</b>` : ''}<span class="${k === Game.hist.length - 1 ? 'cur' : ''}">${t}</span>`).join(' ') || `<span class="var">${VARS[Game.cfg.v].name}</span> <span>${L[0] && L[0].caps.length ? 'Captura obrigatória!' : 'Toque numa peça destacada para mover.'}</span>`; st.scrollLeft = st.scrollWidth;
+  },
+  tap(e) {
+    if (Game.result || !Game.human() || HX.isOpen()) return; const el = e.target.closest('.sq'); if (!el) return; const i = +el.dataset.i;
+    const L = this.legal();
+    if (this.sel.length) {
+      const M = this.matching(), nx = M.filter(m => m.path[this.sel.length] === i), full = M.filter(m => m.path[m.path.length - 1] === i);
+      if (full.length === 1) return Game.play(full[0]);
+      if (nx.length) { this.sel.push(i); const M2 = this.matching(); if (M2.length === 1 && M2[0].path.length === this.sel.length) return Game.play(M2[0]); HX.sfx('tap'); return this.render(); }
+      if (full.length > 1) { HX.toast('Mais de um caminho: toque casa por casa'); return; }
+    }
+    if (L.some(m => m.path[0] === i)) { this.sel = [i]; HX.sfx('tap'); }
+    else { if (Rules.side(Game.s.b[i]) === Game.s.turn && L.length && L[0].caps.length) HX.toast('Captura obrigatória com outra peça'); this.sel = []; }
+    this.render();
+  }
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  dn: { facil: 'fácil', medio: 'médio', dificil: 'difícil' },
+  init() {
+    View.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-hist').onclick = () => this.hist(); HX.$('#t-rules').onclick = () => this.rules(); HX.$('#t-new').onclick = () => this.setup(); HX.$('#menu').onclick = () => this.menu();
+    HX.life({ onHide: () => Game.cfg && Game.save() });
+    if (Game.load()) { View.flip = Game.cfg.mode === 'ai' && Game.cfg.side === 'd'; View.render(); this.turn(); if (Game.result) this.end(); else { HX.toast('Partida retomada'); Game.maybeAI(); } }
+    else { Game.cfg = { mode: 'ai', v: 'br', diff: 'medio', side: 'l' }; Game.states = [Rules.init('br')]; View.render(); this.turn(); this.setup(); }
+  },
+  turn() {
+    const ai = Game.aiSide(), c = Game.cfg;
+    for (const x of ['l', 'd']) { HX.$('#n-' + x.toUpperCase()).textContent = ai === x ? `IA (${this.dn[c.diff]})` : (c.mode === 'ai' ? 'Você · ' : '') + (x === 'l' ? 'Claras' : 'Escuras'); HX.$('#p-' + x.toUpperCase()).classList.toggle('on', !Game.result && Game.s.turn === x); }
+    HX.$('.turnbar').style.flexDirection = View.flip ? 'row-reverse' : 'row';
+  },
+  think(on) { const ai = Game.aiSide(); if (ai) HX.$('#n-' + ai.toUpperCase()).textContent = on ? 'IA pensando…' : `IA (${this.dn[Game.cfg.diff]})`; },
+  setup() {
+    HX.setup({ title: 'Checkers', text: 'Escolha a variante de regras. As regras de uma variante nunca se misturam com as da outra.', values: S.get('cfg', {}),
+      groups: [{ key: 'v', label: 'Variante', opts: [['br', 'Brasileira'], ['us', 'Americana']] }, { key: 'mode', label: 'Modo', opts: [['ai', 'Contra IA'], ['pvp', '2 jogadores']] }, { key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil'], ['medio', 'Médio'], ['dificil', 'Difícil']], show: x => x.mode === 'ai' }, { key: 'side', label: 'Você joga com', opts: [['l', 'Claras'], ['d', 'Escuras']], show: x => x.mode === 'ai' }],
+      start: 'Nova partida', help: this.helpItems(),
+      onStart: x => { S.set('cfg', x); View.flip = x.mode === 'ai' && x.side === 'd'; Game.newGame(Object.assign({}, x)); } });
+  },
+  helpItems() { return ['Toque numa peça e depois na casa de destino. Em capturas múltiplas, toque direto no destino final ou casa por casa.', 'Quando há captura disponível, ela é obrigatória — as peças que podem capturar ficam destacadas.', 'A peça que chega à última fileira vira dama (♛).', 'Vence quem capturar todas as peças adversárias ou deixar o adversário sem lances.', 'Toque em “Regras” para ver os detalhes da variante escolhida.']; },
+  rules() {
+    const v = Game.cfg.v, items = v === 'br'
+      ? ['Variante <b>Brasileira</b> (tabuleiro 8×8, 12 peças cada). As claras começam.', 'Peões andam uma casa na diagonal para frente, mas capturam para frente e para trás.', 'Damas são de longo alcance: andam e capturam a qualquer distância na diagonal.', 'Captura obrigatória pela <b>lei da maioria</b>: é preciso escolher a sequência que captura mais peças.', 'Peças capturadas só saem no fim do lance e não podem ser puladas duas vezes.', 'O peão só é promovido se terminar o lance na última fileira.', 'Empate: 20 lances de cada lado só com damas e sem captura, ou posição repetida três vezes.']
+      : ['Variante <b>Americana</b> (inglesa), tabuleiro 8×8, 12 peças cada. As escuras começam.', 'Peões andam e capturam somente para frente, uma casa na diagonal.', 'Damas andam e capturam uma casa por vez, em qualquer direção diagonal.', 'Captura obrigatória, mas você escolhe qualquer sequência (não precisa ser a maior). Uma sequência iniciada deve ser concluída.', 'Peão que chega à última fileira vira dama e o lance termina.', 'Empate: 40 lances de cada lado sem captura nem movimento de peão, ou posição repetida três vezes.'];
+    HX.help(`Regras · ${VARS[v].name}`, items);
+  },
+  hist() {
+    const rows = []; for (let k = 0; k < Game.hist.length; k += 2) rows.push(`<li>${Game.hist[k]}${Game.hist[k + 1] ? ' &nbsp; ' + Game.hist[k + 1] : ''}</li>`);
+    const c = HX.overlay(`<h3>Lances</h3><p>${VARS[Game.cfg.v].name}</p><div class="hist">${rows.length ? `<ol>${rows.join('')}</ol>` : 'Nenhum lance ainda.'}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#ok', () => Game.result ? this.end() : HX.close());
+  },
+  menu() {
+    const st = S.get('stats', {}), cell = k => { const x = st[k] || { w: 0, l: 0, d: 0 }; return `<div><b>${x.w}/${x.d}/${x.l}</b><small>${k === 'pvp' ? '2 jog.' : this.dn[k]}</small></div>`; };
+    const c = HX.overlay(`<h3>Checkers</h3><p>Vitórias / empates / derrotas</p><div class="kv">${cell('facil')}${cell('medio')}${cell('dificil')}</div><button class="btn-primary" id="nw">Nova partida</button><div class="row2"><button class="btn" id="rl">Regras</button><button class="btn" id="snd">Som: ${HX.sound() ? 'sim' : 'não'}</button></div><button class="btn" id="cl">Continuar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#nw', () => this.setup()); HX.on(c, '#rl', () => this.rules()); HX.on(c, '#cl', () => HX.close()); HX.on(c, '#snd', () => { HX.sound(!HX.sound()); this.menu(); });
+  },
+  end() {
+    const r = Game.result, c = Game.cfg; let t = 'Empate';
+    if (r.win) t = c.mode === 'ai' ? (r.win === c.side ? 'Vitória!' : 'Derrota') : (r.win === 'l' ? 'Claras vencem' : 'Escuras vencem');
+    HX.sfx(t === 'Derrota' ? 'lose' : 'win'); S.hub(null);
+    const o = HX.overlay(`<h3>${t}</h3><p>${r.why} · ${Game.hist.length} lances · ${VARS[c.v].name}</p><button class="btn-primary" id="ag">Jogar de novo</button><div class="row2"><button class="btn" id="hs">Lances</button><button class="btn" id="bd">Ver tabuleiro</button></div>`);
+    HX.on(o, '#ag', () => this.setup()); HX.on(o, '#hs', () => this.hist()); HX.on(o, '#bd', () => HX.close());
+  }
+};
+UI.init(); HX.sw();
+window.CK = { Rules, AI, Game, View, UI, S, VARS };
+</script>
+</body>
+</html>
