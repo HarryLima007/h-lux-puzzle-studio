@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d0b14">
+<title>H-LUX Word Master</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0d0b14;--bg2:radial-gradient(ellipse at 50% 0%,#221c33 0%,#0d0b14 64%);--t:54px;--ok:#d9a73a;--near:#3f7fd9;--no:#2a2833}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;height:100%;justify-content:space-between}
+.info{font-size:11.5px;letter-spacing:1.4px;font-weight:800;color:var(--accent2);text-transform:uppercase;text-align:center;min-height:16px}
+.board{display:grid;gap:6px}
+.row{display:grid;gap:6px}
+.row.shake{animation:sh .4s}@keyframes sh{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.t{width:var(--t);height:var(--t);border-radius:10px;border:2px solid #3a3648;display:flex;align-items:center;justify-content:center;font-size:calc(var(--t)*.5);font-weight:800;color:#f4efe2;background:#16141d;text-transform:uppercase;transition:transform .3s}
+.t.fill{border-color:#77708c;animation:pop .12s}@keyframes pop{50%{transform:scale(1.08)}}
+.t.ok,.t.near,.t.no{border-color:transparent;animation:flip .5s both}
+.t.ok{background:linear-gradient(160deg,#f0c65a,#b88a24);color:#1a1408}
+.t.near{background:linear-gradient(160deg,#5c98ef,#2f62b8)}
+.t.no{background:var(--no);color:#8d889c}
+.t.rev{box-shadow:0 0 0 2px #f1dca6 inset}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
+.kb{display:flex;flex-direction:column;gap:6px;width:min(100%,560px)}
+.kr{display:flex;gap:5px;justify-content:center}
+.k{flex:1;max-width:44px;min-height:52px;border-radius:8px;border:0;background:#3a3648;color:#f4efe2;font-weight:800;font-size:16px;text-transform:uppercase;padding:0}
+.k.w{max-width:70px;flex:1.6;font-size:12px}
+.k.ok{background:#c99a2e;color:#1a1408}.k.near{background:#3f7fd9}.k.no{background:#1c1a23;color:#5d586b}
+#hx-toast{top:calc(max(10px,env(safe-area-inset-top)) + 118px);bottom:auto}
+.dist{display:flex;flex-direction:column;gap:4px;text-align:left;margin:8px 0}
+.dist div{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700}
+.dist i{display:block;height:18px;background:#3a3648;border-radius:4px;min-width:20px;text-align:right;padding-right:6px;font-style:normal;line-height:18px}
+.dist i.me{background:#c99a2e;color:#1a1408}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Word <b>Master</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Modo</small><b id="mode">—</b></div><div class="sc"><small>Sequência</small><b id="streak">0</b></div><div class="sc"><small>Vitórias</small><b id="wins">0</b></div><div class="sc"><small>Pontos</small><b id="pts">0</b></div></div>
+  <div class="stage" id="stage"><div class="wrap"><div class="info" id="info"></div><div class="board" id="board"></div><div class="kb" id="kb"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Pista<span class="badge" id="b-hint"></span></button>
+    <button class="tool" id="t-new"><svg class="i"><path d="M12 5v14M5 12h14"/></svg>Nova</button>
+    <button class="tool" id="t-stats"><svg class="i"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Estatísticas</button>
+    <button class="tool" id="t-help"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Ajuda</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script src="../shared/palavras.js"></script>
+<script>
+'use strict';
+/* H-LUX WORD MASTER v1.0 — descubra a palavra secreta. Vocabulário próprio em português (shared/palavras.js).
+   Ouro = letra certa no lugar certo; azul = letra existe em outra posição; cinza = não existe. Acentos são ignorados.
+   Módulos: Words · Rules · Game · View · UI */
+const S = HX.store('wordmaster');
+const norm = w => w.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+const DIFF = { facil: { n: 'Fácil', len: 4, tries: 7, mult: 1 }, medio: { n: 'Médio', len: 5, tries: 6, mult: 2 }, dificil: { n: 'Difícil', len: 6, tries: 6, mult: 3 } };
+const Words = {
+  valid: {}, byCat: {},
+  init() {
+    for (const [n, s] of Object.entries(HLUX_WORDS.VALID)) this.valid[n] = new Set(s.split(' '));
+    for (const [c, ws] of Object.entries(HLUX_WORDS.CATS)) for (const w of ws) { const x = norm(w); if (!/^[A-Z]+$/.test(x)) continue; ((this.byCat[c] = this.byCat[c] || {})[x.length] = this.byCat[c][x.length] || []).push({ w, x }); }
+  },
+  cats(len) { return Object.keys(this.byCat).filter(c => (this.byCat[c][len] || []).length >= 6); },
+  pool(len, cat) { if (cat && cat !== 'todas') return (this.byCat[cat][len] || []).map(o => Object.assign({ c: cat }, o)); const o = []; for (const c of Object.keys(this.byCat)) for (const x of this.byCat[c][len] || []) o.push(Object.assign({ c }, x)); const seen = new Set(); return o.filter(q => !seen.has(q.x) && seen.add(q.x)); }
+};
+const Rules = {
+  // avaliação com letras repetidas: primeiro as certas, depois as presentes conforme a contagem restante
+  score(guess, ans) {
+    const r = Array(ans.length).fill('no'), left = {};
+    for (let i = 0; i < ans.length; i++) { if (guess[i] === ans[i]) r[i] = 'ok'; else left[ans[i]] = (left[ans[i]] || 0) + 1; }
+    for (let i = 0; i < ans.length; i++) if (r[i] !== 'ok' && left[guess[i]]) { r[i] = 'near'; left[guess[i]]--; }
+    return r;
+  }
+};
+const Game = {
+  cfg: null, ans: null, rows: [], cur: '', done: false, won: false, hints: 2, revealed: [], showCat: false, daily: null, score: 0,
+  start(cfg, opt = {}) {
+    HX.close(); this.cfg = cfg; const D = DIFF[cfg.diff];
+    let pool = Words.pool(D.len, cfg.cat); if (!pool.length) pool = Words.pool(D.len, 'todas');
+    if (opt.daily) { const rnd = HX.rng(opt.seed); this.ans = pool[Math.floor(rnd() * pool.length)]; this.daily = opt.daily; }
+    else { const recent = S.get('recent', []); const fresh = pool.filter(p => !recent.includes(p.x)); const src = fresh.length ? fresh : pool; this.ans = src[Math.floor(Math.random() * src.length)]; recent.push(this.ans.x); S.set('recent', recent.slice(-120)); this.daily = null; }
+    this.rows = []; this.cur = ''; this.done = false; this.won = false; this.hints = 2; this.revealed = []; this.showCat = cfg.cat !== 'todas'; this.score = 0;
+    View.build(); this.save(); UI.hud();
+  },
+  get len() { return this.ans.x.length; }, get tries() { return DIFF[this.cfg.diff].tries; },
+  type(ch) { if (this.done || this.cur.length >= this.len) return; this.cur += ch; HX.sfx('tap'); View.typed(); },
+  back() { if (this.done || !this.cur) return; this.cur = this.cur.slice(0, -1); View.typed(); },
+  enter() {
+    if (this.done) return; if (this.cur.length < this.len) { View.shake(); return HX.toast(`A palavra tem ${this.len} letras`); }
+    if (UI.cfg.strict && !(Words.valid[this.len] && Words.valid[this.len].has(this.cur)) && this.cur !== this.ans.x) { View.shake(); return HX.toast('Palavra fora do dicionário H-LUX'); }
+    if (this.rows.some(r => r.g === this.cur)) { View.shake(); return HX.toast('Você já tentou essa palavra'); }
+    const r = Rules.score(this.cur, this.ans.x); this.rows.push({ g: this.cur, r }); this.cur = ''; HX.sfx('move');
+    const win = r.every(x => x === 'ok');
+    View.reveal(this.rows.length - 1, () => { View.keys(); if (win) this.finish(true); else if (this.rows.length >= this.tries) this.finish(false); });
+    this.save();
+  },
+  hint() {
+    if (this.done) return; if (this.hints <= 0) return HX.toast('Sem pistas nesta palavra');
+    if (!this.showCat) { this.showCat = true; this.hints--; HX.sfx('power'); UI.hud(); this.save(); return HX.toast(`Tema: ${this.ans.c}`); }
+    const known = new Set(); this.rows.forEach(row => row.r.forEach((x, i) => { if (x === 'ok') known.add(i); })); this.revealed.forEach(i => known.add(i));
+    const free = [...Array(this.len).keys()].filter(i => !known.has(i)); if (!free.length) return HX.toast('Você já sabe todas as posições');
+    const i = free[Math.floor(Math.random() * free.length)]; this.revealed.push(i); this.hints--; HX.sfx('power'); HX.toast(`A ${i + 1}ª letra é ${this.ans.x[i]}`); View.typed(); UI.hud(); this.save();
+  },
+  finish(won) {
+    this.done = true; this.won = won; const D = DIFF[this.cfg.diff];
+    this.score = won ? Math.max(10, (this.tries - this.rows.length + 1) * 25 * D.mult - (2 - this.hints) * 15 * D.mult) : 0;
+    const st = this.stats(); st.played++; if (won) { st.wins++; st.streak++; st.max = Math.max(st.max, st.streak); st.dist[this.rows.length] = (st.dist[this.rows.length] || 0) + 1; st.pts += this.score; } else st.streak = 0;
+    S.set('stats', st); if (this.daily) { const d = S.get('daily', {}); d[this.daily] = { won, n: this.rows.length }; S.set('daily', d); }
+    S.del('cur'); S.hub(null); HX.sfx(won ? 'win' : 'lose'); UI.hud(); setTimeout(() => UI.end(), 700);
+  },
+  stats() { return Object.assign({ played: 0, wins: 0, streak: 0, max: 0, dist: {}, pts: 0 }, S.get('stats', {})); },
+  save() { if (this.done) return; S.set('cur', { cfg: this.cfg, ans: this.ans, rows: this.rows, hints: this.hints, revealed: this.revealed, showCat: this.showCat, daily: this.daily }); S.hub(`Em andamento · ${DIFF[this.cfg.diff].n}${this.daily ? ' · palavra do dia' : ''} · ${this.rows.length}/${this.tries}`); },
+  load() { const c = S.get('cur', null); if (!c || !c.ans) return false; Object.assign(this, { cfg: c.cfg, ans: c.ans, rows: c.rows, hints: c.hints, revealed: c.revealed, showCat: c.showCat, daily: c.daily, cur: '', done: false }); View.build(true); return true; }
+};
+const View = {
+  build(restore) {
+    const n = Game.len, T = Game.tries, b = HX.$('#board');
+    b.innerHTML = Array.from({ length: T }, (_, r) => `<div class="row" style="grid-template-columns:repeat(${n},var(--t))">${Array.from({ length: n }, () => '<div class="t"></div>').join('')}</div>`).join('');
+    Game.rows.forEach((row, k) => { const ts = b.children[k].children; row.g.split('').forEach((ch, i) => { ts[i].textContent = ch; ts[i].className = 't ' + row.r[i]; ts[i].style.animationDelay = '0s'; }); });
+    this.fit(); this.typed(); this.keys();
+  },
+  fit() { const st = HX.$('#stage'), n = Game.len, T = Game.tries; const kbH = 3 * 58 + 20, infoH = 26; const t = Math.floor(Math.min((st.clientWidth - 16 - (n - 1) * 6) / n, (st.clientHeight - kbH - infoH - (T - 1) * 6 - 10) / T, 64)); document.documentElement.style.setProperty('--t', Math.max(30, t) + 'px'); },
+  typed() {
+    if (Game.done) return; const r = Game.rows.length; if (r >= Game.tries) return; const ts = HX.$('#board').children[r].children;
+    for (let i = 0; i < Game.len; i++) { const ch = Game.cur[i]; const hint = !ch && Game.revealed.includes(i) ? Game.ans.x[i] : ''; ts[i].textContent = ch || hint; ts[i].className = 't' + (ch ? ' fill' : '') + (Game.revealed.includes(i) ? ' rev' : ''); ts[i].style.color = hint ? '#6f6886' : ''; }
+    HX.$('#info').textContent = (Game.daily ? 'Palavra do dia · ' : '') + `${Game.len} letras · ${Game.showCat ? 'tema: ' + Game.ans.c : 'tema oculto'}`;
+  },
+  reveal(k, done) {
+    const ts = HX.$('#board').children[k].children, row = Game.rows[k];
+    row.g.split('').forEach((ch, i) => { ts[i].textContent = ch; ts[i].style.color = ''; ts[i].style.animationDelay = (i * .18) + 's'; ts[i].className = 't ' + row.r[i]; });
+    setTimeout(() => { this.typed(); done(); }, Game.len * 180 + 380);
+  },
+  shake() { const r = HX.$('#board').children[Game.rows.length]; if (!r) return; r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); HX.vibrate(20); },
+  keys() {
+    const st = {}; const rank = { no: 0, near: 1, ok: 2 }; Game.rows.forEach(row => row.g.split('').forEach((ch, i) => { const v = row.r[i]; if (!(ch in st) || rank[v] > rank[st[ch]]) st[ch] = v; }));
+    HX.$('#kb').querySelectorAll('[data-k]').forEach(b => { const k = b.dataset.k; b.className = 'k' + (k.length > 1 ? ' w' : '') + (st[k] ? ' ' + st[k] : ''); });
+  },
+  kb() {
+    const rows = ['QWERTYUIOP', 'ASDFGHJKL', '>ZXCVBNM<'];
+    HX.$('#kb').innerHTML = rows.map(r => `<div class="kr">${r.split('').map(c => c === '>' ? '<button class="k w" data-k="ENTER">Enviar</button>' : c === '<' ? '<button class="k w" data-k="BACK" aria-label="Apagar">⌫</button>' : `<button class="k" data-k="${c}">${c}</button>`).join('')}</div>`).join('');
+    HX.$('#kb').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b || HX.isOpen()) return; const k = b.dataset.k; if (k === 'ENTER') Game.enter(); else if (k === 'BACK') Game.back(); else Game.type(k); });
+  }
+};
+const UI = {
+  cfg: { strict: false },
+  init() {
+    Words.init(); this.cfg = Object.assign(this.cfg, S.get('opts', {})); View.kb();
+    HX.$('#t-hint').onclick = () => Game.hint(); HX.$('#t-new').onclick = () => this.home(); HX.$('#menu').onclick = () => this.home(); HX.$('#t-stats').onclick = () => this.statsView(); HX.$('#t-help').onclick = () => HX.help('Como jogar', this.helpItems);
+    addEventListener('keydown', e => { if (HX.isOpen() || !Game.ans || e.ctrlKey || e.metaKey) return; if (e.key === 'Enter') Game.enter(); else if (e.key === 'Backspace') Game.back(); else { const k = norm(e.key); if (/^[A-Z]$/.test(k)) Game.type(k); } });
+    new ResizeObserver(() => Game.ans && View.fit()).observe(HX.$('#stage'));
+    HX.life({ onHide: () => Game.ans && Game.save() });
+    if (Game.load()) { this.hud(); HX.toast('Partida retomada'); } else this.home();
+  },
+  today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  hud() { const st = Game.stats(); HX.$('#mode').textContent = Game.daily ? 'Diário' : Game.cfg ? DIFF[Game.cfg.diff].n : '—'; HX.$('#streak').textContent = st.streak; HX.$('#wins').textContent = st.wins; HX.$('#pts').textContent = st.pts; HX.$('#b-hint').textContent = Game.hints; },
+  helpItems: ['Descubra a palavra secreta em português. Digite uma palavra com o número certo de letras e toque em Enviar.', 'Cada letra muda de cor: DOURADO = letra certa no lugar certo; AZUL = a letra existe, mas em outra posição; CINZA = a letra não está na palavra.', 'Acentos e cedilha são ignorados: CORAÇÃO se escreve CORACAO.', 'Fácil: 4 letras e 7 tentativas. Médio: 5 letras e 6 tentativas. Difícil: 6 letras e 6 tentativas.', 'Pistas (2 por palavra): a primeira mostra o tema; a seguinte revela uma letra na posição certa. Pistas reduzem os pontos.', 'A palavra do dia é igual para todos no mesmo dia e só pode ser jogada uma vez.', 'Por padrão qualquer combinação de letras é aceita. Nas opções você pode exigir palavras do dicionário H-LUX.'],
+  home() {
+    const d = S.get('daily', {})[this.today()], last = S.get('cfg', { diff: 'medio', cat: 'todas' });
+    const cats = [['todas', 'Todos os temas']].concat([...new Set([4, 5, 6].flatMap(n => Words.cats(n)))].map(x => [x, x]));
+    const c = HX.setup({ title: 'Word Master', text: 'Adivinhe a palavra secreta em português.', values: last,
+      groups: [{ key: 'diff', label: 'Dificuldade', opts: [['facil', 'Fácil · 4'], ['medio', 'Médio · 5'], ['dificil', 'Difícil · 6']] }, { key: 'cat', label: 'Tema', opts: cats }],
+      start: 'Nova palavra', extra: `<button class="btn-primary" id="dl" style="margin-top:8px">${d ? `Palavra do dia: ${d.won ? 'acertou em ' + d.n : 'não acertou'}` : 'Palavra do dia'}</button><button class="btn" id="op">Opções</button>`, help: this.helpItems,
+      onStart: x => { const ok = Words.cats(DIFF[x.diff].len); if (x.cat !== 'todas' && !ok.includes(x.cat)) { HX.toast(`O tema ${x.cat} não tem palavras suficientes desse tamanho; usando todos os temas`); x.cat = 'todas'; } S.set('cfg', x); S.del('cur'); Game.start(x); } });
+    HX.on(c, '#dl', () => { if (d) return HX.toast('Volte amanhã para uma nova palavra do dia'); S.del('cur'); const t = this.today(); Game.start({ diff: 'medio', cat: 'todas' }, { daily: t, seed: +t.replace(/-/g, '') * 7 }); });
+    HX.on(c, '#op', () => HX.setup({ title: 'Opções', values: this.cfg, groups: [{ key: 'strict', label: 'Tentativas aceitas', opts: [[false, 'Qualquer palavra'], [true, 'Só do dicionário H-LUX']] }], start: 'Salvar', onStart: x => { this.cfg = x; S.set('opts', x); this.home(); } }));
+  },
+  statsView() {
+    const st = Game.stats(), mx = Math.max(1, ...Object.values(st.dist)), T = Math.max(7, ...Object.keys(st.dist).map(Number));
+    const c = HX.overlay(`<h3>Estatísticas</h3><div class="kv"><div><b>${st.played}</b><small>Jogos</small></div><div><b>${st.played ? Math.round(st.wins / st.played * 100) : 0}%</b><small>Vitórias</small></div><div><b>${st.max}</b><small>Maior sequência</small></div></div><p>Acertos por tentativa</p><div class="dist">${Array.from({ length: T }, (_, k) => k + 1).map(k => `<div>${k}<i class="${Game.done && Game.won && Game.rows.length === k ? 'me' : ''}" style="width:${Math.max(8, (st.dist[k] || 0) / mx * 90)}%">${st.dist[k] || 0}</i></div>`).join('')}</div><button class="btn-primary" id="ok">Fechar</button>`, { guard: false, dismiss: () => {} });
+    HX.on(c, '#ok', () => HX.close());
+  },
+  end() {
+    const c = HX.overlay(`<h3>${Game.won ? 'Acertou!' : 'Não foi desta vez'}</h3><p>A palavra era <b style="color:var(--accent2);font-size:20px;letter-spacing:2px">${HX.esc(Game.ans.w.toUpperCase())}</b> · tema ${HX.esc(Game.ans.c)}</p><div class="kv"><div><b>${Game.won ? Game.rows.length + '/' + Game.tries : '—'}</b><small>Tentativas</small></div><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.stats().streak}</b><small>Sequência</small></div></div><button class="btn-primary" id="nx">Nova palavra</button><div class="row2"><button class="btn" id="st">Estatísticas</button><button class="btn" id="hm">Mudar modo</button></div>`);
+    HX.on(c, '#nx', () => Game.start(Game.daily ? { diff: 'medio', cat: 'todas' } : Game.cfg)); HX.on(c, '#st', () => this.statsView()); HX.on(c, '#hm', () => this.home());
+  }
+};
+UI.init(); HX.sw();
+window.WM = { Words, Rules, Game, View, UI, S, DIFF };
+</script>
+</body>
+</html>

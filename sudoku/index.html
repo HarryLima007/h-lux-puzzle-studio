@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0c12">
+<title>H-LUX Sudoku</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0a0c12;--bg2:radial-gradient(ellipse at 50% 0%,#1a1f2e 0%,#0a0c12 64%);--c:40px}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+.grid{display:grid;grid-template-columns:repeat(9,var(--c));grid-template-rows:repeat(9,var(--c));background:#c9a45c;gap:1px;padding:2px;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.55);touch-action:manipulation;user-select:none}
+.cell{background:#12151e;display:flex;align-items:center;justify-content:center;font-size:calc(var(--c)*.56);font-weight:700;color:#8fb4ff;position:relative;cursor:pointer}
+.cell.g{color:#f1e7cf;font-weight:800}
+.cell.c3{margin-right:2px}.cell.r3{margin-bottom:2px}
+.cell.peer{background:#181d2a}.cell.same{background:#26304a}.cell.sel{background:#3b3220;box-shadow:inset 0 0 0 2px #c9a45c}
+.cell.err{color:#ff6b6b}.cell.conf{background:#3a1717}
+.cell.hint{animation:hn .9s ease}@keyframes hn{0%{background:#5b4a1f}}
+.notes{position:absolute;inset:2px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);font-size:calc(var(--c)*.24);font-weight:700;color:#8b93a8;line-height:1}
+.notes span{display:flex;align-items:center;justify-content:center}
+.notes span.hl{color:#f1dca6}
+.pad{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;width:min(100%,calc(var(--c)*9 + 20px))}
+.pad button{min-height:52px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-size:22px;font-weight:800;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.pad button small{font-size:10px;color:var(--muted);font-weight:700;margin-top:2px}
+.pad button.done{opacity:.3}
+.pad button.notes-on{color:var(--accent2)}
+.tool.on{border-color:var(--accent);color:var(--accent2)}
+#hx-toast{top:calc(max(10px,env(safe-area-inset-top)) + 118px);bottom:auto}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Sudo<b>ku</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Nível</small><b id="lvl">—</b></div><div class="sc"><small>Erros</small><b id="err">0</b></div><div class="sc"><small>Tempo</small><b id="time">0:00</b></div><div class="sc"><small>Pontos</small><b id="pts">0</b></div></div>
+  <div class="stage" id="stage"><div class="wrap"><div class="grid" id="grid"></div><div class="pad" id="pad"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-undo"><svg class="i"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>Desfazer</button>
+    <button class="tool" id="t-erase"><svg class="i"><path d="M20 20H9L4 15l9-9 7 7-6 6"/><path d="M8 11l6 6"/></svg>Apagar</button>
+    <button class="tool" id="t-notes"><svg class="i"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Notas</button>
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica<span class="badge" id="b-hint"></span></button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* H-LUX SUDOKU v1.0 — gerador com solução única (resolvedor com contagem de soluções) e
+   classificação por técnica: fácil/médio resolvem só com "candidato único" e "único lugar";
+   difícil/especialista exigem mais. Módulos: Solver · Gen · Game · View · UI */
+const S = HX.store('sudoku');
+const LV = { facil: { n: 'Fácil', clues: 38, mult: 1 }, medio: { n: 'Médio', clues: 31, mult: 2 }, dificil: { n: 'Difícil', clues: 26, mult: 3 }, expert: { n: 'Especialista', s: 'Expert', clues: 22, mult: 5 } };
+const R = i => Math.floor(i / 9), C = i => i % 9, B = i => Math.floor(R(i) / 3) * 3 + Math.floor(C(i) / 3);
+const PEERS = Array.from({ length: 81 }, (_, i) => { const s = new Set(); for (let j = 0; j < 81; j++) if (j !== i && (R(j) === R(i) || C(j) === C(i) || B(j) === B(i))) s.add(j); return [...s]; });
+const UNITS = []; for (let k = 0; k < 9; k++) { UNITS.push(Array.from({ length: 9 }, (_, j) => k * 9 + j)); UNITS.push(Array.from({ length: 9 }, (_, j) => j * 9 + k)); UNITS.push(Array.from({ length: 9 }, (_, j) => (Math.floor(k / 3) * 3 + Math.floor(j / 3)) * 9 + (k % 3) * 3 + j % 3)); }
+const Solver = {
+  cand(g, i) { let m = 0x3fe; for (const j of PEERS[i]) if (g[j]) m &= ~(1 << g[j]); return m; },
+  bits: m => { const o = []; for (let d = 1; d <= 9; d++) if (m & (1 << d)) o.push(d); return o; },
+  // conta soluções até "limit"; preenche "out" com a primeira encontrada
+  count(g0, limit = 2, out = null, rnd = null) {
+    const g = g0.slice(); let n = 0;
+    const rec = () => {
+      let best = -1, bm = 0, bc = 10;
+      for (let i = 0; i < 81; i++) if (!g[i]) { const m = this.cand(g, i), c = this.bits(m).length; if (c < bc) { bc = c; best = i; bm = m; if (c <= 1) break; } }
+      if (best < 0) { n++; if (out && n === 1) out.push(...g); return n >= limit; }
+      if (!bc) return false;
+      let ds = this.bits(bm); if (rnd) ds = HX.shuffle(ds, rnd);
+      for (const d of ds) { g[best] = d; if (rec()) return true; } g[best] = 0; return false;
+    };
+    rec(); return n;
+  },
+  // resolvedor lógico: só candidato único + único lugar na unidade. Devolve se resolveu.
+  logic(g0) {
+    const g = g0.slice(); let prog = true;
+    while (prog) { prog = false;
+      for (let i = 0; i < 81; i++) if (!g[i]) { const b = this.bits(this.cand(g, i)); if (!b.length) return false; if (b.length === 1) { g[i] = b[0]; prog = true; } }
+      for (const u of UNITS) for (let d = 1; d <= 9; d++) { if (u.some(i => g[i] === d)) continue; const spots = u.filter(i => !g[i] && (this.cand(g, i) & (1 << d))); if (spots.length === 1) { g[spots[0]] = d; prog = true; } }
+    }
+    return g.every(Boolean);
+  }
+};
+const Gen = {
+  make(lvl, seed) {
+    const rnd = HX.rng(seed), L = LV[lvl];
+    let hard = null;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const full = []; Solver.count(Array(81).fill(0), 1, full, rnd);
+      const g = full.slice(), order = HX.shuffle([...Array(81).keys()], rnd);
+      let clues = 81;
+      for (const i of order) {
+        if (clues <= L.clues) break; const sym = 80 - i; if (!g[i]) continue;
+        const keep = [g[i], g[sym]]; g[i] = 0; g[sym] = 0;
+        if (Solver.count(g, 2) !== 1 || ((lvl === 'facil' || lvl === 'medio') && !Solver.logic(g))) { g[i] = keep[0]; g[sym] = keep[1]; continue; }
+        clues -= i === sym ? 1 : 2;
+      }
+      const easy = Solver.logic(g);
+      if (lvl === 'facil' || lvl === 'medio') { if (clues <= L.clues + 3) return { g, sol: full, clues }; continue; }
+      // difícil e especialista: não podem ser resolvidos só com as técnicas simples
+      if (!easy && clues <= L.clues + 3) return { g, sol: full, clues };
+      if (!easy && (!hard || clues < hard.clues)) hard = { g, sol: full, clues };
+    }
+    if (hard) return hard;
+    // segurança: devolve o último válido (sempre com solução única)
+    const full = []; Solver.count(Array(81).fill(0), 1, full, rnd); const g = full.slice(); for (const i of HX.shuffle([...Array(81).keys()], rnd)) { const k = g[i]; g[i] = 0; if (Solver.count(g, 2) !== 1) g[i] = k; if (g.filter(Boolean).length <= L.clues) break; }
+    return { g, sol: full, clues: g.filter(Boolean).length };
+  }
+};
+const Game = {
+  P: null, v: null, notes: null, lvl: 'medio', daily: null, sel: -1, noteMode: false, errors: 0, hints: 3, hist: [], timer: HX.timer(), done: false, score: 0,
+  start(lvl, opt = {}) {
+    HX.close(); if (!opt.now) { HX.toast('Gerando grade…', 900); return setTimeout(() => this.start(lvl, Object.assign({}, opt, { now: true })), 40); }
+    this.lvl = lvl; this.daily = opt.daily || null; const seed = opt.seed || (Date.now() % 1e9);
+    this.P = Gen.make(lvl, seed); this.v = this.P.g.slice(); this.notes = Array(81).fill(0); this.sel = this.v.findIndex(x => !x); this.errors = 0; this.hints = 3; this.hist = []; this.done = false; this.score = 0; this.noteMode = false;
+    this.timer = HX.timer(); this.timer.start(() => UI.clock()); this.save(); View.render(); UI.hud();
+    const st = S.get('stats', {}); st[lvl] = st[lvl] || { played: 0, won: 0, best: 0 }; st[lvl].played++; S.set('stats', st);
+  },
+  given(i) { return !!this.P.g[i]; },
+  snap() { this.hist.push({ v: this.v.slice(), n: this.notes.slice() }); if (this.hist.length > 300) this.hist.shift(); },
+  input(d) {
+    const i = this.sel; if (this.done || i < 0 || this.given(i)) return;
+    if (this.noteMode) { if (this.v[i]) return; this.snap(); this.notes[i] ^= 1 << d; HX.sfx('tap'); return this.after(); }
+    if (this.v[i] === d) return; this.snap(); this.v[i] = d; this.notes[i] = 0;
+    for (const j of PEERS[i]) this.notes[j] &= ~(1 << d);
+    if (d !== this.P.sol[i]) { this.errors++; HX.vibrate(30); HX.sfx('hit'); if (UI.cfg.check === 'sol') HX.toast('Número incorreto'); } else HX.sfx('move');
+    if (this.errors >= 3 && UI.cfg.limit) { this.after(); return this.lose(); }
+    this.after(); if (this.v.every((x, k) => x === this.P.sol[k])) this.win();
+  },
+  erase() { const i = this.sel; if (this.done || i < 0 || this.given(i) || (!this.v[i] && !this.notes[i])) return; this.snap(); this.v[i] = 0; this.notes[i] = 0; this.after(); },
+  undo() { if (this.done || !this.hist.length) return HX.toast('Nada para desfazer'); const h = this.hist.pop(); this.v = h.v; this.notes = h.n; this.after(); },
+  hint() {
+    if (this.done) return; if (this.hints <= 0) return HX.toast('Sem dicas nesta partida');
+    // prefere a casa selecionada se estiver vazia/errada; senão uma casa com candidato único
+    let i = this.sel >= 0 && !this.given(this.sel) && this.v[this.sel] !== this.P.sol[this.sel] ? this.sel : -1;
+    if (i < 0) { const g = this.v.map((x, k) => x === this.P.sol[k] ? x : 0); i = g.findIndex((x, k) => !x && Solver.bits(Solver.cand(g, k)).length === 1); if (i < 0) i = g.findIndex(x => !x); }
+    if (i < 0) return; this.snap(); this.hints--; this.v[i] = this.P.sol[i]; this.notes[i] = 0; for (const j of PEERS[i]) this.notes[j] &= ~(1 << this.v[i]); this.sel = i; View.flash = i; HX.sfx('power'); this.after();
+    if (this.v.every((x, k) => x === this.P.sol[k])) this.win();
+  },
+  after() { this.save(); View.render(); UI.hud(); },
+  conflicts() { const out = new Set(); for (let i = 0; i < 81; i++) if (this.v[i]) for (const j of PEERS[i]) if (this.v[j] === this.v[i]) out.add(i); return out; },
+  win() {
+    this.done = true; this.timer.stop(); const secs = Math.round(this.timer.ms / 1000), L = LV[this.lvl];
+    this.score = Math.max(100, Math.round((1000 * L.mult) - secs * L.mult * .5 - this.errors * 60 - (3 - this.hints) * 120));
+    const st = S.get('stats', {}); const s = st[this.lvl] = st[this.lvl] || { played: 1, won: 0, best: 0 }; s.won++; if (!s.best || secs < s.best) s.best = secs; s.top = Math.max(s.top || 0, this.score); S.set('stats', st);
+    if (this.daily) { const d = S.get('daily', {}); d[this.daily] = { secs, score: this.score }; S.set('daily', d); }
+    S.del('cur'); S.hub(null); HX.sfx('win'); setTimeout(() => UI.end(true, secs), 500);
+  },
+  lose() { this.done = true; this.timer.stop(); S.del('cur'); S.hub(null); HX.sfx('lose'); setTimeout(() => UI.end(false), 400); },
+  save() { if (this.done) return; S.set('cur', { P: this.P, v: this.v, notes: this.notes, lvl: this.lvl, daily: this.daily, errors: this.errors, hints: this.hints, ms: this.timer.ms }); S.hub(`Em andamento · ${LV[this.lvl].n}${this.daily ? ' · desafio do dia' : ''} · ${this.v.filter(Boolean).length}/81`); },
+  load() { const c = S.get('cur', null); if (!c || !c.P) return false; Object.assign(this, { P: c.P, v: c.v, notes: c.notes, lvl: c.lvl, daily: c.daily, errors: c.errors, hints: c.hints, hist: [], done: false, noteMode: false }); this.sel = this.v.findIndex(x => !x); this.timer = HX.timer(); this.timer.set(c.ms || 0); this.timer.start(() => UI.clock()); return true; }
+};
+const View = {
+  flash: -1,
+  init() {
+    const g = HX.$('#grid'); g.innerHTML = Array.from({ length: 81 }, (_, i) => `<div class="cell ${C(i) % 3 === 2 && C(i) < 8 ? 'c3' : ''} ${R(i) % 3 === 2 && R(i) < 8 ? 'r3' : ''}" data-i="${i}"></div>`).join('');
+    g.addEventListener('pointerdown', e => { const el = e.target.closest('.cell'); if (!el || HX.isOpen()) return; Game.sel = +el.dataset.i; HX.sfx('tap'); this.render(); });
+    HX.$('#pad').innerHTML = Array.from({ length: 9 }, (_, k) => `<button data-d="${k + 1}">${k + 1}<small></small></button>`).join('');
+    HX.$('#pad').addEventListener('click', e => { const b = e.target.closest('button'); if (b && !HX.isOpen()) Game.input(+b.dataset.d); });
+    new ResizeObserver(() => this.fit()).observe(HX.$('#stage')); this.fit();
+  },
+  fit() { const st = HX.$('#stage'); const c = Math.floor(Math.min((st.clientWidth - 16) / 9, (st.clientHeight - 80) / 9, 64)); document.documentElement.style.setProperty('--c', Math.max(28, c) + 'px'); },
+  render() {
+    if (!Game.v) return; const cells = HX.$('#grid').children, sel = Game.sel, sv = sel >= 0 ? Game.v[sel] : 0, conf = UI.cfg.check === 'conf' || UI.cfg.check === 'sol' ? Game.conflicts() : new Set();
+    for (let i = 0; i < 81; i++) {
+      const el = cells[i], v = Game.v[i]; let cl = 'cell' + (C(i) % 3 === 2 && C(i) < 8 ? ' c3' : '') + (R(i) % 3 === 2 && R(i) < 8 ? ' r3' : '');
+      if (Game.given(i)) cl += ' g';
+      if (i === sel) cl += ' sel'; else if (sv && v === sv) cl += ' same'; else if (sel >= 0 && PEERS[sel].includes(i)) cl += ' peer';
+      if (v && !Game.given(i) && UI.cfg.check === 'sol' && v !== Game.P.sol[i]) cl += ' err';
+      if (conf.has(i) && !Game.given(i)) cl += ' conf';
+      if (i === this.flash) cl += ' hint';
+      el.className = cl;
+      if (v) el.textContent = v; else if (Game.notes[i]) el.innerHTML = `<div class="notes">${Array.from({ length: 9 }, (_, k) => `<span class="${sv === k + 1 ? 'hl' : ''}">${Game.notes[i] & (1 << (k + 1)) ? k + 1 : ''}</span>`).join('')}</div>`; else el.textContent = '';
+    }
+    this.flash = -1;
+    const cnt = Array(10).fill(0); Game.v.forEach((x, k) => { if (x && x === Game.P.sol[k]) cnt[x]++; });
+    HX.$('#pad').querySelectorAll('button').forEach(b => { const d = +b.dataset.d; b.classList.toggle('done', cnt[d] >= 9); b.classList.toggle('notes-on', Game.noteMode); b.querySelector('small').textContent = 9 - cnt[d] || ''; });
+    HX.$('#t-notes').classList.toggle('on', Game.noteMode);
+  }
+};
+const UI = {
+  cfg: { check: 'sol', limit: false },
+  init() {
+    this.cfg = Object.assign(this.cfg, S.get('cfg', {})); View.init();
+    HX.$('#t-undo').onclick = () => Game.undo(); HX.$('#t-erase').onclick = () => Game.erase(); HX.$('#t-hint').onclick = () => Game.hint(); HX.$('#menu').onclick = () => this.menu();
+    HX.$('#t-notes').onclick = () => { Game.noteMode = !Game.noteMode; HX.toast(Game.noteMode ? 'Notas ligadas: os números entram como anotações' : 'Notas desligadas'); View.render(); };
+    addEventListener('keydown', e => { if (HX.isOpen() || !Game.v) return; const k = e.key;
+      if (k >= '1' && k <= '9') Game.input(+k); else if (k === 'Backspace' || k === 'Delete' || k === '0') Game.erase(); else if (k === 'n' || k === 'N') HX.$('#t-notes').click(); else if (k === 'z' && (e.ctrlKey || e.metaKey)) Game.undo();
+      else if (k.startsWith('Arrow')) { e.preventDefault(); let s = Game.sel < 0 ? 40 : Game.sel; if (k === 'ArrowUp') s = (s + 72) % 81; if (k === 'ArrowDown') s = (s + 9) % 81; if (k === 'ArrowLeft') s = R(s) * 9 + (C(s) + 8) % 9; if (k === 'ArrowRight') s = R(s) * 9 + (C(s) + 1) % 9; Game.sel = s; View.render(); } });
+    HX.life({ onHide: () => { Game.timer.stop(); Game.save(); }, onShow: () => { if (Game.v && !Game.done && !HX.isOpen()) Game.timer.start(() => this.clock()); } });
+    if (Game.load()) { View.render(); this.hud(); HX.toast('Partida retomada'); } else this.home();
+  },
+  hud() { HX.$('#lvl').textContent = Game.daily ? 'Diário' : LV[Game.lvl].s || LV[Game.lvl].n; HX.$('#err').textContent = Game.errors + (this.cfg.limit ? '/3' : ''); HX.$('#b-hint').textContent = Game.hints; this.clock(); HX.$('#pts').textContent = Game.score || '—'; },
+  clock() { HX.$('#time').textContent = HX.fmt(Game.timer.ms); },
+  today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  helpItems: ['Preencha a grade 9×9 para que cada linha, coluna e quadrado 3×3 tenha os números de 1 a 9, sem repetir.', 'Toque numa casa e depois num número do teclado. Os números claros vêm do enunciado e não podem ser alterados.', '“Notas” liga o modo de anotações para marcar possibilidades pequenas. Ao colocar um número, as notas iguais nas casas relacionadas somem.', 'A verificação de erros pode mostrar números incorretos, só repetições ou nada (no menu).', 'Dica preenche a casa selecionada ou a próxima casa que tem um único candidato. São 3 por partida.', 'Todas as grades têm solução única. Fácil e Médio se resolvem só com lógica simples; Difícil e Especialista pedem técnicas avançadas.', 'O desafio diário é a mesma grade para todos no mesmo dia.', 'Teclado: 1–9, setas, N (notas), Backspace (apagar), Ctrl+Z (desfazer).'],
+  home() {
+    Game.timer.stop(); const st = S.get('stats', {}), d = S.get('daily', {})[this.today()];
+    const row = k => { const s = st[k] || { played: 0, won: 0, best: 0 }; return `<button class="btn" data-l="${k}" style="display:flex;justify-content:space-between;align-items:center"><span>${LV[k].n}</span><small style="color:var(--muted)">${s.won}/${s.played} vitórias${s.best ? ' · melhor ' + HX.fmt(s.best * 1000) : ''}</small></button>`; };
+    const c = HX.overlay(`<h3>Sudoku</h3><p>Escolha a dificuldade. Todas as grades têm solução única.</p>${Object.keys(LV).map(row).join('')}<button class="btn-primary" id="dl">${d ? `Desafio do dia concluído · ${HX.fmt(d.secs * 1000)}` : 'Desafio do dia'}</button>${Game.v && !Game.done ? '<button class="btn" id="cl">Continuar partida</button>' : ''}<div class="row2"><button class="btn" id="hw">Como jogar</button><button class="btn" id="op">Opções</button></div>`, { guard: false });
+    c.querySelectorAll('[data-l]').forEach(b => b.onclick = () => { S.del('cur'); Game.start(b.dataset.l); });
+    HX.on(c, '#dl', () => { if (d) return HX.toast('Volte amanhã para um novo desafio'); S.del('cur'); const t = this.today(); Game.start('medio', { daily: t, seed: +t.replace(/-/g, '') }); });
+    HX.on(c, '#cl', () => { HX.close(); Game.timer.start(() => this.clock()); }); HX.on(c, '#hw', () => HX.help('Como jogar', this.helpItems, () => this.home())); HX.on(c, '#op', () => this.options(() => this.home()));
+  },
+  options(back) {
+    HX.setup({ title: 'Opções', values: this.cfg, groups: [{ key: 'check', label: 'Verificação de erros', opts: [['sol', 'Mostrar errados'], ['conf', 'Só repetições'], ['off', 'Desligada']] }, { key: 'limit', label: 'Limite de 3 erros', opts: [[false, 'Sem limite'], [true, 'Perde com 3 erros']] }], start: 'Salvar', onStart: x => { this.cfg = x; S.set('cfg', x); View.render(); this.hud(); back && back(); } });
+  },
+  menu() { this.home(); },
+  end(won, secs) {
+    const st = (S.get('stats', {})[Game.lvl]) || {};
+    const c = HX.overlay(won ? `<h3>Resolvido!</h3><p>${Game.daily ? 'Desafio do dia · ' : ''}${LV[Game.lvl].n}</p><div class="kv"><div><b>${HX.fmt(secs * 1000)}</b><small>Tempo</small></div><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${Game.errors}</b><small>Erros</small></div></div><p>Melhor tempo: ${st.best ? HX.fmt(st.best * 1000) : '—'} · recorde ${st.top || 0} pts</p><button class="btn-primary" id="nx">Nova grade</button><button class="btn" id="hm">Escolher nível</button>`
+      : `<h3>Fim de jogo</h3><p>Você cometeu 3 erros. Desligue o limite nas opções para jogar sem ele.</p><button class="btn-primary" id="nx">Tentar outra grade</button><button class="btn" id="hm">Escolher nível</button>`);
+    HX.on(c, '#nx', () => Game.start(Game.daily ? 'medio' : Game.lvl)); HX.on(c, '#hm', () => this.home());
+  }
+};
+UI.init(); HX.sw();
+window.SD = { Solver, Gen, Game, View, UI, S, LV };
+</script>
+</body>
+</html>

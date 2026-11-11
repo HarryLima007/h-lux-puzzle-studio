@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f0c">
+<title>H-LUX Word Search</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0b0f0c;--bg2:radial-gradient(ellipse at 50% 0%,#1d2a20 0%,#0b0f0c 64%)}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+#cv{display:block;touch-action:none;border-radius:12px;box-shadow:0 0 0 2px #c9a45c,0 18px 40px rgba(0,0,0,.55);cursor:pointer}
+.words{display:flex;flex-wrap:wrap;gap:5px 7px;justify-content:center;max-width:640px;padding:0 4px}
+.words span{font-size:13px;font-weight:800;letter-spacing:.5px;padding:4px 9px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--text);text-transform:uppercase}
+.words span.f{text-decoration:line-through;opacity:.45;border-color:transparent}
+.cat{font-size:11px;letter-spacing:1.6px;font-weight:800;color:var(--accent2);text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Word <b>Search</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lv">1</b></div><div class="sc"><small>Achadas</small><b id="found">0/0</b></div><div class="sc"><small>Tempo</small><b id="time">0:00</b></div><div class="sc"><small>Pontos</small><b id="pts">0</b></div></div>
+  <div class="stage" id="stage"><div class="wrap"><div class="cat" id="cat"></div><canvas id="cv"></canvas><div class="words" id="words"></div></div></div>
+  <div class="tools">
+    <button class="tool" id="t-hint"><svg class="i"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Dica<span class="badge" id="b-hint"></span></button>
+    <button class="tool" id="t-reset"><svg class="i"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg>Nova grade</button>
+    <button class="tool" id="t-levels"><svg class="i"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2"/></svg>Fases</button>
+    <button class="tool" id="t-help"><svg class="i"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Ajuda</button>
+  </div>
+</div>
+<script src="../shared/kit.js"></script>
+<script src="../shared/palavras.js"></script>
+<script>
+'use strict';
+/* H-LUX WORD SEARCH v1.0 — caça-palavras com temas em português.
+   Fases progressivas: 8×8 só → e ↓; depois diagonais; depois palavras invertidas; grades até 14×14.
+   Cada palavra aparece exatamente uma vez na grade (verificado na geração). Módulos: Gen · Game · View · UI */
+const S = HX.store('wordsearch');
+const CATS = Object.keys(HLUX_WORDS.CATS);
+const norm = w => w.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+const DIRS = { easy: [[0, 1], [1, 0]], diag: [[0, 1], [1, 0], [1, 1], [-1, 1]], all: [[0, 1], [1, 0], [1, 1], [-1, 1], [0, -1], [-1, 0], [-1, -1], [1, -1]] };
+// 36 fases: tamanho, direções, nº de palavras
+const LEVELS = Array.from({ length: 36 }, (_, k) => {
+  const tier = Math.min(5, Math.floor(k / 6));
+  const n = [8, 9, 10, 11, 12, 14][tier], dirs = ['easy', 'easy', 'diag', 'diag', 'all', 'all'][tier], words = [6, 7, 8, 10, 12, 14][tier] + (k % 6 > 3 ? 1 : 0);
+  return { n, dirs, words, cat: CATS[(k * 5) % CATS.length], seed: 9100 + k * 131 };
+});
+const DIRNAME = { easy: 'Horizontal e vertical', diag: 'Inclui diagonais', all: 'Todas as direções, inclusive invertidas' };
+const Gen = {
+  make(L, salt = 0) {
+    const rnd = HX.rng(L.seed + salt * 7919), n = L.n, dirs = DIRS[L.dirs];
+    const pool = HX.shuffle(HLUX_WORDS.CATS[L.cat].filter(w => { const x = norm(w); return x.length >= 3 && x.length <= n && /^[A-Z]+$/.test(x); }), rnd);
+    for (let t = 0; t < 60; t++) {
+      const g = Array(n * n).fill(''), placed = [];
+      const pick = pool.slice().sort(() => rnd() - .5);
+      for (const w of pick) {
+        if (placed.length >= L.words) break; const x = norm(w); if (placed.some(p => p.x === x || p.x.includes(x) || x.includes(p.x))) continue;
+        let ok = false;
+        for (let a = 0; a < 120 && !ok; a++) {
+          const [dr, dc] = dirs[Math.floor(rnd() * dirs.length)], r0 = Math.floor(rnd() * n), c0 = Math.floor(rnd() * n), r1 = r0 + dr * (x.length - 1), c1 = c0 + dc * (x.length - 1);
+          if (r1 < 0 || r1 >= n || c1 < 0 || c1 >= n) continue;
+          let fit = true; for (let k = 0; k < x.length; k++) { const v = g[(r0 + dr * k) * n + c0 + dc * k]; if (v && v !== x[k]) { fit = false; break; } }
+          if (!fit) continue; const cells = []; for (let k = 0; k < x.length; k++) { const i = (r0 + dr * k) * n + c0 + dc * k; g[i] = x[k]; cells.push(i); }
+          placed.push({ w, x, cells }); ok = true;
+        }
+      }
+      if (placed.length < Math.min(L.words, pool.length)) continue;
+      const AB = 'AAAEEEIIOOUURRSSTTNNLLMMCCDDPBGVFHJQZ'; for (let i = 0; i < n * n; i++) if (!g[i]) g[i] = AB[Math.floor(rnd() * AB.length)];
+      if (placed.every(p => this.occurs(g, n, p.x) === 1)) return { n, g, words: placed, cat: L.cat };
+    }
+    return null;
+  },
+  // quantas vezes a palavra aparece em qualquer direção (palíndromos contam uma vez)
+  occurs(g, n, x) { let c = 0; const seen = new Set();
+    for (let r = 0; r < n; r++) for (let cc = 0; cc < n; cc++) for (const [dr, dc] of DIRS.all) { const cells = []; let ok = true; for (let k = 0; k < x.length; k++) { const rr = r + dr * k, c2 = cc + dc * k; if (rr < 0 || rr >= n || c2 < 0 || c2 >= n || g[rr * n + c2] !== x[k]) { ok = false; break; } cells.push(rr * n + c2); } if (ok) { const key = cells.slice().sort((a, b) => a - b).join(','); if (!seen.has(key)) { seen.add(key); c++; } } }
+    return c; }
+};
+const Game = {
+  lv: 0, P: null, found: [], hints: 3, timer: HX.timer(), done: false, score: 0, salt: 0, hl: [],
+  start(k, salt = 0, resume) {
+    HX.close(); this.lv = k; this.salt = salt; this.P = Gen.make(LEVELS[k], salt); this.found = []; this.hints = 3; this.done = false; this.score = 0; this.hl = [];
+    this.timer = HX.timer();
+    const sv = resume && S.get('cur', null); if (sv && sv.lv === k && sv.salt === salt) { this.found = sv.found; this.hints = sv.hints; this.timer.set(sv.ms); this.hl = sv.hl || []; }
+    this.timer.start(() => UI.clock()); View.size(); UI.words(); UI.hud(); this.save();
+  },
+  check(a, b) {
+    const n = this.P.n, r0 = Math.floor(a / n), c0 = a % n, r1 = Math.floor(b / n), c1 = b % n, dr = Math.sign(r1 - r0), dc = Math.sign(c1 - c0), len = Math.max(Math.abs(r1 - r0), Math.abs(c1 - c0)) + 1;
+    if (a === b || (dr && dc && Math.abs(r1 - r0) !== Math.abs(c1 - c0))) return false;
+    const cells = Array.from({ length: len }, (_, k) => (r0 + dr * k) * n + c0 + dc * k), str = cells.map(i => this.P.g[i]).join('');
+    const w = this.P.words.findIndex((p, k) => !this.found.includes(k) && (p.x === str || p.x === [...str].reverse().join('')) && p.x.length === len && (p.cells.join() === cells.join() || p.cells.slice().reverse().join() === cells.join()));
+    if (w < 0) return false;
+    this.found.push(w); this.hl = this.hl.filter(i => !this.P.words[w].cells.includes(i)); HX.sfx('coin'); HX.vibrate(15);
+    this.save(); UI.words(); UI.hud(); if (this.found.length === this.P.words.length) this.win(); return true;
+  },
+  hint() { if (this.done) return; if (this.hints <= 0) return HX.toast('Sem dicas nesta grade'); const left = this.P.words.map((_, k) => k).filter(k => !this.found.includes(k)); if (!left.length) return; const w = this.P.words[left[0]]; this.hints--; this.hl.push(w.cells[0]); HX.toast(`Procure ${w.w.toUpperCase()} começando na letra destacada`); HX.sfx('power'); this.save(); UI.hud(); },
+  win() {
+    this.done = true; this.timer.stop(); const secs = Math.round(this.timer.ms / 1000), L = LEVELS[this.lv];
+    this.score = Math.max(50, L.words * 40 + L.n * 10 - secs - (3 - this.hints) * 40);
+    const p = S.get('progress', { unlocked: 0, levels: {}, total: 0 }); const prev = p.levels[this.lv];
+    p.levels[this.lv] = { best: prev ? Math.min(prev.best, secs) : secs, score: Math.max(prev ? prev.score : 0, this.score) }; p.unlocked = Math.max(p.unlocked, Math.min(this.lv + 1, LEVELS.length - 1)); p.total = Object.values(p.levels).reduce((s, x) => s + x.score, 0); S.set('progress', p);
+    S.del('cur'); S.hub(`Fase ${p.unlocked + 1} de ${LEVELS.length} · ${p.total} pts`); HX.sfx('win'); setTimeout(() => UI.win(secs), 600);
+  },
+  save() { if (this.done || !this.P) return; S.set('cur', { lv: this.lv, salt: this.salt, found: this.found, hints: this.hints, ms: this.timer.ms, hl: this.hl }); S.hub(`Fase ${this.lv + 1} · ${this.found.length}/${this.P.words.length} palavras`); }
+};
+const COLORS = ['#e5b94c', '#5fc3a4', '#e07b6a', '#7fa8ff', '#c792ea', '#9ad35a', '#f08fb8', '#4fd1e0', '#f2a65a', '#b7b7ff', '#e6d26a', '#6ad08f', '#ff9a8a', '#8fd0ff', '#d4a3ff'];
+const View = {
+  cv: null, x: null, cs: 30, sel: null, dpr: 1,
+  init() {
+    this.cv = HX.$('#cv'); this.x = this.cv.getContext('2d'); new ResizeObserver(() => Game.P && this.size()).observe(HX.$('#stage'));
+    const cell = e => { const r = this.cv.getBoundingClientRect(), n = Game.P.n, c = Math.floor((e.clientX - r.left) / this.cs), rr = Math.floor((e.clientY - r.top) / this.cs); return c >= 0 && rr >= 0 && c < n && rr < n ? rr * n + c : -1; };
+    // fixa o fim da seleção na direção (8 sentidos) mais próxima do dedo
+    const snap = (a, e) => { const r = this.cv.getBoundingClientRect(), n = Game.P.n, x0 = (a % n + .5) * this.cs, y0 = (Math.floor(a / n) + .5) * this.cs, dx = e.clientX - r.left - x0, dy = e.clientY - r.top - y0;
+      const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)), dist = Math.round(Math.hypot(dx, dy) / this.cs / (ang % 2 ? Math.SQRT2 : 1)); const dr = Math.round(Math.sin(ang * Math.PI / 4)), dc = Math.round(Math.cos(ang * Math.PI / 4));
+      let k = dist; while (k > 0) { const rr = Math.floor(a / n) + dr * k, cc = a % n + dc * k; if (rr >= 0 && rr < n && cc >= 0 && cc < n) return rr * n + cc; k--; } return a; };
+    this.cv.addEventListener('pointerdown', e => { if (Game.done || HX.isOpen()) return; const i = cell(e); if (i < 0) return; try { this.cv.setPointerCapture(e.pointerId); } catch (_) {} this.sel = [i, i]; HX.sfx('tap'); this.draw(); });
+    this.cv.addEventListener('pointermove', e => { if (!this.sel) return; const j = snap(this.sel[0], e); if (j !== this.sel[1]) { this.sel[1] = j; this.draw(); } });
+    const up = () => { if (!this.sel) return; const [a, b] = this.sel; this.sel = null; if (!Game.check(a, b) && a !== b) { HX.sfx('hit'); } this.draw(); };
+    this.cv.addEventListener('pointerup', up); this.cv.addEventListener('pointercancel', () => { this.sel = null; this.draw(); });
+    const loop = () => { requestAnimationFrame(loop); }; loop();
+  },
+  size() { const st = HX.$('#stage'), n = Game.P.n, wordsH = HX.$('#words').offsetHeight + 40; this.cs = Math.floor(Math.min((st.clientWidth - 8) / n, (st.clientHeight - wordsH) / n, 56)); this.cs = Math.max(20, this.cs); this.dpr = Math.min(devicePixelRatio || 1, 2); const W = this.cs * n; this.cv.width = this.cv.height = W * this.dpr; this.cv.style.width = this.cv.style.height = W + 'px'; this.draw(); },
+  capsule(a, b, col, alpha) { const x = this.x, n = Game.P.n, s = this.cs, ax = (a % n + .5) * s, ay = (Math.floor(a / n) + .5) * s, bx = (b % n + .5) * s, by = (Math.floor(b / n) + .5) * s;
+    x.save(); x.globalAlpha = alpha; x.strokeStyle = col; x.lineCap = 'round'; x.lineWidth = s * .78; x.beginPath(); x.moveTo(ax, ay); x.lineTo(bx, by); x.stroke(); x.restore(); },
+  draw() {
+    if (!Game.P) return; const x = this.x, n = Game.P.n, s = this.cs; x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    x.fillStyle = '#f3ecd9'; x.fillRect(0, 0, n * s, n * s);
+    Game.found.forEach((k, j) => { const w = Game.P.words[k]; this.capsule(w.cells[0], w.cells[w.cells.length - 1], COLORS[k % COLORS.length], .55); });
+    if (this.sel) this.capsule(this.sel[0], this.sel[1], '#c9a45c', .6);
+    for (const i of Game.hl) { x.strokeStyle = '#d14b2c'; x.lineWidth = 2.5; x.beginPath(); x.arc((i % n + .5) * s, (Math.floor(i / n) + .5) * s, s * .42, 0, 7); x.stroke(); }
+    x.fillStyle = '#1d1a14'; x.font = `800 ${Math.round(s * .55)}px Manrope,sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    for (let i = 0; i < n * n; i++) x.fillText(Game.P.g[i], (i % n + .5) * s, (Math.floor(i / n) + .54) * s);
+  }
+};
+const UI = {
+  init() {
+    View.init();
+    HX.$('#t-hint').onclick = () => Game.hint(); HX.$('#t-reset').onclick = () => { S.del('cur'); Game.start(Game.lv, Game.salt + 1); HX.toast('Nova grade com o mesmo tema'); };
+    HX.$('#t-levels').onclick = () => this.levels(); HX.$('#menu').onclick = () => this.levels(); HX.$('#t-help').onclick = () => HX.help('Como jogar', this.helpItems);
+    HX.life({ onHide: () => { Game.timer.stop(); Game.save(); }, onShow: () => { if (Game.P && !Game.done && !HX.isOpen()) Game.timer.start(() => this.clock()); } });
+    const cur = S.get('cur', null); if (cur) { Game.start(cur.lv, cur.salt, true); HX.toast('Partida retomada'); } else { Game.start(S.get('progress', { unlocked: 0 }).unlocked); this.levels(); }
+  },
+  helpItems: ['Encontre na grade todas as palavras da lista. Elas são do tema indicado acima da grade.', 'Arraste o dedo (ou o mouse) da primeira até a última letra da palavra. A seleção segue em linha reta.', 'As primeiras fases usam só horizontal e vertical; depois entram as diagonais e, por fim, palavras de trás para frente.', 'Acentos e cedilha não aparecem na grade: AÇAÍ vira ACAI.', 'Dica marca a primeira letra de uma palavra que falta. São 3 por grade.', 'Termine rápido e sem dicas para fazer mais pontos.'],
+  hud() { HX.$('#lv').textContent = Game.lv + 1; HX.$('#found').textContent = `${Game.found.length}/${Game.P.words.length}`; HX.$('#b-hint').textContent = Game.hints; HX.$('#pts').textContent = S.get('progress', { total: 0 }).total || 0; this.clock(); View.draw(); },
+  clock() { HX.$('#time').textContent = HX.fmt(Game.timer.ms); },
+  words() { HX.$('#cat').textContent = `${Game.P.cat} · ${Game.P.n}×${Game.P.n}`; HX.$('#words').innerHTML = Game.P.words.map((w, k) => `<span class="${Game.found.includes(k) ? 'f' : ''}" style="${Game.found.includes(k) ? '' : `border-color:${COLORS[k % COLORS.length]}55`}">${HX.esc(w.w)}</span>`).join(''); View.size(); },
+  levels() {
+    Game.timer.stop(); const p = S.get('progress', { unlocked: 0, levels: {}, total: 0 });
+    const c = HX.overlay(`<h3>Word Search</h3><p>${p.total || 0} pontos no total. Cada fase tem um tema.</p><div class="lvwrap" style="max-height:48vh;overflow:auto"><div class="levels">${LEVELS.map((L, k) => { const d = p.levels[k]; return `<button class="lvb ${k > p.unlocked ? 'locked' : ''} ${k === p.unlocked ? 'next' : ''}" data-k="${k}">${k + 1}<small>${d ? '✓ ' + HX.fmt(d.best * 1000) : k > p.unlocked ? '🔒' : L.n + '×' + L.n}</small></button>`; }).join('')}</div></div><button class="btn-primary" id="go">${Game.P && !Game.done && S.get('cur', null) ? 'Continuar fase ' + (Game.lv + 1) : 'Jogar fase ' + (p.unlocked + 1)}</button><button class="btn" id="how">Como jogar</button>`, { guard: false });
+    c.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = +b.dataset.k; if (k > p.unlocked) return HX.toast('Conclua a fase anterior'); S.del('cur'); Game.start(k); HX.toast(`${LEVELS[k].cat} · ${DIRNAME[LEVELS[k].dirs]}`); });
+    HX.on(c, '#go', () => { if (Game.P && !Game.done && S.get('cur', null)) { HX.close(); Game.timer.start(() => this.clock()); } else { S.del('cur'); Game.start(p.unlocked); HX.toast(DIRNAME[LEVELS[p.unlocked].dirs]); } });
+    HX.on(c, '#how', () => HX.help('Como jogar', this.helpItems, () => this.levels()));
+  },
+  win(secs) {
+    const last = Game.lv + 1 >= LEVELS.length;
+    const c = HX.overlay(`<h3>Todas encontradas!</h3><p>${Game.P.cat} · ${Game.P.words.length} palavras</p><div class="kv"><div><b>${HX.fmt(secs * 1000)}</b><small>Tempo</small></div><div><b>${Game.score}</b><small>Pontos</small></div><div><b>${3 - Game.hints}</b><small>Dicas</small></div></div>${last ? '<p>Você concluiu todas as fases!</p>' : '<button class="btn-primary" id="nx">Próxima fase</button>'}<div class="row2"><button class="btn" id="rp">Outra grade</button><button class="btn" id="lv">Fases</button></div>`);
+    HX.on(c, '#nx', () => { Game.start(Game.lv + 1); HX.toast(`${LEVELS[Game.lv].cat} · ${DIRNAME[LEVELS[Game.lv].dirs]}`); }); HX.on(c, '#rp', () => Game.start(Game.lv, Game.salt + 1)); HX.on(c, '#lv', () => this.levels());
+  }
+};
+UI.init(); HX.sw();
+window.WS = { LEVELS, Gen, Game, View, UI, S, norm };
+</script>
+</body>
+</html>
