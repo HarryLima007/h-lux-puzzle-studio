@@ -1,0 +1,97 @@
+/*@ {"name":"Jumper","t1":"Jum","t2":"per","theme":"#0a0906","bg2":"radial-gradient(ellipse at 50% 0%,#2a2414 0%,#0a0906 66%)",
+"hud":[["Altura","pts","0"],["Recorde","best","0"],["Moedas","coins","0"]]} @*/
+/* H-LUX JUMPER v1.0 — salte sempre para cima de plataforma em plataforma.
+   Plataformas: comuns, móveis, frágeis (quebram sem impulsionar), únicas (somem após um salto) e com mola.
+   Inimigos: pise por cima para derrotá-los; encostar de lado ou por baixo é fatal. Foguete raro = voo rápido.
+   Controles: segure o lado esquerdo/direito da tela (ou arraste); no PC, setas/A-D. A tela dá a volta nas laterais.
+   Módulos: Game · View · UI */
+const S = HX.store('jumper');
+const VW = 400, VH = 640, PW = 64, PH = 12, GRAV = 1500, BOUNCE = 760;
+const Game = {
+  state: 'idle', p: null, plats: [], foes: [], coins: [], cam: 0, top: 0, score: 0, got: 0, parts: [],
+  start() {
+    HX.close(); this.p = { x: VW / 2, y: VH - 80, vx: 0, vy: -BOUNCE, face: 1, jet: 0 }; this.plats = []; this.foes = []; this.coins = []; this.parts = []; this.cam = 0; this.score = 0; this.got = 0; this.top = VH;
+    this.plats.push({ x: VW / 2 - PW / 2, y: VH - 40, k: 'n' }); while (this.top > -VH) this.gen(); this.state = 'play'; UI.hud();
+  },
+  diff() { return Math.min(1, -this.cam / 30000); },
+  gen() {
+    const d = this.diff(), gap = 55 + d * 60 + Math.random() * (20 + d * 30); this.top -= gap; const r = Math.random(), x = Math.random() * (VW - PW);
+    let k = 'n'; if (r < .12 + d * .18) k = 'm'; else if (r < .2 + d * .22) k = 'v'; else if (r < .26 + d * .26) k = 'b';
+    const pl = { x, y: this.top, k, dir: Math.random() < .5 ? 1 : -1, sp: 50 + d * 90 }; this.plats.push(pl);
+    if (k === 'b') { this.top += gap * .5; const x2 = (x + VW / 2) % (VW - PW); this.plats.push({ x: x2, y: this.top - 20, k: 'n' }); }
+    if (k === 'n' && Math.random() < .08) pl.spring = Math.random() * (PW - 18);
+    if (k === 'n' && Math.random() < .012 + d * .01) pl.jet = true;
+    if (Math.random() < .12) this.coins.push({ x: Math.random() * (VW - 20) + 10, y: this.top - 40 });
+    if (-this.top > 1500 && Math.random() < .03 + d * .07) this.foes.push({ x: Math.random() * (VW - 50) + 25, y: this.top - 70, vx: (Math.random() < .5 ? -1 : 1) * (30 + d * 60), r: 18, t: Math.random() * 6 });
+  },
+  step(dt) {
+    if (this.state !== 'play') return; const P = this.p; const mv = UI.dir();
+    P.vx += (mv * 900 - P.vx) * Math.min(1, dt * 9); if (mv) P.face = mv; P.x += P.vx * dt; if (P.x < -15) P.x += VW + 30; if (P.x > VW + 15) P.x -= VW + 30;
+    if (P.jet > 0) { P.jet -= dt; P.vy = -1100; this.parts.push({ x: P.x, y: P.y + 20, t: .4, vx: (Math.random() - .5) * 60 }); } else P.vy += GRAV * dt;
+    const py = P.y; P.y += P.vy * dt;
+    for (const pl of this.plats) { if (pl.k === 'm') { pl.x += pl.dir * pl.sp * dt; if (pl.x < 0 || pl.x > VW - PW) pl.dir *= -1; } if (pl.fall) pl.y += 400 * dt;
+      if (P.vy > 0 && !pl.gone && !pl.fall && py + 18 <= pl.y && P.y + 18 >= pl.y && P.x + 12 > pl.x && P.x - 12 < pl.x + PW) {
+        if (pl.k === 'b') { pl.fall = true; HX.sfx('hit'); continue; }
+        if (pl.spring !== undefined && P.x > pl.x + pl.spring - 6 && P.x < pl.x + pl.spring + 24) { P.vy = -BOUNCE * 1.65; pl.sprung = .3; HX.sfx('power'); }
+        else if (pl.jet && P.x > pl.x + 18 && P.x < pl.x + 46) { pl.jet = false; P.jet = 2.4; HX.sfx('power'); HX.toast('Foguete!', 800); }
+        else { P.vy = -BOUNCE; HX.sfx('tap'); }
+        P.y = pl.y - 18; if (pl.k === 'v') pl.gone = true; } if (pl.sprung) pl.sprung = Math.max(0, pl.sprung - dt); }
+    for (const f of this.foes) { f.t += dt; f.x += f.vx * dt; if (f.x < 20 || f.x > VW - 20) f.vx *= -1; if (f.dead) { f.y += 500 * dt; continue; }
+      const dx = P.x - f.x, dy = P.y - f.y; if (Math.hypot(dx, dy) < f.r + 14) { if (P.jet > 0) { f.dead = true; HX.sfx('boom'); } else if (P.vy > 0 && py < f.y - 8) { f.dead = true; P.vy = -BOUNCE * 1.1; this.score += 50; HX.sfx('boom'); } else return this.end(); } }
+    for (const c of this.coins) if (!c.got && Math.hypot(c.x - P.x, c.y - P.y) < 22) { c.got = true; this.got++; HX.sfx('coin'); }
+    this.parts = this.parts.filter(q => { q.y += 200 * dt; q.x += q.vx * dt; return (q.t -= dt) > 0; });
+    if (P.y < this.cam + VH * .42) this.cam = P.y - VH * .42;
+    this.score = Math.max(this.score, Math.floor((VH - 80 - P.y) / 10));
+    while (this.top > this.cam - VH * .3) this.gen();
+    const lim = this.cam + VH + 60; this.plats = this.plats.filter(p => p.y < lim); this.foes = this.foes.filter(f => f.y < lim); this.coins = this.coins.filter(c => c.y < lim && !c.got);
+    if (P.y > this.cam + VH + 30) return this.end();
+    UI.hud();
+  },
+  end() {
+    this.state = 'over'; HX.sfx('lose'); HX.vibrate(40); const rec = HXA.best(S, 'best', this.score); S.set('coins', S.get('coins', 0) + this.got); const st = S.get('stats', { games: 0 }); st.games++; S.set('stats', st);
+    S.hub(`Recorde ${S.get('best', 0)} m`); UI.hud();
+    setTimeout(() => HXA.menu({ title: rec && this.score ? 'Novo recorde!' : 'Você caiu', text: `Chegou a ${this.score} m.`, stats: [[this.score, 'Altura'], [this.got, 'Moedas'], [S.get('best', 0), 'Recorde']], primary: ['Pular de novo', () => this.start()], buttons: [['Menu', () => UI.home()]] }), 500);
+  }
+};
+const St = HXA.stage(VW, VH);
+const View = {
+  draw() {
+    const g = St.begin(), G = Game; const h = Math.max(0, -G.cam); const sky = g.createLinearGradient(0, 0, 0, VH); const t = Math.min(1, h / 20000);
+    sky.addColorStop(0, `rgb(${20 - t * 14},${18 - t * 12},${14 + t * 10})`); sky.addColorStop(1, `rgb(${42 - t * 30},${34 - t * 24},${20 + t * 8})`); g.fillStyle = sky; g.fillRect(0, 0, VW, VH);
+    g.strokeStyle = 'rgba(201,164,92,.06)'; g.lineWidth = 1; for (let y = (-G.cam * .5) % 32; y < VH; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(VW, y); g.stroke(); }
+    if (!G.p) return; g.save(); g.translate(0, -G.cam);
+    for (const pl of G.plats) { if (pl.gone) continue; const c = pl.k === 'm' ? '#3d8bff' : pl.k === 'b' ? '#7a5230' : pl.k === 'v' ? '#e8e2cf' : '#c9a45c'; g.fillStyle = c; g.globalAlpha = pl.fall ? .5 : 1;
+      g.beginPath(); g.roundRect(pl.x, pl.y, PW, PH, 6); g.fill(); if (pl.k === 'b') { g.strokeStyle = '#2a1a0c'; g.lineWidth = 2; g.beginPath(); g.moveTo(pl.x + PW / 2, pl.y); g.lineTo(pl.x + PW / 2 - 4, pl.y + PH); g.stroke(); } g.globalAlpha = 1;
+      if (pl.spring !== undefined) { g.fillStyle = '#ccc'; const sh = pl.sprung ? 18 : 10; g.fillRect(pl.x + pl.spring, pl.y - sh, 18, sh); g.fillStyle = '#e5484d'; g.fillRect(pl.x + pl.spring - 2, pl.y - sh - 3, 22, 4); }
+      if (pl.jet) { g.fillStyle = '#e5484d'; g.fillRect(pl.x + 24, pl.y - 24, 16, 24); g.fillStyle = '#ffb347'; g.fillRect(pl.x + 27, pl.y - 28, 10, 5); } }
+    for (const c of G.coins) { g.fillStyle = '#ffd54a'; g.beginPath(); g.ellipse(c.x, c.y, 8 * Math.abs(Math.cos(performance.now() / 300 + c.x)) + 2, 9, 0, 0, 7); g.fill(); }
+    for (const f of G.foes) { g.save(); g.translate(f.x, f.y); if (f.dead) g.rotate(Math.PI); g.fillStyle = '#7b4bd6'; g.beginPath(); g.arc(0, 0, f.r, 0, 7); g.fill(); g.fillStyle = '#c86bff'; for (let k = -2; k <= 2; k++) { g.beginPath(); g.arc(k * 8, f.r - 2 + Math.sin(f.t * 8 + k) * 3, 4, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(-6, -4, 5, 0, 7); g.arc(6, -4, 5, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(-6, -3, 2.5, 0, 7); g.arc(6, -3, 2.5, 0, 7); g.fill(); g.restore(); }
+    for (const q of G.parts) { g.globalAlpha = q.t * 2; g.fillStyle = '#ffb347'; g.beginPath(); g.arc(q.x, q.y, 5, 0, 7); g.fill(); } g.globalAlpha = 1;
+    const P = G.p; g.save(); g.translate(P.x, P.y); g.scale(P.face, 1); const sq = P.vy < -500 ? 1.1 : P.vy > 300 ? .95 : 1; g.scale(1 / sq, sq);
+    g.fillStyle = '#e0b14a'; g.beginPath(); g.roundRect(-14, -16, 28, 30, 10); g.fill(); g.fillStyle = '#1a1408'; g.beginPath(); g.arc(5, -6, 3, 0, 7); g.fill(); g.fillRect(10, -2, 8, 5); g.fillStyle = '#8a6a2e'; g.fillRect(-12, 12, 8, 6); g.fillRect(3, 12, 8, 6);
+    if (P.jet > 0) { g.fillStyle = '#e5484d'; g.fillRect(-20, -10, 8, 20); } g.restore();
+    g.restore();
+    g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '800 26px Manrope'; g.textAlign = 'left'; g.fillText(G.score + ' m', 14, 36);
+    if (UI.touchSide) { g.fillStyle = 'rgba(201,164,92,.08)'; g.fillRect(UI.touchSide < 0 ? 0 : VW / 2, 0, VW / 2, VH); }
+  }
+};
+const UI = {
+  touchSide: 0, pointers: new Map(),
+  init() {
+    const upd = () => { let s = 0; for (const v of this.pointers.values()) s = v; this.touchSide = s; };
+    St.cv.addEventListener('pointerdown', e => { e.preventDefault(); St.cv.setPointerCapture(e.pointerId); const [x] = St.toL(e); this.pointers.set(e.pointerId, x < VW / 2 ? -1 : 1); upd(); });
+    St.cv.addEventListener('pointermove', e => { if (!this.pointers.has(e.pointerId)) return; const [x] = St.toL(e); this.pointers.set(e.pointerId, x < VW / 2 ? -1 : 1); upd(); });
+    const up = e => { this.pointers.delete(e.pointerId); upd(); }; St.cv.addEventListener('pointerup', up); St.cv.addEventListener('pointercancel', up);
+    addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'Escape') this.pause(); });
+    HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { Game.step(dt); View.draw(); });
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  dir() { const k = HXA.axis(); if (k.on && Math.abs(k.x) > .1) return Math.sign(k.x); return this.touchSide; },
+  hud() { HX.$('#pts').textContent = Game.score; HX.$('#best').textContent = S.get('best', 0); HX.$('#coins').textContent = Game.got; },
+  help: ['O herói pula sozinho. Segure o lado esquerdo ou direito da tela para ir para aquele lado (no PC: setas ou A/D). Sair por uma lateral faz aparecer na outra.', 'Douradas: normais. Azuis: se movem. Marrons: quebram e não impulsionam. Brancas: somem depois de um salto. Molas lançam bem alto; o foguete voa por alguns segundos.', 'Monstros roxos: pise neles por cima para derrotá-los (+50). Encostar de lado ou por baixo termina a partida.', 'Cair abaixo da tela também termina. A pontuação é a altura máxima em metros.'],
+  home() { HXA.menu({ title: 'Jumper', text: 'Até onde você consegue subir?', stats: [[S.get('best', 0) + ' m', 'Recorde'], [S.get('coins', 0), 'Moedas'], [S.get('stats', { games: 0 }).games, 'Partidas']], primary: ['Começar', () => Game.start()], help: this.help }); },
+  pause() { if (Game.state !== 'play') return Game.state === 'pause' ? null : this.home(); Game.state = 'pause'; this.pointers.clear(); this.touchSide = 0;
+    HXA.menu({ title: 'Pausa', text: `${Game.score} m`, primary: ['Continuar', () => { Game.state = 'play'; }], buttons: [['Recomeçar', () => Game.start()], ['Menu', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.JP = { Game, UI, S };

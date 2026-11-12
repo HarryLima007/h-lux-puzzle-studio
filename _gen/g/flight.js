@@ -1,0 +1,75 @@
+/*@ {"name":"Flight","t1":"Fli","t2":"ght","theme":"#070a10","bg2":"radial-gradient(ellipse at 50% 0%,#1b2436 0%,#070a10 66%)",
+"hud":[["Pontos","pts","0"],["Recorde","best","0"],["Medalha","medal","—"]]} @*/
+/* H-LUX FLIGHT v1.0 — toque para bater as asas e passe pelos vãos das colunas douradas.
+   Três modos: Clássico (vão fixo), Ventania (colunas que sobem e descem) e Noturno (vão menor, mais rápido).
+   Medalhas: bronze 10, prata 25, ouro 50, platina 100. Módulos: MODES · Game · View · UI */
+const S = HX.store('flight');
+const VW = 400, VH = 640, GROUND = 590;
+const MODES = { classic: { n: 'Clássico', gap: 160, sp: 140, move: 0 }, wind: { n: 'Ventania', gap: 165, sp: 135, move: 1 }, night: { n: 'Noturno', gap: 140, sp: 165, move: 0 } };
+const MEDALS = [[100, 'Platina', '#dfe7ff'], [50, 'Ouro', '#e0b14a'], [25, 'Prata', '#c0c4cc'], [10, 'Bronze', '#c07a3a']];
+const Game = {
+  state: 'idle', mode: 'classic', b: null, cols: [], pts: 0, t: 0, scroll: 0, parts: [],
+  start(mode) {
+    HX.close(); this.mode = mode || this.mode; this.b = { x: 110, y: 300, vy: 0, a: 0 }; this.cols = []; this.pts = 0; this.t = 0; this.parts = []; this.next = 320; this.state = 'ready'; UI.hud();
+  },
+  flap() { if (this.state === 'ready' || this.state === 'hold') this.state = 'play'; if (this.state !== 'play') return; this.b.vy = -330; HX.sfx('tap'); for (let i = 0; i < 4; i++) this.parts.push({ x: this.b.x - 10, y: this.b.y + 4, vx: -60 - Math.random() * 60, vy: 30 + Math.random() * 60, t: .4 }); },
+  step(dt) {
+    const B = this.b; if (!B) return; this.t += dt;
+    if (this.state === 'ready') { B.y = 300 + Math.sin(this.t * 4) * 8; this.scroll += 60 * dt; return; }
+    if (this.state !== 'play' && this.state !== 'dying') return;
+    const M = MODES[this.mode], sp = M.sp + Math.min(60, this.pts * 1.2);
+    B.vy = Math.min(520, B.vy + 1150 * dt); B.y += B.vy * dt; B.a = HX.clamp(B.vy / 500, -.5, 1.3);
+    this.parts = this.parts.filter(p => { p.x += p.vx * dt; p.y += p.vy * dt; return (p.t -= dt) > 0; });
+    if (this.state === 'dying') { if (B.y >= GROUND - 12) { B.y = GROUND - 12; this.end(); } return; }
+    this.scroll += sp * dt;
+    for (const c of this.cols) { c.x -= sp * dt; if (c.amp) c.y = c.y0 + Math.sin(this.t * c.f + c.ph) * c.amp; if (!c.passed && c.x + 30 < B.x) { c.passed = true; this.pts++; HX.sfx('coin'); UI.hud(); } }
+    this.cols = this.cols.filter(c => c.x > -80);
+    const last = this.cols[this.cols.length - 1]; if (!last || last.x < VW - 210) { const gap = Math.max(M.gap - Math.min(25, this.pts * .5), 115), y0 = 150 + Math.random() * (GROUND - 300); this.cols.push({ x: VW + 40, y: y0, y0, gap, passed: false, amp: M.move ? 30 + Math.random() * 40 : 0, f: 1.2 + Math.random(), ph: Math.random() * 6 }); }
+    if (B.y < 12) { B.y = 12; B.vy = 0; }
+    if (B.y > GROUND - 12) return this.crash();
+    for (const c of this.cols) if (B.x + 12 > c.x - 30 && B.x - 12 < c.x + 30 && (B.y - 11 < c.y - c.gap / 2 || B.y + 11 > c.y + c.gap / 2)) return this.crash();
+  },
+  crash() { this.state = 'dying'; HX.sfx('hit'); HX.vibrate(40); this.b.vy = Math.max(this.b.vy, 0); if (this.b.y >= GROUND - 12) this.end(); },
+  medal(p) { return MEDALS.find(m => p >= m[0]); },
+  end() {
+    if (this.state === 'over') return; this.state = 'over'; HX.sfx('lose'); const key = 'best_' + this.mode; const rec = HXA.best(S, key, this.pts); const st = S.get('stats', { games: 0 }); st.games++; S.set('stats', st);
+    const md = this.medal(this.pts); if (md) { const ms = S.get('medals', {}); ms[md[1]] = (ms[md[1]] || 0) + 1; S.set('medals', ms); }
+    S.hub(`Recorde ${Math.max(...Object.keys(MODES).map(k => S.get('best_' + k, 0)))} colunas`); UI.hud();
+    setTimeout(() => HXA.menu({ title: rec && this.pts ? 'Novo recorde!' : 'Fim de voo', text: `${MODES[this.mode].n}${md ? ` · medalha de ${md[1].toLowerCase()}` : ''}`, stats: [[this.pts, 'Pontos'], [S.get(key, 0), 'Recorde']], primary: ['Voar de novo', () => this.start()], buttons: [['Menu', () => UI.home()]] }), 650);
+  }
+};
+const St = HXA.stage(VW, VH);
+const View = {
+  draw() {
+    const g = St.begin(), G = Game, M = G.mode, night = M === 'night';
+    const sky = g.createLinearGradient(0, 0, 0, GROUND); sky.addColorStop(0, night ? '#05070d' : M === 'wind' ? '#1a2a3a' : '#16233a'); sky.addColorStop(1, night ? '#141b2e' : M === 'wind' ? '#3a5368' : '#2c3f5c'); g.fillStyle = sky; g.fillRect(0, 0, VW, VH);
+    if (night) { g.fillStyle = '#e8e2cf'; for (let i = 0; i < 40; i++) { const x = (i * 97 - G.scroll * .05) % VW, y = (i * 53) % 400; g.fillRect((x + VW) % VW, y, 1.5, 1.5); } g.beginPath(); g.arc(320, 90, 26, 0, 7); g.fill(); }
+    g.fillStyle = night ? '#0d1220' : '#22324a'; for (let i = 0; i < 8; i++) { const x = ((i * 90 - G.scroll * .25) % 720 + 720) % 720 - 80, h = 60 + (i * 37) % 70; g.fillRect(x, GROUND - h, 60, h); }
+    for (const c of G.cols) { const top = c.y - c.gap / 2, bot = c.y + c.gap / 2; const gr = g.createLinearGradient(c.x - 30, 0, c.x + 30, 0); gr.addColorStop(0, '#8a6a2e'); gr.addColorStop(.5, '#f1dca6'); gr.addColorStop(1, '#8a6a2e'); g.fillStyle = gr;
+      g.fillRect(c.x - 28, 0, 56, top); g.fillRect(c.x - 28, bot, 56, GROUND - bot); g.fillRect(c.x - 33, top - 18, 66, 18); g.fillRect(c.x - 33, bot, 66, 18); g.strokeStyle = '#3d2c0f'; g.lineWidth = 2; g.strokeRect(c.x - 33, top - 18, 66, 18); g.strokeRect(c.x - 33, bot, 66, 18); }
+    g.fillStyle = '#2a1f10'; g.fillRect(0, GROUND, VW, VH - GROUND); g.fillStyle = '#c9a45c'; g.fillRect(0, GROUND, VW, 4); g.fillStyle = 'rgba(201,164,92,.25)'; for (let x = -(G.scroll % 30); x < VW; x += 30) g.fillRect(x, GROUND + 10, 14, 3);
+    for (const p of G.parts) { g.globalAlpha = p.t * 2.5; g.fillStyle = '#f1dca6'; g.fillRect(p.x, p.y, 3, 3); } g.globalAlpha = 1;
+    const B = G.b; if (B) { g.save(); g.translate(B.x, B.y); g.rotate(B.a); g.fillStyle = '#e0b14a'; g.beginPath(); g.ellipse(0, 0, 15, 12, 0, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(6, -4, 4.5, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(7.5, -4, 2, 0, 7); g.fill();
+      g.fillStyle = '#e5484d'; g.beginPath(); g.moveTo(12, 0); g.lineTo(21, 3); g.lineTo(12, 6); g.fill(); const fl = Math.sin(G.t * 25) * (G.state === 'play' && B.vy < 0 ? 6 : 2); g.fillStyle = '#b8892e'; g.beginPath(); g.ellipse(-4, 2 + fl, 8, 4, -.3, 0, 7); g.fill(); g.restore(); }
+    g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 5; g.font = '800 54px Manrope'; if (G.state === 'play' || G.state === 'dying') { g.strokeText(G.pts, VW / 2, 90); g.fillText(G.pts, VW / 2, 90); }
+    if (G.state === 'hold') { g.font = '700 20px Manrope'; g.fillStyle = '#f1dca6'; g.strokeText('Toque para continuar', VW / 2, 200); g.fillText('Toque para continuar', VW / 2, 200); }
+    if (G.state === 'ready') { g.font = '700 20px Manrope'; g.fillStyle = '#f1dca6'; g.strokeText('Toque para voar', VW / 2, 200); g.fillText('Toque para voar', VW / 2, 200); }
+  }
+};
+const UI = {
+  init() {
+    St.cv.addEventListener('pointerdown', e => { e.preventDefault(); if (!HX.isOpen()) Game.flap(); });
+    addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w') && !e.repeat && !HX.isOpen()) { e.preventDefault(); Game.flap(); } if (e.key === 'p' || e.key === 'Escape') this.pause(); });
+    HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { Game.step(dt); View.draw(); });
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  hud() { HX.$('#pts').textContent = Game.pts; HX.$('#best').textContent = S.get('best_' + Game.mode, 0); const m = Game.medal(Game.pts); HX.$('#medal').textContent = m ? m[1] : '—'; },
+  help: ['Toque na tela (ou espaço / clique no PC) para bater as asas. Sem toque, a ave cai.', 'Passe pelos vãos entre as colunas: cada coluna vale 1 ponto. Encostar numa coluna ou no chão termina o voo.', 'A velocidade aumenta e o vão diminui conforme você pontua.', 'Modos: Clássico, Ventania (colunas se movem) e Noturno (mais rápido e apertado). Medalhas: bronze 10, prata 25, ouro 50, platina 100.'],
+  home() { const ms = S.get('medals', {}); HXA.menu({ title: 'Flight', text: 'Escolha o modo de voo.', stats: Object.entries(MODES).map(([k, m]) => [S.get('best_' + k, 0), m.n]),
+    html: `<p style="font-size:13px;color:var(--muted)">Medalhas: ${MEDALS.map(m => `${m[1]} ${ms[m[1]] || 0}`).join(' · ')}</p>`,
+    primary: ['Clássico', () => Game.start('classic')], buttons: [['Ventania', () => Game.start('wind')], ['Noturno', () => Game.start('night')]], help: this.help }); },
+  pause() { if (!['play', 'ready', 'hold'].includes(Game.state)) return Game.state === 'over' || Game.state === 'idle' ? this.home() : null; const prev = Game.state; Game.state = 'pause';
+    HXA.menu({ title: 'Pausa', text: `${MODES[Game.mode].n} · ${Game.pts} pontos`, primary: ['Continuar', () => { Game.state = prev === 'play' ? 'hold' : prev; Game.b.vy = 0; HX.toast('Toque para continuar', 1200); }], buttons: [['Recomeçar', () => Game.start()], ['Menu', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.FL = { Game, UI, S, MODES };

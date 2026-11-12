@@ -1,0 +1,113 @@
+/*@ {"name":"Cells","t1":"Ce","t2":"lls","theme":"#060a10","bg2":"radial-gradient(ellipse at 50% 0%,#0f2233 0%,#060a10 66%)",
+"hud":[["Arena","lv","1"],["Massa","mass","0"],["Posição","rank","—"],["Tempo","tm","3:00"]],
+"body":"<div class=\"stage\" id=\"stage\" style=\"position:relative\"><canvas id=\"cv\"></canvas><button class=\"btn-primary\" id=\"split\" style=\"position:absolute;right:14px;bottom:14px;width:auto;min-height:56px;padding:0 18px;border-radius:28px;opacity:.9\">Dividir</button></div>"} @*/
+/* H-LUX CELLS v1.0 — arena de células. Coma partículas e células menores (25% menores), fuja das maiores.
+   Vitória: terminar a rodada de 3 minutos em 1º lugar ou alcançar a massa-alvo. Derrota: ser engolido.
+   Arenas progressivas: mais adversários e mais agressivos. Módulos: Game · Bot · View · UI */
+const S = HX.store('cells');
+const VW = 400, VH = 640, WORLD = 2600, COLS = ['#e5484d', '#3d8bff', '#3ddc84', '#f2c230', '#c86bff', '#ff8c2e', '#2fe0e0', '#ff6fb5', '#b8f04a', '#8a6bff'];
+const NAMES = ['Ônix', 'Rubi', 'Jade', 'Topázio', 'Safira', 'Âmbar', 'Coral', 'Opala', 'Quartzo', 'Turmalina', 'Ágata', 'Pérola', 'Citrino', 'Granada', 'Jaspe', 'Lápis', 'Malaquita', 'Obsidiana'];
+const rad = m => Math.sqrt(m) * 4.2;
+const Game = {
+  lv: 1, state: 'idle', pellets: [], blobs: [], me: [], t: 0, dur: 180, goal: 0, cam: { x: 0, y: 0, z: 1 }, best: 0, eaten: 0,
+  start(lv) {
+    HX.close(); this.lv = lv; this.t = 0; this.eaten = 0; this.goal = 900 + lv * 250; this.pellets = []; for (let i = 0; i < 700; i++) this.addPellet();
+    this.blobs = []; const n = 8 + Math.min(10, lv * 2);
+    for (let i = 0; i < n; i++) this.blobs.push(this.bot(i));
+    this.me = [{ x: WORLD / 2, y: WORLD / 2, m: 20, vx: 0, vy: 0, me: true, c: '#e0b14a', name: 'Você', merge: 0 }];
+    this.state = 'play'; HX.sfx('power'); UI.hud();
+  },
+  bot(i) { const p = this.free(); return { x: p[0], y: p[1], m: 14 + Math.random() * (25 + this.lv * 18), c: COLS[i % COLS.length], name: NAMES[i % NAMES.length], bot: true, aggr: .4 + Math.min(.5, this.lv * .08) + Math.random() * .2, tx: p[0], ty: p[1], think: 0, vx: 0, vy: 0 }; },
+  free() { for (let k = 0; k < 30; k++) { const x = 80 + Math.random() * (WORLD - 160), y = 80 + Math.random() * (WORLD - 160); if (!this.me.length || Math.hypot(x - this.me[0].x, y - this.me[0].y) > 500) return [x, y]; } return [100, 100]; },
+  addPellet() { this.pellets.push({ x: Math.random() * WORLD, y: Math.random() * WORLD, c: COLS[Math.floor(Math.random() * COLS.length)] }); },
+  all() { return this.me.concat(this.blobs); },
+  massMe() { return this.me.reduce((s, c) => s + c.m, 0); },
+  speed(m) { return 260 * Math.pow(m, -.22) + 40; },
+  split() { if (this.state !== 'play' || this.me.length >= 4) return; const add = []; const dir = UI.dir(); for (const c of this.me) { if (c.m < 36 || this.me.length + add.length >= 4) continue; c.m /= 2; c.merge = 9; const n = { x: c.x, y: c.y, m: c.m, me: true, c: c.c, name: 'Você', merge: 9, vx: dir.x * 700, vy: dir.y * 700 }; add.push(n); } if (add.length) { this.me.push(...add); HX.sfx('shot'); } else HX.toast('Massa insuficiente para dividir'); },
+  step(dt) {
+    if (this.state !== 'play') return; this.t += dt;
+    const d = UI.dir(), cx = this.me.reduce((s, c) => s + c.x * c.m, 0) / this.massMe(), cy = this.me.reduce((s, c) => s + c.y * c.m, 0) / this.massMe();
+    for (const c of this.me) { const sp = this.speed(c.m); const tx = cx + d.x * 400 - c.x, ty = cy + d.y * 400 - c.y, l = Math.hypot(tx, ty) || 1; const want = d.on ? [tx / l * sp, ty / l * sp] : [0, 0];
+      c.vx += (want[0] - c.vx) * Math.min(1, dt * 5); c.vy += (want[1] - c.vy) * Math.min(1, dt * 5); if (c.merge > 0) c.merge -= dt; }
+    for (const b of this.blobs) Bot.think(b, dt);
+    for (const c of this.all()) { c.x = HX.clamp(c.x + c.vx * dt, rad(c.m), WORLD - rad(c.m)); c.y = HX.clamp(c.y + c.vy * dt, rad(c.m), WORLD - rad(c.m)); if (c.m > 60) c.m -= c.m * .004 * dt; }
+    // separação/fusão das minhas células
+    for (let i = 0; i < this.me.length; i++) for (let j = i + 1; j < this.me.length; j++) { const a = this.me[i], b = this.me[j], dd = Math.hypot(a.x - b.x, a.y - b.y), rr = rad(a.m) + rad(b.m);
+      if (a.merge <= 0 && b.merge <= 0 && dd < Math.max(rad(a.m), rad(b.m))) { a.m += b.m; b.m = 0; } else if (dd < rr && dd > 0 && (a.merge > 0 || b.merge > 0)) { const push = (rr - dd) / 2, nx = (a.x - b.x) / dd, ny = (a.y - b.y) / dd; a.x += nx * push; a.y += ny * push; b.x -= nx * push; b.y -= ny * push; } }
+    this.me = this.me.filter(c => c.m > 0);
+    // partículas
+    const cells = this.all();
+    for (const c of cells) { const r = rad(c.m); for (const p of this.pellets) { if (p.dead || Math.abs(p.x - c.x) > r || Math.abs(p.y - c.y) > r) continue; if ((p.x - c.x) ** 2 + (p.y - c.y) ** 2 < r * r) { p.dead = true; c.m += 1; } } }
+    const before = this.pellets.length; this.pellets = this.pellets.filter(p => !p.dead); for (let k = this.pellets.length; k < before; k++) this.addPellet();
+    // células comem células
+    for (const a of cells) for (const b of cells) { if (a === b || a.m <= 0 || b.m <= 0 || (a.me && b.me)) continue; if (a.m < b.m * 1.25) continue; const dd = Math.hypot(a.x - b.x, a.y - b.y); if (dd < rad(a.m) - rad(b.m) * .4) { a.m += b.m * .9; b.m = 0; if (a.me) { this.eaten++; HX.sfx('coin'); HX.vibrate(15); } if (b.me) { HX.sfx('hit'); HX.vibrate(40); } } }
+    this.me = this.me.filter(c => c.m > 0); const gone = this.blobs.filter(b => b.m <= 0).length; this.blobs = this.blobs.filter(b => b.m > 0);
+    for (let k = 0; k < gone; k++) setTimeout(() => { if (this.state === 'play') this.blobs.push(this.bot(Math.floor(Math.random() * 18))); }, 2500);
+    if (!this.me.length) return this.end(false, 'Você foi engolido');
+    if (this.massMe() >= this.goal) return this.end(true, 'Massa-alvo alcançada');
+    if (this.t >= this.dur) return this.end(this.rank() === 1, this.rank() === 1 ? 'Você terminou em 1º' : `Você terminou em ${this.rank()}º`);
+    const z = HX.clamp(1.25 - Math.log10(this.massMe()) * .32, .35, 1); this.cam.z += (z - this.cam.z) * Math.min(1, dt * 2); this.cam.x = cx; this.cam.y = cy;
+    UI.hud();
+  },
+  board() { const list = this.blobs.map(b => ({ n: b.name, m: b.m, c: b.c })); list.push({ n: 'Você', m: this.massMe(), c: '#e0b14a', me: true }); return list.sort((a, b) => b.m - a.m); },
+  rank() { return this.board().findIndex(x => x.me) + 1; },
+  end(win, why) {
+    this.state = 'over'; const mass = Math.round(this.massMe() || 0); HXA.best(S, 'bestMass', mass); const st = S.get('stats', { games: 0, wins: 0 }); st.games++; if (win) st.wins++; S.set('stats', st);
+    if (win) { const u = S.get('unlocked', 1); if (this.lv >= u) S.set('unlocked', this.lv + 1); } HX.sfx(win ? 'win' : 'lose');
+    S.hub(`Arena ${S.get('unlocked', 1)} liberada · recorde ${S.get('bestMass', 0)}`);
+    setTimeout(() => HXA.menu({ title: win ? 'Vitória!' : 'Fim da rodada', text: why, stats: [[mass, 'Massa'], [this.eaten, 'Engolidas'], [this.rank ? (this.me.length ? this.rank() + 'º' : '—') : '—', 'Posição']], primary: win ? ['Próxima arena', () => this.start(this.lv + 1)] : ['Tentar de novo', () => this.start(this.lv)], buttons: [['Menu', () => UI.home()]] }), 500);
+  }
+};
+const Bot = {
+  think(b, dt) {
+    b.think -= dt; if (b.think <= 0) { b.think = .25 + Math.random() * .3; const r = 520 + rad(b.m) * 2; let threat = null, prey = null;
+      for (const o of Game.all()) { if (o === b) continue; const d = Math.hypot(o.x - b.x, o.y - b.y); if (d > r) continue; if (o.m > b.m * 1.25 && (!threat || d < threat.d)) threat = { o, d }; else if (b.m > o.m * 1.3 && (!prey || o.m / d > prey.v)) prey = { o, d, v: o.m / d }; }
+      if (threat && threat.d < 260 + rad(threat.o.m)) { b.tx = b.x - (threat.o.x - b.x) * 3; b.ty = b.y - (threat.o.y - b.y) * 3; }
+      else if (prey && Math.random() < b.aggr) { b.tx = prey.o.x; b.ty = prey.o.y; }
+      else { let best = null, bd = 1e9; for (let k = 0; k < 40; k++) { const p = Game.pellets[Math.floor(Math.random() * Game.pellets.length)]; const d = Math.hypot(p.x - b.x, p.y - b.y); if (d < bd) { bd = d; best = p; } } if (best) { b.tx = best.x; b.ty = best.y; } } }
+    const sp = Game.speed(b.m) * .92, dx = b.tx - b.x, dy = b.ty - b.y, l = Math.hypot(dx, dy) || 1; b.vx += (dx / l * sp - b.vx) * Math.min(1, dt * 4); b.vy += (dy / l * sp - b.vy) * Math.min(1, dt * 4);
+  }
+};
+const View = {
+  draw() {
+    const g = St.begin(), G = Game, z = G.cam.z; g.fillStyle = '#081018'; g.fillRect(0, 0, VW, VH);
+    g.save(); g.translate(VW / 2, VH / 2); g.scale(z, z); g.translate(-G.cam.x, -G.cam.y);
+    g.strokeStyle = 'rgba(201,164,92,.08)'; g.lineWidth = 1 / z; const x0 = Math.max(0, G.cam.x - VW / z), x1 = Math.min(WORLD, G.cam.x + VW / z), y0 = Math.max(0, G.cam.y - VH / z), y1 = Math.min(WORLD, G.cam.y + VH / z);
+    g.beginPath(); for (let x = Math.floor(x0 / 60) * 60; x <= x1; x += 60) { g.moveTo(x, y0); g.lineTo(x, y1); } for (let y = Math.floor(y0 / 60) * 60; y <= y1; y += 60) { g.moveTo(x0, y); g.lineTo(x1, y); } g.stroke();
+    g.strokeStyle = '#c9a45c'; g.lineWidth = 6; g.strokeRect(0, 0, WORLD, WORLD);
+    for (const p of G.pellets) { if (p.x < x0 - 10 || p.x > x1 + 10 || p.y < y0 - 10 || p.y > y1 + 10) continue; g.fillStyle = p.c; g.beginPath(); g.arc(p.x, p.y, 4, 0, 7); g.fill(); }
+    const cells = G.all().slice().sort((a, b) => a.m - b.m);
+    for (const c of cells) { const r = rad(c.m); g.fillStyle = c.c; g.beginPath(); g.arc(c.x, c.y, r, 0, 7); g.fill(); g.lineWidth = Math.max(2, r * .08); g.strokeStyle = 'rgba(0,0,0,.25)'; g.stroke();
+      if (c.me) { g.strokeStyle = '#fff6c8'; g.lineWidth = 3 / z; g.stroke(); }
+      if (r * z > 14) { g.fillStyle = '#fff'; g.font = `800 ${Math.max(10, r * .38)}px Manrope`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c.name, c.x, c.y); } }
+    g.restore();
+    // ranking
+    const bd = G.board().slice(0, 5); g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(VW - 128, 8, 120, 18 + bd.length * 16); g.font = '700 11px Manrope'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.fillStyle = '#c9a45c'; g.fillText('RANKING', VW - 120, 22); bd.forEach((x, i) => { g.fillStyle = x.me ? '#fff6c8' : '#ccc'; g.fillText(`${i + 1}. ${x.n}`, VW - 120, 38 + i * 16); g.textAlign = 'right'; g.fillText(Math.round(x.m), VW - 14, 38 + i * 16); g.textAlign = 'left'; });
+    g.fillStyle = 'rgba(241,220,166,.6)'; g.fillText(`Meta: ${G.goal}`, 10, 22);
+    UI.st.draw(g);
+  }
+};
+const St = HXA.stage(VW, VH);
+const UI = {
+  st: null, mouse: null,
+  init() {
+    this.st = HXA.stick(St, { zone: 'any', radius: 54, mouse: false });
+    St.cv.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') this.mouse = St.toL(e); });
+    St.cv.addEventListener('pointerleave', () => this.mouse = null);
+    HX.$('#split').onclick = () => Game.split(); addEventListener('keydown', e => { if (e.key === ' ') Game.split(); if (e.key === 'p' || e.key === 'Escape') this.pause(); });
+    HX.$('#menu').onclick = () => this.pause();
+    HXA.loop(dt => { Game.step(dt); if (Game.me.length) View.draw(); });
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  dir() { const k = HXA.axis(); if (k.on) return k; if (this.st.active) return { x: this.st.x, y: this.st.y, on: Math.hypot(this.st.x, this.st.y) > .1 };
+    if (this.mouse) { const dx = this.mouse[0] - VW / 2, dy = this.mouse[1] - VH / 2, l = Math.hypot(dx, dy); return l < 8 ? { x: 0, y: 0, on: false } : { x: dx / l * Math.min(1, l / 120), y: dy / l * Math.min(1, l / 120), on: true }; }
+    return { x: 0, y: 0, on: false }; },
+  hud() { HX.$('#lv').textContent = Game.lv; HX.$('#mass').textContent = Math.round(Game.massMe()); HX.$('#rank').textContent = Game.rank() + 'º'; HX.$('#tm').textContent = HX.fmt(Math.max(0, Game.dur - Game.t) * 1000); },
+  help: ['Arraste o dedo em qualquer lugar para guiar sua célula dourada (no PC, mova o mouse ou use WASD/setas).', 'Coma as partículas para crescer. Células pelo menos 25% menores que você podem ser engolidas; fuja das maiores.', 'Dividir (ou espaço) parte suas células em duas e lança uma metade para a frente — ótimo para pegar presas. Elas se juntam de novo depois de alguns segundos.', 'Células grandes ficam mais lentas e perdem um pouco de massa com o tempo.', 'Vença terminando os 3 minutos em 1º lugar ou atingindo a massa-alvo. Cada vitória libera uma arena com rivais mais agressivos.'],
+  home() { const st = S.get('stats', { games: 0, wins: 0 }), u = S.get('unlocked', 1);
+    HXA.menu({ title: 'Cells', text: 'Cresça, engula e domine a arena.', stats: [[u, 'Arena liberada'], [S.get('bestMass', 0), 'Maior massa'], [`${st.wins}/${st.games}`, 'Vitórias']], primary: [`Jogar arena ${u}`, () => Game.start(u)], buttons: u > 1 ? [['Arena 1', () => Game.start(1)]] : [], help: this.help }); },
+  pause() { if (Game.state !== 'play') return this.home(); Game.state = 'pause'; HXA.menu({ title: 'Pausa', text: `Arena ${Game.lv} · massa ${Math.round(Game.massMe())}`, primary: ['Continuar', () => { Game.state = 'play'; }], buttons: [['Recomeçar', () => Game.start(Game.lv)], ['Menu', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.CL = { Game, Bot, UI, S, rad };
