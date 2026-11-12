@@ -1,7 +1,7 @@
 /*@ {"name":"Ragdoll Arena","t1":"Ragdoll ","t2":"Arena","theme":"#0a0708","bg2":"radial-gradient(ellipse at 50% 0%,#2a1616 0%,#0a0708 66%)",
 "hud":[["Você","hp1","100"],["Rodada","rnd","1"],["Rival","hp2","100"]],
 "css":".ctl{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;width:100%;max-width:620px;align-self:center}.ctl button{min-height:64px;flex:0 0 96px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(#1c1c20,#121214);color:var(--gold-2);font:800 14px Manrope,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}.ctl button.on{border-color:var(--gold);background:linear-gradient(#3a2f18,#1d170c)}.ctl .hint{flex:1;align-self:center;font-size:12px;color:var(--muted)}",
-"body":"<div class=\"stage\" id=\"stage\"><canvas id=\"cv\"></canvas></div><div class=\"ctl\"><span class=\"hint\" id=\"hint\">Arraste à esquerda para mover</span><button id=\"bjump\">Pular</button><button id=\"batk\">Atacar</button></div>"} @*/
+"body":"<div class=\"stage\" id=\"stage\"><canvas id=\"cv\"></canvas></div><div class=\"ctl\"><span class=\"hint\" id=\"hint\">Arraste na arena para mover</span><button id=\"bjump\">Pular</button><button id=\"batk\">Atacar</button></div>"} @*/
 /* H-LUX RAGDOLL ARENA v1.0 — luta com bonecos de física (Verlet: partículas + hastes).
    Golpes valem pela velocidade real da mão/arma no impacto. Armas (taco, espada, martelo) e caixas que podem ser empurradas.
    3 arenas (Ringue, Plataformas, Abismo — cair é derrota), IA em 3 níveis, melhor de 3 rodadas.
@@ -58,7 +58,7 @@ const Body = {
     if (cmd.mx && b.stun <= 0) { const f = (g ? 1500 : 500) * cmd.mx; this.push(b.pel, f, 0, dt); this.push(b.neck, f * .8, 0, dt); const ph = performance.now() / 90; this.push(b.fL, f * (Math.sin(ph) > 0 ? 1.4 : -.2), 0, dt); this.push(b.fR, f * (Math.sin(ph) > 0 ? -.2 : 1.4), 0, dt); }
     if (cmd.jump && g && b.stun <= 0) { for (const p of b.parts) { p.oy = p.y + 9.5; } HX.sfx('tap'); }
     if (cmd.atk && b.cd <= 0 && b.stun <= 0 && foe) { b.cd = .55 + WEAP[b.wk].mass * .12; b.atk = .22; b.hitDone = false; }
-    if (b.atk) { b.atk = Math.max(0, b.atk - dt); const tgt = foe.head, k = b.tip ? 5200 : 4200; const dx = tgt.x - b.hF.x, dy = tgt.y - b.hF.y, d = Math.hypot(dx, dy) || 1;
+    if (b.atk) { b.atk = Math.max(0, b.atk - dt); const tgt = foe.head, k = b.tip ? 7000 : 6200; const dx = tgt.x - b.hF.x, dy = tgt.y - b.hF.y, d = Math.hypot(dx, dy) || 1;
       if (b.tip) { this.push(b.tip, dx / d * k * 1.3 + b.dir * 1200, dy / d * k * 1.3 - 2600 * (b.atk > .12 ? 1 : -1), dt); } this.push(b.hF, dx / d * k, dy / d * k, dt); }
   }
 };
@@ -84,9 +84,9 @@ const Game = {
     this.fx = []; this.t = 0; this.state = 'fight'; this.over = 0; HX.toast(`Rodada ${this.round} · ${WEAP[this.a.wk].n} × ${WEAP[this.b.wk].n}`, 1300); UI.hud();
   },
   hit(att, def) {
-    if (att.hitDone || !att.atk && !att.tip) return; const tool = att.tip || att.hF, sp = Math.hypot(tool.x - tool.ox, tool.y - tool.oy) * 60; if (sp < 260) return;
+    if (att.hitDone || !att.atk && !att.tip) return; const tool = att.tip || att.hF, sp = Math.hypot(tool.x - tool.ox, tool.y - tool.oy) * 60; if (sp < 170) return;
     for (const [p, mul] of [[def.head, 1.6], [def.neck, 1], [def.pel, .8]]) { if (Math.hypot(tool.x - p.x, tool.y - p.y) < tool.r + p.r + 4) {
-      const W = WEAP[att.wk], dmg = Math.round(Math.min(30, (sp - 200) / 40 * W.dmg * mul)); if (dmg <= 0) return; def.hp = Math.max(0, def.hp - dmg); att.hitDone = true; att.cd = Math.max(att.cd, .35);
+      const W = WEAP[att.wk], dmg = Math.round(Math.min(30, (sp - 120) / 28 * W.dmg * mul)); if (dmg <= 0) return; def.hp = Math.max(0, def.hp - dmg); att.hitDone = true; att.cd = Math.max(att.cd, .35);
       const kx = (tool.x - tool.ox) * .7, ky = (tool.y - tool.oy) * .7 - 3; for (const q of def.parts) { q.ox -= kx; q.oy -= ky; } if (dmg > 12) def.stun = .6 + dmg / 40;
       this.fx.push({ x: p.x, y: p.y, t: .4, v: dmg }); HX.sfx(dmg > 14 ? 'boom' : 'hit'); HX.vibrate(dmg > 14 ? 40 : 15); return; } }
   },
@@ -104,6 +104,8 @@ const Game = {
     if (this.state === 'fight') { this.hit(this.a, this.b); this.hit(this.b, this.a); this.boxHits(); }
     this.fx = this.fx.filter(e => (e.t -= dt) > 0);
     for (const f of [this.a, this.b]) if (f.head.y > VH + 40) f.hp = 0;
+    if (this.state === 'fight' && this.t > 60 && this.a.hp === this.b.hp) { this.state = 'ko'; this.over = 1.6; this.round--; HX.toast('Empate — a rodada será repetida', 1300); }
+    if (this.state === 'fight' && this.t > 60 && this.a.hp !== this.b.hp) { (this.a.hp < this.b.hp ? this.a : this.b).hp = 0; HX.toast('Tempo esgotado — vence quem tem mais vida', 1300); }
     if (this.state === 'fight' && (this.a.hp <= 0 || this.b.hp <= 0)) { this.state = 'ko'; this.over = 1.6; const w = this.a.hp > 0 ? 0 : this.b.hp > 0 ? 1 : (this.a.head.y < this.b.head.y ? 0 : 1); this.wins[w]++; this.lastW = w; HX.sfx(w === 0 || this.mode !== 'ai' ? 'win' : 'lose'); HX.toast(w === 0 ? (this.mode === 'ai' ? 'Nocaute! Você venceu a rodada' : 'Ponto do Jogador 1') : (this.mode === 'ai' ? 'Você foi nocauteado' : 'Ponto do Jogador 2'), 1400); }
     if (this.state === 'ko') { this.over -= dt; if (this.over <= 0) { if (this.wins[0] === 2 || this.wins[1] === 2) return this.end(); this.round++; this.newRound(); } }
     UI.hud();
@@ -132,6 +134,7 @@ const View = {
     this.body(g, G.b); this.body(g, G.a);
     for (const e of G.fx) { g.globalAlpha = e.t * 2.5; g.fillStyle = '#fff'; g.font = '800 18px Manrope'; g.textAlign = 'center'; g.fillText('-' + e.v, e.x, e.y - 20 - (.4 - e.t) * 60); g.globalAlpha = 1; }
     for (const [f, x, al] of [[G.a, 12, 'left'], [G.b, VW - 12, 'right']]) { const w = 150; g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(al === 'left' ? x : x - w, 12, w, 10); g.fillStyle = f.col; g.fillRect(al === 'left' ? x : x - w * f.hp / 100, 12, w * f.hp / 100, 10); g.fillStyle = '#f1dca6'; g.font = '700 11px Manrope'; g.textAlign = al; g.fillText(`${WEAP[f.wk].n} · ${'●'.repeat(G.wins[f === G.a ? 0 : 1])}`, x, 36); }
+    g.fillStyle = G.t > 50 ? '#e5484d' : '#f1dca6'; g.font = '800 18px Manrope'; g.textAlign = 'center'; g.fillText(Math.max(0, Math.ceil(60 - G.t)), VW / 2, 26);
     if (UI.st) UI.st.draw(g);
   }
 };
@@ -139,7 +142,7 @@ const UI = {
   st: null, atk: false, jump: false,
   init() {
     this.st = HXA.stick(St, { zone: 'any', radius: 46 });
-    const hold = (id, k) => { const b = HX.$('#' + id); const on = v => e => { e.preventDefault(); if (v) this[k] = true; else if (k === 'atk') this.atk = false; b.classList.toggle('on', v); }; b.addEventListener('pointerdown', on(true)); b.addEventListener('pointerup', on(false)); b.addEventListener('pointerleave', on(false)); b.addEventListener('pointercancel', on(false)); };
+    const hold = (id, k) => { const b = HX.$('#' + id); const on = v => e => { e.preventDefault(); if (v) { this[k] = true; if (k === 'atk') this.atkL = true; } else if (k === 'atk') this.atk = false; b.classList.toggle('on', v); }; b.addEventListener('pointerdown', on(true)); b.addEventListener('pointerup', on(false)); b.addEventListener('pointerleave', on(false)); b.addEventListener('pointercancel', on(false)); };
     hold('batk', 'atk'); hold('bjump', 'jump');
     addEventListener('keydown', e => { if (e.repeat) return; if (e.key === 'p' || e.key === 'Escape') this.pause(); if (['w', 'W'].includes(e.key) || (Game.mode === 'ai' && (e.key === 'ArrowUp' || e.key === ' '))) this.jump1 = true; if (e.key === 'ArrowUp' && Game.mode === 'pvp') this.jump2 = true; });
     HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { Game.step(Math.min(dt, 1 / 30)); View.draw(); });
@@ -150,14 +153,14 @@ const UI = {
     if (n === 2) { const c = { mx: (K('ArrowRight') ? 1 : 0) - (K('ArrowLeft') ? 1 : 0), jump: !!this.jump2, atk: K('k', 'l', 'K', 'L') }; this.jump2 = false; return c; }
     let mx = (K('d', 'D') ? 1 : 0) - (K('a', 'A') ? 1 : 0); if (Game.mode === 'ai') mx += (K('ArrowRight') ? 1 : 0) - (K('ArrowLeft') ? 1 : 0);
     if (!mx && this.st.active && Math.abs(this.st.x) > .2) mx = this.st.x; const jumpStick = this.st.active && this.st.y < -.7;
-    const c = { mx: HX.clamp(mx, -1, 1), jump: this.jump || this.jump1 || jumpStick, atk: this.atk || K('f', 'g', 'F', 'G', 'j', 'J') || (Game.mode === 'ai' && K('Enter')) }; this.jump = false; this.jump1 = false; return c;
+    const c = { mx: HX.clamp(mx, -1, 1), jump: this.jump || this.jump1 || jumpStick, atk: this.atk || this.atkL || K('f', 'g', 'F', 'G', 'j', 'J') || (Game.mode === 'ai' && K('Enter')) }; this.jump = false; this.jump1 = false; this.atkL = false; return c;
   },
   hud() { HX.$('#hp1').textContent = Math.round(Game.a.hp); HX.$('#hp2').textContent = Math.round(Game.b.hp); HX.$('#rnd').textContent = `${Game.round} (${Game.wins[0]}×${Game.wins[1]})`; },
-  help: ['Celular: arraste o dedo na arena para andar (puxar para cima também pula). Botões: Pular e Atacar (segure para golpes seguidos).', 'PC: A/D ou setas andam, W/espaço pula, F ou J ataca. Modo 2 jogadores no PC: Jogador 1 usa A/D, W e F/G; Jogador 2 usa setas e K/L.', 'O dano depende da velocidade da mão ou da arma no impacto; na cabeça vale mais. Golpes fortes deixam o rival tonto.', 'Rodada 1 é no punho; depois cada lutador recebe uma arma sorteada (taco, espada ou martelo). Caixas arremessadas também machucam. No Abismo, cair é nocaute. Melhor de 3.'],
+  help: ['Celular: arraste o dedo na arena para andar (puxar para cima também pula). Botões: Pular e Atacar (segure para golpes seguidos).', 'PC: A/D ou setas andam, W/espaço pula, F ou J ataca. Modo 2 jogadores no PC: Jogador 1 usa A/D, W e F/G; Jogador 2 usa setas e K/L.', 'O dano depende da velocidade da mão ou da arma no impacto; na cabeça vale mais. Golpes fortes deixam o rival tonto.', 'Rodada 1 é no punho; depois cada lutador recebe uma arma sorteada (taco, espada ou martelo). Caixas arremessadas também machucam. No Abismo, cair é nocaute. Cada rodada tem 60 s (depois disso vence quem tiver mais vida). Melhor de 3.'],
   home() { const st = S.get('stats', { w: 0, l: 0 }), beat = S.get('beat', {}); const pc = matchMedia('(pointer:fine)').matches;
     HXA.menu({ title: 'Ragdoll Arena', text: 'Escolha a arena e a dificuldade.', stats: [[st.w, 'Vitórias'], [st.l, 'Derrotas']],
       html: `<div class="segs"><div class="segg"><small>Arena</small><div class="seg" id="sa">${ARENAS.map((a, i) => `<button data-v="${i}" class="${i === (this.selA || 0) ? 'on' : ''}">${a.n}${beat[i] ? ' ✓' : ''}</button>`).join('')}</div></div><div class="segg"><small>Oponente</small><div class="seg" id="sd">${['IA fácil', 'IA média', 'IA difícil'].concat(pc ? ['2 jogadores (teclado)'] : []).map((n, i) => `<button data-v="${i}" class="${i === (this.selD ?? 1) ? 'on' : ''}">${n}</button>`).join('')}</div></div></div>`,
-      primary: ['Lutar', () => { const d = this.selD ?? 1; Game.match(this.selA || 0, Math.min(2, d), d === 3 ? 'pvp' : 'ai'); HX.$('#hint').textContent = d === 3 ? 'J1: A/D W F · J2: setas ↑ K' : 'Arraste à esquerda para mover'; }], help: this.help });
+      primary: ['Lutar', () => { const d = this.selD ?? 1; Game.match(this.selA || 0, Math.min(2, d), d === 3 ? 'pvp' : 'ai'); HX.$('#hint').textContent = d === 3 ? 'J1: A/D W F · J2: setas ↑ K' : 'Arraste na arena para mover'; }], help: this.help });
     const c = document.querySelector('.hx-card'); c.querySelectorAll('#sa [data-v]').forEach(b => b.onclick = () => { this.selA = +b.dataset.v; c.querySelectorAll('#sa button').forEach(x => x.classList.toggle('on', x === b)); });
     c.querySelectorAll('#sd [data-v]').forEach(b => b.onclick = () => { this.selD = +b.dataset.v; c.querySelectorAll('#sd button').forEach(x => x.classList.toggle('on', x === b)); }); },
   pause() { if (Game.state !== 'fight' && Game.state !== 'ko') return Game.state === 'pause' ? null : this.home(); const prev = Game.state; Game.state = 'pause'; this.atk = false;
