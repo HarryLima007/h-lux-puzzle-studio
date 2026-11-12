@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0c0806">
+<title>H-LUX Kitchen</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0c0806;--bg2:radial-gradient(ellipse at 50% 0%,#2e1c10 0%,#0c0806 66%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
+.kit{flex:1;width:100%;max-width:620px;align-self:center;display:flex;flex-direction:column;justify-content:center;gap:10px;min-height:0}.cust{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.cu{border:1px solid var(--line);border-radius:14px;background:#141416;min-height:112px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;position:relative}.cu.empty{opacity:.35;cursor:default}.cu .face{font-size:26px}.cu .ord{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;font-size:18px}.cu .pat{width:90%;height:6px;border-radius:3px;background:#333;overflow:hidden}.cu .pat i{display:block;height:100%;background:#3ddc84}.cu .nm{font:700 10px Manrope,sans-serif;color:var(--muted)}.sta{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.st{border:1px solid var(--line);border-radius:12px;background:#17120e;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 10px Manrope,sans-serif;color:var(--muted);cursor:pointer;position:relative;overflow:hidden}.st .ic{font-size:26px}.st .bar{position:absolute;left:0;bottom:0;height:5px;background:#e0b14a}.st.done{border-color:#3ddc84;box-shadow:0 0 0 1px #3ddc84 inset}.st.burn{border-color:#e5484d}.plate{border:1px dashed var(--gold);border-radius:14px;min-height:54px;display:flex;align-items:center;gap:6px;padding:4px 10px;font-size:24px}.plate b{font:700 11px Manrope,sans-serif;color:var(--muted);margin-right:6px}.ing{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.ing button{min-height:56px;border-radius:12px;border:1px solid var(--line);background:#141416;font-size:24px;line-height:1}.ing button small{display:block;font:700 9px Manrope,sans-serif;color:var(--muted)}.ing button[disabled]{opacity:.25}.ing .trash{font-size:20px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Kit<b>chen</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Dia</small><b id="day">1</b></div><div class="sc"><small>Lucro / meta</small><b id="cash">R$ 0</b></div><div class="sc"><small>Tempo</small><b id="tm">120</b></div></div>
+  <div class="kit"><div class="cust" id="cust"></div><div class="sta" id="sta"></div><div class="plate" id="plate"></div><div class="ing" id="ing"></div></div>
+</div>
+<script src="../shared/kit.js"></script><script src="../shared/arcade.js"></script>
+<script>
+'use strict';
+/* H-LUX KITCHEN v1.0 — gerencie uma lanchonete: clientes chegam com pedidos, você prepara e entrega antes que a paciência acabe.
+   Ingredientes custam dinheiro; carne vai à chapa (e queima se esquecer), alface/tomate à tábua, batata à fritadeira,
+   laranja ao espremedor e massa ao forno. Monte o prato e toque no cliente certo. Dias de 120 s com meta de faturamento,
+   receitas novas a cada dia e melhorias (chapa extra, cozimento mais rápido, paciência, gorjetas). Módulos: ING · REC · Game · UI */
+const S = HX.store('kitchen');
+const ING = {
+  pao: { n: 'Pão', ic: '🍞', cost: 1 }, carne: { n: 'Carne', ic: '🥩', cost: 3, st: 'grill' }, queijo: { n: 'Queijo', ic: '🧀', cost: 1 }, alface: { n: 'Alface', ic: '🥬', cost: 1, st: 'board' }, tomate: { n: 'Tomate', ic: '🍅', cost: 1, st: 'board' },
+  batata: { n: 'Batata', ic: '🥔', cost: 1, st: 'fryer', day: 3 }, laranja: { n: 'Laranja', ic: '🍊', cost: 1, st: 'juicer', day: 2 }, massa: { n: 'Massa', ic: '🫓', cost: 2, st: 'oven', day: 4 }
+};
+const OUT = { carne: ['grelhada', '🍖'], alface: ['alface picada', '🥗'], tomate: ['tomate picado', '🔴'], batata: ['fritas', '🍟'], laranja: ['suco', '🧃'], massa: ['massa assada', '🍕'] };
+const REC = [
+  { n: 'Hambúrguer', ic: '🍔', items: ['pao', 'carne*'], price: 12, day: 1 }, { n: 'Salada', ic: '🥗', items: ['alface*', 'tomate*'], price: 9, day: 1 },
+  { n: 'Suco', ic: '🧃', items: ['laranja*'], price: 6, day: 2 }, { n: 'X-Burguer', ic: '🍔', items: ['pao', 'carne*', 'queijo'], price: 16, day: 3 }, { n: 'Fritas', ic: '🍟', items: ['batata*'], price: 7, day: 3 },
+  { n: 'Pizza', ic: '🍕', items: ['massa*', 'queijo', 'tomate*'], price: 20, day: 4 }, { n: 'Combo', ic: '🎁', items: ['pao', 'carne*', 'batata*', 'laranja*'], price: 26, day: 5 }
+];
+const STN = { grill: { n: 'Chapa', ic: '🔥', t: 4.5, burn: 9 }, board: { n: 'Tábua', ic: '🔪', taps: 3 }, fryer: { n: 'Fritadeira', ic: '🛢️', t: 4, burn: 10, day: 3 }, juicer: { n: 'Espremedor', ic: '🍹', t: 2.5, day: 2 }, oven: { n: 'Forno', ic: '♨️', t: 6, burn: 12, day: 4 } };
+const FACES = ['🙂', '😀', '🧑', '👩', '👨', '🧔', '👵', '👴', '🧑‍🦱', '👩‍🦰'];
+const UPG = { grill2: { n: 'Segunda chapa', max: 1, base: 60 }, speed: { n: 'Equipamento rápido', max: 3, base: 50 }, patience: { n: 'Ambiente agradável (+paciência)', max: 3, base: 45 }, tips: { n: 'Atendimento (+gorjeta)', max: 3, base: 40 } };
+const Game = {
+  state: 'idle', day: 1, t: 120, cash: 0, earned: 0, cust: [null, null, null], slots: [], plate: [], spawnT: 2, served: 0, lost: 0,
+  up() { return Object.assign({ grill2: 0, speed: 0, patience: 0, tips: 0 }, S.get('up', {})); },
+  goal() { return 50 + this.day * 35; },
+  startDay() { HX.close(); this.day = S.get('day', 1); this.t = 120; this.earned = 0; this.cash = S.get('cash', 40); this.cust = [null, null, null]; this.plate = []; this.spawnT = 1.5; this.served = 0; this.lost = 0;
+    const u = this.up(); this.slots = [{ k: 'grill' }].concat(u.grill2 ? [{ k: 'grill' }] : []).concat([{ k: 'board' }]).concat(['fryer', 'juicer', 'oven'].filter(k => this.day >= STN[k].day).map(k => ({ k }))).map(s => ({ ...s, item: null, prog: 0, taps: 0 }));
+    this.state = 'play'; UI.build(); HX.toast(`Dia ${this.day} · meta R$ ${this.goal()}`, 1500); },
+  recipes() { return REC.filter(r => r.day <= this.day); },
+  spawn() { const i = this.cust.findIndex(c => !c); if (i < 0) return; const r = this.recipes(); const rec = r[Math.floor(Math.random() * r.length)]; const pat = (40 - Math.min(14, this.day * 2) + rec.items.length * 4) * (1 + this.up().patience * .2); this.cust[i] = { rec, face: FACES[Math.floor(Math.random() * FACES.length)], pat, max: pat }; HX.sfx('tap'); },
+  step(dt) {
+    if (this.state !== 'play') return; this.t -= dt; const u = this.up(), sp = 1 + u.speed * .2;
+    this.spawnT -= dt; if (this.spawnT <= 0) { this.spawn(); this.spawnT = Math.max(4, 11 - this.day * .9) * (.7 + Math.random() * .6); }
+    this.cust.forEach((c, i) => { if (!c) return; c.pat -= dt; if (c.pat <= 0) { this.cust[i] = null; this.lost++; HX.sfx('lose'); HX.toast('Um cliente foi embora irritado', 1000); } });
+    for (const s of this.slots) { if (!s.item || STN[s.k].taps) continue; s.prog += dt * sp; const ST = STN[s.k]; if (ST.burn && s.prog > ST.burn) { if (!s.burnt) { s.burnt = true; HX.sfx('boom'); } } }
+    if (this.t <= 0) return this.endDay(); UI.tick();
+  },
+  take(k) { if (this.state !== 'play') return; const I = ING[k]; if (this.cash + this.earned < I.cost) return HX.toast('Sem dinheiro para ingredientes');
+    if (I.st) { const s = this.slots.find(s => s.k === I.st && !s.item); if (!s) return HX.toast(`${STN[I.st].n} ocupada`, 700); s.item = k; s.prog = 0; s.taps = 0; s.burnt = false; } else { if (this.plate.length >= 5) return HX.toast('Prato cheio', 700); this.plate.push(k); }
+    this.spend(I.cost); HX.sfx('tap'); UI.render(); },
+  spend(v) { this.earned -= v; },
+  station(i) { const s = this.slots[i]; if (!s.item) return; const ST = STN[s.k];
+    if (ST.taps) { if (s.taps < ST.taps) { s.taps++; HX.sfx('hit'); if (s.taps < ST.taps) return UI.render(); } }
+    else if (s.prog < ST.t) return HX.toast('Ainda não está pronto', 600);
+    if (s.burnt) { s.item = null; HX.toast('Queimou! Foi para o lixo', 900); return UI.render(); }
+    if (this.plate.length >= 5) return HX.toast('Prato cheio', 700); this.plate.push(s.item + '*'); s.item = null; HX.sfx('coin'); UI.render(); },
+  serve(i) { const c = this.cust[i]; if (!c || this.state !== 'play') return; const need = [...c.rec.items].sort().join(','), have = [...this.plate].sort().join(',');
+    if (need !== have) { HX.toast(this.plate.length ? 'O prato não é o pedido desse cliente' : 'Monte o prato primeiro', 900); HX.vibrate(20); return; }
+    const tip = Math.round(c.rec.price * .5 * (c.pat / c.max) * (1 + this.up().tips * .25)); this.earned += c.rec.price + tip; this.cust[i] = null; this.plate = []; this.served++; HX.sfx('win'); HX.toast(`+R$ ${c.rec.price}${tip ? ` +${tip} gorjeta` : ''}`, 900); UI.render(); },
+  trash() { this.plate = []; UI.render(); },
+  endDay() {
+    this.state = 'over'; const ok = this.earned >= this.goal(); const cash = this.cash + this.earned; S.set('cash', cash); const st = S.get('stats', { served: 0, best: 0 }); st.served += this.served; st.best = Math.max(st.best, this.earned); S.set('stats', st);
+    if (ok) S.set('day', this.day + 1); S.hub(`Dia ${S.get('day', 1)} · caixa R$ ${cash}`); HX.sfx(ok ? 'win' : 'lose');
+    const newR = REC.filter(r => r.day === this.day + 1).map(r => r.ic + ' ' + r.n).join(', ');
+    HXA.menu({ title: ok ? `Dia ${this.day} concluído!` : 'Meta não alcançada', text: ok ? (newR ? `Amanhã no cardápio: ${newR}` : 'Ótimo trabalho!') : `Você precisa de R$ ${this.goal()} de lucro no dia. Tente de novo.`, stats: [['R$ ' + this.earned, 'Lucro do dia'], [this.served, 'Atendidos'], [this.lost, 'Desistiram'], ['R$ ' + cash, 'Caixa']],
+      primary: [ok ? 'Próximo dia' : 'Repetir dia', () => this.startDay()], buttons: [['Melhorias', () => UI.shop()], ['Menu', () => UI.home()]] });
+  }
+};
+const UI = {
+  build() { this.render(); },
+  render() { const G = Game;
+    HX.$('#cust').innerHTML = G.cust.map((c, i) => c ? `<div class="cu" data-c="${i}"><span class="nm">${c.rec.n}</span><span class="face">${c.face}</span><span class="ord">${c.rec.items.map(k => k.endsWith('*') ? OUT[k.slice(0, -1)][1] : ING[k].ic).join('')}</span><span class="pat"><i style="width:${c.pat / c.max * 100}%"></i></span></div>` : `<div class="cu empty"><span class="face">·</span></div>`).join('');
+    HX.$('#sta').innerHTML = G.slots.map((s, i) => { const ST = STN[s.k]; const ready = s.item && (ST.taps ? s.taps >= ST.taps : s.prog >= ST.t); const pct = s.item ? (ST.taps ? s.taps / ST.taps : Math.min(1, s.prog / ST.t)) : 0;
+      return `<div class="st${ready ? ' done' : ''}${s.burnt ? ' burn' : ''}" data-s="${i}"><span class="ic">${s.item ? (s.burnt ? '💨' : ready && !ST.taps ? OUT[s.item][1] : ING[s.item].ic) : ST.ic}</span>${ST.n}${s.item && ST.taps ? ` · toque ${ST.taps - s.taps}×` : ''}<span class="bar" style="width:${pct * 100}%;${s.burnt ? 'background:#e5484d' : ready ? 'background:#3ddc84' : ''}"></span></div>`; }).join('');
+    HX.$('#plate').innerHTML = `<b>Prato</b>${G.plate.map(k => k.endsWith('*') ? OUT[k.slice(0, -1)][1] : ING[k].ic).join(' ') || '<small style="color:var(--muted);font-size:12px">vazio</small>'}`;
+    HX.$('#ing').innerHTML = Object.entries(ING).map(([k, I]) => `<button data-i="${k}" ${I.day && I.day > G.day ? 'disabled' : ''}>${I.ic}<small>${I.n} · ${I.cost}</small></button>`).join('') + `<button class="trash" id="trash">🗑️<small>Lixo</small></button>`;
+    this.hud(); },
+  tick() { const G = Game; document.querySelectorAll('#cust .cu[data-c]').forEach(el => { const c = G.cust[+el.dataset.c]; if (c) el.querySelector('i').style.width = c.pat / c.max * 100 + '%'; });
+    if (G.cust.some((c, i) => !!c !== !!document.querySelector(`#cust [data-c="${i}"]`))) return this.render();
+    G.slots.forEach((s, i) => { const el = document.querySelector(`#sta [data-s="${i}"]`); if (!el || !s.item) return; const ST = STN[s.k]; if (ST.taps) return; const ready = s.prog >= ST.t; if (ready !== el.classList.contains('done') || !!s.burnt !== el.classList.contains('burn')) return this.render(); el.querySelector('.bar').style.width = Math.min(100, s.prog / ST.t * 100) + '%'; }); this.hud(); },
+  hud() { HX.$('#day').textContent = Game.day; HX.$('#cash').textContent = 'R$ ' + Game.earned + ' / ' + Game.goal(); HX.$('#tm').textContent = Math.max(0, Math.ceil(Game.t)); },
+  init() {
+    const kit = document.querySelector('.kit'); kit.addEventListener('pointerdown', e => { const c = e.target.closest('[data-c]'), s = e.target.closest('[data-s]'), i = e.target.closest('[data-i]'); if (c) Game.serve(+c.dataset.c); else if (s) Game.station(+s.dataset.s); else if (i && !i.disabled) Game.take(i.dataset.i); else if (e.target.closest('#trash')) Game.trash(); });
+    addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'Escape') this.pause(); }); HX.$('#menu').onclick = () => this.pause();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.1, (t - last) / 1000); last = t; if (!HX.isOpen()) Game.step(dt); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  shop() { const u = Game.up(), cash = S.get('cash', 40); const c = HX.overlay(`<h3>Melhorias</h3><p>Caixa: <b>R$ ${cash}</b></p><div style="display:grid;gap:6px;margin:8px 0">${Object.entries(UPG).map(([k, x]) => `<button class="btn" data-u="${k}" style="display:flex;justify-content:space-between;padding:8px 12px"><span>${x.n} ${'●'.repeat(u[k])}${'○'.repeat(x.max - u[k])}</span><small>${u[k] >= x.max ? 'máximo' : 'R$ ' + x.base * (u[k] + 1)}</small></button>`).join('')}</div><button class="btn-primary" id="ok">Voltar</button>`, { guard: false });
+    c.querySelectorAll('[data-u]').forEach(b => b.onclick = () => { const k = b.dataset.u, uu = Game.up(), p = UPG[k].base * (uu[k] + 1); if (uu[k] >= UPG[k].max) return; if (S.get('cash', 40) < p) return HX.toast('Caixa insuficiente'); S.set('cash', S.get('cash', 40) - p); uu[k]++; S.set('up', uu); HX.sfx('power'); this.shop(); }); HX.on(c, '#ok', () => this.home()); },
+  help: ['Clientes aparecem no topo com o pedido (ícones) e uma barra de paciência. Toque nos ingredientes embaixo: pão e queijo vão direto para o prato; carne vai para a chapa, alface e tomate para a tábua, batata para a fritadeira, laranja para o espremedor e massa para o forno.', 'Na tábua, toque 3 vezes para picar. Na chapa/fritadeira/forno, espere a barra encher (fica verde) e toque para passar ao prato — se esquecer, queima.', 'Com o prato montado igual ao pedido, toque no cliente. Atender rápido rende gorjeta. Cada ingrediente custa dinheiro: o lucro do dia precisa bater a meta.', 'Novas receitas a cada dia; o dinheiro guardado compra melhorias (segunda chapa, equipamento rápido, mais paciência, gorjetas maiores).'],
+  home() { const st = S.get('stats', { served: 0, best: 0 }); HXA.menu({ title: 'Kitchen', text: `Dia ${S.get('day', 1)} · caixa R$ ${S.get('cash', 40)}`, stats: [[st.served, 'Clientes atendidos'], ['R$ ' + st.best, 'Melhor dia']], primary: [`Abrir o dia ${S.get('day', 1)}`, () => Game.startDay()], buttons: [['Melhorias', () => this.shop()]], help: this.help }); },
+  pause() { if (Game.state !== 'play') return Game.state === 'idle' || Game.state === 'over' ? this.home() : null; HXA.menu({ title: 'Pausa', text: `Dia ${Game.day} · ${Math.ceil(Game.t)} s`, primary: ['Continuar', () => {}], buttons: [['Recomeçar dia', () => Game.startDay()], ['Menu', () => { Game.state = 'idle'; this.home(); }]] }); }
+};
+UI.init(); HX.sw();
+window.KT = { Game, UI, S, REC, ING };
+
+</script>
+</body>
+</html>

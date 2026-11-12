@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#08090c">
+<title>H-LUX Shop Tycoon</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#08090c;--bg2:radial-gradient(ellipse at 50% 0%,#1a2030 0%,#08090c 66%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
+.ty{flex:1;width:100%;max-width:620px;align-self:center;display:flex;flex-direction:column;gap:8px;min-height:0}.floor{border:1px solid var(--line);border-radius:14px;background:linear-gradient(#17171c,#101014);padding:8px;min-height:92px;position:relative}.floor .q{display:flex;gap:4px;flex-wrap:wrap;font-size:22px;min-height:30px}.floor .tm{position:absolute;right:10px;top:8px;font:700 12px Manrope,sans-serif;color:var(--gold-2)}.floor .log{font:600 11px Manrope,sans-serif;color:var(--muted);margin-top:4px;min-height:28px}.floor .bar{height:5px;background:#333;border-radius:3px;overflow:hidden;margin-top:4px}.floor .bar i{display:block;height:100%;background:#c9a45c}.prods{display:grid;gap:6px;overflow:auto;min-height:0;flex:1;align-content:start}.pr{display:grid;grid-template-columns:34px 1fr auto;gap:6px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:6px 8px;background:#121216}.pr.low{border-color:#e5484d}.pr .ic{font-size:24px;text-align:center}.pr b{font:800 13px Manrope,sans-serif}.pr small{display:block;font:600 11px Manrope,sans-serif;color:var(--muted)}.pr .ctl{display:flex;gap:4px;align-items:center}.pr .ctl button{min-width:34px;min-height:34px;border-radius:9px;border:1px solid var(--line);background:#1b1b20;color:var(--gold-2);font:800 14px Manrope,sans-serif}.pr .ctl .buy{min-width:64px;font-size:11px}.pr .pv{font:800 13px Manrope,sans-serif;min-width:52px;text-align:center}.acts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.acts .btn{min-height:46px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Shop <b>Tycoon</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Dia</small><b id="day">1</b></div><div class="sc"><small>Caixa</small><b id="cash">R$ 0</b></div><div class="sc"><small>Reputação</small><b id="rep">★★★</b></div></div>
+  <div class="ty"><div class="floor" id="floor"><span class="tm" id="clock"></span><div class="q" id="queue"></div><div class="log" id="log">Abra a loja para começar o dia.</div><div class="bar"><i id="daybar"></i></div></div><div class="prods" id="prods"></div><div class="acts"><button class="btn" id="bserve">🧾 Atender caixa</button><button class="btn" id="bstaff">👥 Equipe</button><button class="btn" id="bexp">🏗️ Expandir</button></div></div>
+</div>
+<script src="../shared/kit.js"></script><script src="../shared/arcade.js"></script>
+<script>
+'use strict';
+/* H-LUX SHOP TYCOON v1.0 — administre uma loja: compre estoque no atacado, defina preços, atenda clientes, contrate equipe e expanda.
+   Clientes compram se houver estoque e o preço couber no bolso (que depende da reputação). Falta de produto, preço alto e fila
+   longa derrubam a reputação. Fim do dia: relatório com receita, custo das mercadorias, salários, aluguel e lucro. Dois dias seguidos com
+   caixa negativo = falência. Meta: R$ 20.000 (título de Magnata). Módulos: PRODUCTS · Game · UI */
+const S = HX.store('shoptycoon');
+const PRODUCTS = [
+  { k: 'pao', n: 'Pão', ic: '🥖', cost: 2, ref: 4, lvl: 1 }, { k: 'leite', n: 'Leite', ic: '🥛', cost: 3, ref: 6, lvl: 1 }, { k: 'fruta', n: 'Frutas', ic: '🍎', cost: 2, ref: 5, lvl: 1 },
+  { k: 'doce', n: 'Doces', ic: '🍫', cost: 3, ref: 8, lvl: 2 }, { k: 'limpeza', n: 'Limpeza', ic: '🧴', cost: 6, ref: 13, lvl: 2 }, { k: 'brinq', n: 'Brinquedos', ic: '🧸', cost: 15, ref: 32, lvl: 3 },
+  { k: 'livro', n: 'Livros', ic: '📚', cost: 12, ref: 26, lvl: 3 }, { k: 'fone', n: 'Fones', ic: '🎧', cost: 40, ref: 85, lvl: 4 }, { k: 'relogio', n: 'Relógios', ic: '⌚', cost: 90, ref: 190, lvl: 4 }
+];
+const LEVELS = [{ n: 'Quiosque', rent: 20, cust: 1, cost: 0 }, { n: 'Mercadinho', rent: 45, cust: 1.5, cost: 600 }, { n: 'Loja de bairro', rent: 90, cust: 2.1, cost: 2500 }, { n: 'Magazine', rent: 180, cust: 3, cost: 8000 }];
+const STAFF = { cashier: { n: 'Operador de caixa', d: 'atende a fila sozinho', sal: 35, max: 3 }, buyer: { n: 'Comprador', d: 'repõe estoque baixo automaticamente', sal: 40, max: 1 }, promo: { n: 'Divulgador', d: '+30% de clientes', sal: 30, max: 1 } };
+const DAY = 90, FACES = ['🧑', '👩', '👨', '👵', '👴', '🧔', '👱', '👩‍🦱', '🧑‍🦰', '🧕'];
+const Game = {
+  state: 'idle', d: null, t: 0, queue: [], spawnT: 0, rep: 3, day: { rev: 0, cogs: 0, lost: 0, served: 0 },
+  load() { this.d = Object.assign({ day: 1, cash: 150, lvl: 0, rep: 3, prices: {}, stock: {}, staff: { cashier: 0, buyer: 0, promo: 0 }, best: 0, mag: false }, S.get('save', null) || {}); for (const p of PRODUCTS) { if (this.d.prices[p.k] === undefined) this.d.prices[p.k] = p.ref; if (this.d.stock[p.k] === undefined) this.d.stock[p.k] = p.lvl === 1 ? 10 : 0; } },
+  save() { S.set('save', this.d); },
+  avail() { return PRODUCTS.filter(p => p.lvl <= this.d.lvl + 1); },
+  open() { HX.close(); this.state = 'play'; this.t = 0; this.queue = []; this.spawnT = 1; this.day = { rev: 0, cogs: 0, lost: 0, served: 0, why: {} }; UI.render(); UI.log('Loja aberta!'); },
+  buy(k, n) { const p = PRODUCTS.find(x => x.k === k), c = p.cost * n; if (this.d.cash < c) { HX.toast('Caixa insuficiente', 800); return false; } this.d.cash -= c; this.d.stock[k] += n; this.day.cogs += c; HX.sfx('coin'); this.save(); UI.render(); return true; },
+  price(k, dv) { const p = PRODUCTS.find(x => x.k === k); this.d.prices[k] = HX.clamp(Math.round((this.d.prices[k] + dv) * 2) / 2, Math.max(.5, p.cost * .5), p.ref * 3); this.save(); UI.render(); },
+  spawn() { const av = this.avail(), n = 1 + Math.floor(Math.random() * Math.min(3, av.length)); const want = HX.shuffle(av.slice()).slice(0, n).map(p => p.k); const budget = .85 + this.d.rep * .08 + Math.random() * .4; this.queue.push({ face: FACES[Math.floor(Math.random() * FACES.length)], want, budget, wait: 0, items: null }); },
+  /* decide a compra no momento em que chega ao caixa */
+  checkout(i) { const c = this.queue[i]; if (!c) return; this.queue.splice(i, 1); let paid = 0, got = 0, why = null;
+    for (const k of c.want) { const p = PRODUCTS.find(x => x.k === k), pr = this.d.prices[k]; if (this.d.stock[k] <= 0) { why = 'faltou ' + p.n.toLowerCase(); continue; } if (pr > p.ref * c.budget) { why = p.n.toLowerCase() + ' caro demais'; continue; } this.d.stock[k]--; paid += pr; got++; }
+    this.d.cash += paid; this.day.rev += paid; if (got) this.day.served++; if (why) { this.day.lost++; this.day.why[why] = (this.day.why[why] || 0) + 1; this.d.rep = Math.max(.5, this.d.rep - .04); UI.log(`${c.face} saiu ${got ? 'com parte da compra' : 'sem comprar'}: ${why}`); } else { this.d.rep = Math.min(5, this.d.rep + .03); UI.log(`${c.face} comprou R$ ${paid.toFixed(2).replace('.', ',')}`); }
+    HX.sfx(got ? 'coin' : 'lose'); },
+  step(dt) {
+    if (this.state !== 'play') return; this.t += dt; const L = LEVELS[this.d.lvl];
+    this.spawnT -= dt; if (this.spawnT <= 0) { this.spawn(); const rate = L.cust * (.55 + this.d.rep * .15) * (this.d.staff.promo ? 1.3 : 1); this.spawnT = (3.2 / rate) * (.6 + Math.random() * .8); }
+    for (const c of this.queue) c.wait += dt; const patience = 14 + this.d.rep * 2;
+    for (let i = this.queue.length - 1; i >= 0; i--) if (this.queue[i].wait > patience) { this.queue.splice(i, 1); this.day.lost++; this.day.why['fila longa'] = (this.day.why['fila longa'] || 0) + 1; this.d.rep = Math.max(.5, this.d.rep - .1); UI.log('Um cliente desistiu da fila'); HX.sfx('lose'); }
+    if (this.d.staff.cashier) { this.cashT = (this.cashT || 0) + dt * this.d.staff.cashier; if (this.cashT >= 2.2) { this.cashT = 0; if (this.queue.length) this.checkout(0); } }
+    if (this.d.staff.buyer) for (const p of this.avail()) if (this.d.stock[p.k] < 4 && this.d.cash > p.cost * 12) { this.d.cash -= p.cost * 1.1 * 10; this.d.stock[p.k] += 10; this.day.cogs += p.cost * 1.1 * 10; }
+    if (this.t >= DAY) return this.close();
+    UI.tick();
+  },
+  close() {
+    this.state = 'report'; this.queue = []; const L = LEVELS[this.d.lvl]; const sal = Object.entries(this.d.staff).reduce((a, [k, n]) => a + STAFF[k].sal * n, 0); this.d.cash -= L.rent + sal; const profit = this.day.rev - this.day.cogs - L.rent - sal;
+    const day = this.d.day; this.d.day++; this.d.best = Math.max(this.d.best, profit); this.save(); this.d.debt = this.d.cash < 0 ? (this.d.debt || 0) + 1 : 0; const broke = this.d.debt >= 2; if (this.d.debt === 1) HX.toast('Atenção: caixa negativo! Mais um dia no vermelho e a loja fecha.', 3000); UI.render();
+    if (this.d.cash >= 20000 && !this.d.mag) { this.d.mag = true; this.save(); HX.toast('🏆 Você virou Magnata!', 2500); }
+    S.hub(`Dia ${this.d.day} · caixa R$ ${Math.round(this.d.cash)} · ${LEVELS[this.d.lvl].n}`); HX.sfx(profit >= 0 ? 'win' : 'lose');
+    const why = Object.entries(this.day.why).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} (${v})`).join(', ');
+    if (broke) { S.set('save', null); return HXA.menu({ title: 'Falência!', text: `O caixa ficou negativo por dois dias seguidos (dia ${day}). A loja fechou.`, stats: [['R$ ' + this.day.rev.toFixed(0), 'Receita'], ['R$ ' + profit.toFixed(0), 'Lucro do dia']], primary: ['Recomeçar do zero', () => { this.load(); UI.home(); }] }); }
+    HXA.menu({ title: `Fim do dia ${day}`, text: why ? `Clientes perdidos: ${why}` : 'Nenhum cliente saiu insatisfeito!', html: `<div class="kv" style="text-align:left;font-size:14px;line-height:1.7">Receita: <b>R$ ${this.day.rev.toFixed(2)}</b><br>Compras de estoque: R$ ${this.day.cogs.toFixed(2)}<br>Aluguel: R$ ${L.rent} · Salários: R$ ${sal}<br>Lucro: <b style="color:${profit >= 0 ? '#3ddc84' : '#e5484d'}">R$ ${profit.toFixed(2)}</b><br>Caixa: R$ ${this.d.cash.toFixed(2)} · Atendidos: ${this.day.served}</div>`, primary: ['Próximo dia', () => this.open()], buttons: [['Ajustar loja', () => { HX.close(); this.state = 'idle'; UI.render(); UI.log('Ajuste preços e estoque e toque em Abrir.'); }]] });
+  }
+};
+const UI = {
+  log(s) { HX.$('#log').textContent = s; },
+  render() { const G = Game, d = G.d; HX.$('#prods').innerHTML = G.avail().map(p => `<div class="pr${d.stock[p.k] < 3 ? ' low' : ''}"><span class="ic">${p.ic}</span><div><b>${p.n}</b><small>estoque ${d.stock[p.k]} · custo R$ ${p.cost} · ref. R$ ${p.ref}</small></div><div class="ctl"><button data-p="${p.k}" data-v="-0.5">−</button><span class="pv">R$ ${d.prices[p.k].toFixed(2).replace('.', ',')}</span><button data-p="${p.k}" data-v="0.5">+</button><button class="buy" data-b="${p.k}">+10 · R$ ${p.cost * 10}</button></div></div>`).join('');
+    HX.$('#bserve').textContent = G.state === 'play' ? '🧾 Atender caixa' : '🔓 Abrir loja'; this.tick(); },
+  tick() { const G = Game; HX.$('#queue').innerHTML = G.queue.map(c => `<span title="${c.want.join(',')}">${c.face}</span>`).join('') || '<small style="color:var(--muted);font-size:12px">sem fila</small>'; HX.$('#daybar').style.width = (G.state === 'play' ? G.t / DAY * 100 : 0) + '%';
+    const h = 8 + Math.floor(G.t / DAY * 12), m = Math.floor((G.t / DAY * 12 % 1) * 60); HX.$('#clock').textContent = G.state === 'play' ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` : 'fechada';
+    HX.$('#day').textContent = G.d.day; HX.$('#cash').textContent = 'R$ ' + Math.round(G.d.cash); HX.$('#rep').textContent = '★'.repeat(Math.round(G.d.rep)) + '☆'.repeat(5 - Math.round(G.d.rep));
+    document.querySelectorAll('#prods .pr').forEach((el, i) => { const p = G.avail()[i]; if (!p) return; el.classList.toggle('low', G.d.stock[p.k] < 3); el.querySelector('small').textContent = `estoque ${G.d.stock[p.k]} · custo R$ ${p.cost} · ref. R$ ${p.ref}`; }); },
+  init() {
+    Game.load(); HX.$('#prods').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.b) Game.buy(b.dataset.b, 10); else Game.price(b.dataset.p, +b.dataset.v); });
+    HX.$('#bserve').onclick = () => { if (Game.state === 'play') { if (Game.queue.length) Game.checkout(0); else HX.toast('Ninguém na fila', 600); UI.tick(); } else Game.open(); };
+    HX.$('#bstaff').onclick = () => this.staff(); HX.$('#bexp').onclick = () => this.expand();
+    addEventListener('keydown', e => { if (e.key === ' ' && Game.state === 'play' && !HX.isOpen()) { e.preventDefault(); HX.$('#bserve').click(); } if (e.key === 'p' || e.key === 'Escape') this.pause(); }); HX.$('#menu').onclick = () => this.pause();
+    let last = performance.now(); const loop = t => { const dt = Math.min(.1, (t - last) / 1000); last = t; if (!HX.isOpen()) Game.step(dt); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.render(); this.home();
+  },
+  staff() { const d = Game.d; const c = HX.overlay(`<h3>Equipe</h3><p>Salários são pagos no fim de cada dia.</p><div style="display:grid;gap:6px;margin:8px 0">${Object.entries(STAFF).map(([k, s]) => `<div class="btn" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;text-align:left"><span>${s.n} (${d.staff[k]}/${s.max})<br><small style="color:var(--muted)">${s.d} · R$ ${s.sal}/dia</small></span><span><button class="btn" data-f="${k}" style="min-width:40px">−</button> <button class="btn" data-h="${k}" style="min-width:40px">+</button></span></div>`).join('')}</div><button class="btn-primary" id="ok">Voltar</button>`, { guard: false });
+    c.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { const k = b.dataset.h; if (d.staff[k] < STAFF[k].max) { d.staff[k]++; Game.save(); HX.sfx('tap'); this.staff(); } }); c.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { const k = b.dataset.f; if (d.staff[k] > 0) { d.staff[k]--; Game.save(); this.staff(); } }); HX.on(c, '#ok', () => { HX.close(); this.render(); }); },
+  expand() { const d = Game.d, nx = LEVELS[d.lvl + 1]; const c = HX.overlay(`<h3>Expandir</h3><p>Atual: <b>${LEVELS[d.lvl].n}</b> (aluguel R$ ${LEVELS[d.lvl].rent}/dia)</p>${nx ? `<p>Próximo: <b>${nx.n}</b> — mais clientes, novos produtos (${PRODUCTS.filter(p => p.lvl === d.lvl + 2).map(p => p.ic).join(' ')}) e aluguel de R$ ${nx.rent}/dia.</p><button class="btn-primary" id="go">Expandir por R$ ${nx.cost}</button>` : '<p>Sua loja já está no tamanho máximo.</p>'}<button class="btn" id="ok" style="margin-top:6px">Voltar</button>`, { guard: false });
+    HX.on(c, '#go', () => { if (d.cash < nx.cost) return HX.toast('Caixa insuficiente'); d.cash -= nx.cost; d.lvl++; Game.save(); HX.sfx('win'); HX.close(); this.render(); HX.toast(`Agora você tem um ${nx.n}!`, 1500); }); HX.on(c, '#ok', () => { HX.close(); this.render(); }); },
+  help: ['Antes de abrir, ajuste os preços (− / +) e compre estoque (+10). O preço de referência é o que os clientes acham justo: acima dele, menos gente compra; reputação alta deixa os clientes aceitarem preços maiores.', 'Durante o dia (90 s), clientes entram na fila. Toque em "Atender caixa" para atendê-los (ou contrate operadores de caixa). Fila longa, falta de produto e preço alto derrubam a reputação.', 'No fim do dia você paga aluguel e salários e vê o relatório. Se o caixa fechar negativo dois dias seguidos, é falência. Comprador repõe estoque baixo sozinho (com 10% de taxa); Divulgador traz mais clientes.', 'Expanda a loja para vender produtos mais caros e receber mais clientes. Meta de longo prazo: R$ 20.000 em caixa (Magnata).'],
+  home() { const d = Game.d; HXA.menu({ title: 'Shop Tycoon', text: `${LEVELS[d.lvl].n} · dia ${d.day}`, stats: [['R$ ' + Math.round(d.cash), 'Caixa'], ['R$ ' + Math.round(d.best), 'Melhor lucro'], [d.mag ? '🏆' : '—', 'Magnata']], primary: ['Ir para a loja', () => { HX.close(); this.render(); this.log('Ajuste preços e estoque e toque em Abrir loja.'); }], buttons: [['Novo jogo', () => { const c = HX.overlay('<h3>Começar do zero?</h3><p>Todo o progresso da loja será apagado.</p><button class="btn-primary" id="y">Sim, recomeçar</button><button class="btn" id="n" style="margin-top:6px">Cancelar</button>', { guard: false }); HX.on(c, '#y', () => { S.set('save', null); Game.load(); Game.state = 'idle'; this.render(); this.home(); }); HX.on(c, '#n', () => this.home()); }]], help: this.help }); },
+  pause() { if (Game.state !== 'play') return this.home(); HXA.menu({ title: 'Pausa', text: `Dia ${Game.d.day}`, primary: ['Continuar', () => {}], buttons: [['Menu', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.TY = { Game, UI, S, PRODUCTS };
+
+</script>
+</body>
+</html>

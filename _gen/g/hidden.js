@@ -1,0 +1,78 @@
+/*@ {"name":"Hidden","t1":"Hid","t2":"den","theme":"#0a0806","bg2":"radial-gradient(ellipse at 50% 0%,#2a2014 0%,#0a0806 66%)",
+"hud":[["Cenário","scn","1"],["Tempo","tm","2:00"],["Pontos","pts","0"]],
+"css":".list{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:6px;width:100%;max-width:620px;align-self:center}.list span{border:1px solid var(--line);border-radius:10px;padding:3px 8px;font:700 12px Manrope,sans-serif;background:#141416;display:flex;align-items:center;gap:4px}.list span i{font-style:normal;font-size:18px}.list span.ok{opacity:.35;text-decoration:line-through}.hb{display:flex;gap:6px;justify-content:center;margin-top:6px}.hb .btn{min-height:42px;font-size:13px}",
+"body":"<div class=\"stage\" id=\"stage\"><canvas id=\"cv\"></canvas></div><div class=\"list\" id=\"list\"></div><div class=\"hb\"><button class=\"btn\" id=\"hint\">💡 Dica</button><button class=\"btn\" id=\"zoom\">🔍 Ampliar</button></div>"} @*/
+/* H-LUX HIDDEN v1.0 — encontre os objetos da lista escondidos num cenário cheio de outros objetos.
+   8 cenários temáticos; cada partida embaralha posições, tamanhos e giros (nunca igual). Lista de 8 itens, 2 minutos,
+   3 dicas (cada dica custa 10 s), toque errado custa 3 s. Pontuação: 100 por item + bônus de tempo. Zoom 2× com arraste.
+   Módulos: SCENES · Game · View · UI */
+const S = HX.store('hidden');
+const VW = 400, VH = 520, N_FIND = 8, TIME = 120;
+const SCENES = [
+  { n: 'Sótão', bg: ['#3a2a1c', '#1c140c'], pool: { '🧸': 'Ursinho', '🕯️': 'Vela', '🗝️': 'Chave', '📻': 'Rádio', '🎩': 'Cartola', '🧦': 'Meia', '📷': 'Câmera', '🪀': 'Ioiô', '⏰': 'Despertador', '🎻': 'Violino', '🧶': 'Novelo', '🪆': 'Boneca russa', '📦': 'Caixa', '🖼️': 'Quadro', '🪑': 'Cadeira', '🕰️': 'Relógio', '👢': 'Bota', '🧳': 'Mala', '🎈': 'Balão', '🪞': 'Espelho' } },
+  { n: 'Cozinha', bg: ['#3a3222', '#1e1a12'], pool: { '🍳': 'Frigideira', '🥄': 'Colher', '🍴': 'Talheres', '🧂': 'Saleiro', '🫖': 'Bule', '🥕': 'Cenoura', '🍋': 'Limão', '🧀': 'Queijo', '🥚': 'Ovo', '🍞': 'Pão', '🧄': 'Alho', '🍄': 'Cogumelo', '🥛': 'Leite', '🍯': 'Mel', '🥖': 'Baguete', '🍅': 'Tomate', '🧈': 'Manteiga', '🔪': 'Faca', '🍇': 'Uvas', '🥥': 'Coco' } },
+  { n: 'Jardim', bg: ['#2a4a22', '#14240f'], pool: { '🌻': 'Girassol', '🐞': 'Joaninha', '🐌': 'Caracol', '🦋': 'Borboleta', '🍄': 'Cogumelo', '🌷': 'Tulipa', '🐝': 'Abelha', '🪺': 'Ninho', '🐸': 'Sapo', '🪴': 'Vaso', '🌵': 'Cacto', '🍂': 'Folha seca', '🐛': 'Lagarta', '🪱': 'Minhoca', '🌹': 'Rosa', '🐿️': 'Esquilo', '🧤': 'Luva', '🪣': 'Balde', '🐦': 'Passarinho', '🍓': 'Morango' } },
+  { n: 'Praia', bg: ['#3a6a8a', '#c8a86a'], pool: { '🐚': 'Concha', '🦀': 'Caranguejo', '⛱️': 'Guarda-sol', '🩴': 'Chinelo', '🕶️': 'Óculos', '🪸': 'Coral', '🐠': 'Peixe', '🏐': 'Bola', '🍉': 'Melancia', '🧴': 'Protetor', '⚓': 'Âncora', '🦞': 'Lagosta', '🐙': 'Polvo', '🪼': 'Água-viva', '🥥': 'Coco', '🏄': 'Surfista', '🌴': 'Palmeira', '🍦': 'Sorvete', '🦭': 'Foca', '⭐': 'Estrela' } },
+  { n: 'Escritório', bg: ['#2a2e3a', '#14161e'], pool: { '📎': 'Clipe', '✏️': 'Lápis', '📌': 'Tachinha', '📐': 'Esquadro', '🖇️': 'Clipes', '📏': 'Régua', '✂️': 'Tesoura', '💼': 'Pasta', '🖊️': 'Caneta', '📒': 'Caderno', '🔋': 'Pilha', '💾': 'Disquete', '🖱️': 'Mouse', '☕': 'Café', '📅': 'Calendário', '🔖': 'Marcador', '📮': 'Caixa de correio', '🧮': 'Ábaco', '📞': 'Telefone', '🗂️': 'Fichário' } },
+  { n: 'Espaço', bg: ['#0a0a22', '#000004'], pool: { '🚀': 'Foguete', '🛸': 'Disco voador', '🪐': 'Saturno', '🌙': 'Lua', '☄️': 'Cometa', '👽': 'Alienígena', '🛰️': 'Satélite', '🌍': 'Terra', '⭐': 'Estrela', '🔭': 'Telescópio', '👨‍🚀': 'Astronauta', '🌟': 'Brilho', '🌑': 'Lua nova', '🤖': 'Robô', '📡': 'Antena', '🧑‍🔬': 'Cientista', '🔦': 'Lanterna', '🌌': 'Galáxia', '🧪': 'Tubo de ensaio', '💫': 'Tontura' } },
+  { n: 'Floresta', bg: ['#1e3a1e', '#0a1a0a'], pool: { '🦉': 'Coruja', '🦊': 'Raposa', '🐻': 'Urso', '🦌': 'Cervo', '🌲': 'Pinheiro', '🍁': 'Folha de bordo', '🌰': 'Castanha', '🦔': 'Ouriço', '🐺': 'Lobo', '🪵': 'Tronco', '🍄': 'Cogumelo', '🐗': 'Javali', '🦝': 'Guaxinim', '🕸️': 'Teia', '🪓': 'Machado', '⛺': 'Barraca', '🔥': 'Fogueira', '🐇': 'Coelho', '🪨': 'Pedra', '🫐': 'Mirtilo' } },
+  { n: 'Oficina', bg: ['#3a3430', '#1a1614'], pool: { '🔧': 'Chave inglesa', '🔨': 'Martelo', '🪛': 'Chave de fenda', '🔩': 'Parafuso', '⚙️': 'Engrenagem', '🪚': 'Serrote', '🧲': 'Ímã', '🪜': 'Escada', '🧰': 'Caixa de ferramentas', '🛞': 'Pneu', '🪝': 'Gancho', '⛓️': 'Corrente', '🔌': 'Tomada', '💡': 'Lâmpada', '🧯': 'Extintor', '🪤': 'Ratoeira', '🔦': 'Lanterna', '📏': 'Régua', '🧪': 'Frasco', '🗜️': 'Morsa' } }
+];
+const Game = {
+  state: 'idle', si: 0, objs: [], find: [], t: TIME, pts: 0, hints: 3, wrong: 0, flash: null, zoom: 1, pan: [0, 0],
+  start(si) {
+    HX.close(); this.si = si; const P = SCENES[si].pool, keys = HX.shuffle(Object.keys(P)); this.find = keys.slice(0, N_FIND); const decoy = keys.slice(N_FIND); this.objs = [];
+    const place = (e, target) => { for (let k = 0; k < 60; k++) { const s = 24 + Math.random() * 18, x = 24 + Math.random() * (VW - 48), y = 24 + Math.random() * (VH - 48); if (target && this.objs.some(o => o.target && Math.hypot(o.x - x, o.y - y) < 46)) continue; if (target && this.objs.some(o => Math.hypot(o.x - x, o.y - y) < 18)) continue; this.objs.push({ e, x, y, s, r: (Math.random() - .5) * 1.4, a: .8 + Math.random() * .2, target }); return; } };
+    for (let i = 0; i < 70; i++) place(decoy[i % decoy.length], false); for (const e of this.find) place(e, true);
+    this.objs = HX.shuffle(this.objs); // alvos ficam no meio da pilha, não sempre por cima
+    // garante que nada cubra o centro de um alvo
+    for (const o of this.objs) if (o.target) { const zi = this.objs.indexOf(o); for (let j = zi + 1; j < this.objs.length; j++) { const d = this.objs[j]; if (!d.target && Math.hypot(d.x - o.x, d.y - o.y) < (d.s + o.s) * .32) { d.x = HX.clamp(d.x + (d.x - o.x || 1) * .8, 20, VW - 20); d.y = HX.clamp(d.y + (d.y - o.y || 1) * .8, 20, VH - 20); } } }
+    this.found = []; this.t = TIME; this.pts = 0; this.hints = 3; this.wrong = 0; this.zoom = 1; this.pan = [0, 0]; this.state = 'play'; UI.list(); UI.hud();
+  },
+  tap(x, y) {
+    if (this.state !== 'play') return; let hit = this.objs.find(o => o.target && !o.gone && Math.hypot(o.x - x, o.y - y) < o.s * .45) || null; if (!hit) for (let i = this.objs.length - 1; i >= 0; i--) { const o = this.objs[i]; if (o.gone) continue; if (Math.hypot(o.x - x, o.y - y) < o.s * .55) { hit = o; break; } }
+
+    if (hit && hit.target) { hit.gone = true; this.found.push(hit.e); this.pts += 100; HX.sfx('coin'); this.flash = { x: hit.x, y: hit.y, t: .6, ok: true }; UI.list(); if (this.found.length === this.find.length) return this.end(true); }
+    else { this.t -= 3; this.wrong++; HX.sfx('lose'); HX.vibrate(20); this.flash = { x, y, t: .4, ok: false }; }
+    UI.hud();
+  },
+  hint() { if (this.state !== 'play' || this.hints <= 0) return HX.toast('Sem dicas'); const left = this.objs.filter(o => o.target && !o.gone); if (!left.length) return; const o = left[Math.floor(Math.random() * left.length)]; this.hints--; this.t -= 10; this.hl = { o, t: 2.2 }; HX.sfx('power'); UI.hud(); },
+  step(dt) { if (this.flash && (this.flash.t -= dt) <= 0) this.flash = null; if (this.hl && (this.hl.t -= dt) <= 0) this.hl = null; if (this.state !== 'play') return; this.t -= dt; if (this.t <= 0) { this.t = 0; this.end(false); } UI.hud(); },
+  end(ok) {
+    this.state = 'over'; const bonus = ok ? Math.round(this.t) * 5 : 0; this.pts += bonus; const best = S.get('best', {}); const rec = !best[this.si] || this.pts > best[this.si]; if (rec) { best[this.si] = this.pts; S.set('best', best); }
+    if (ok && S.get('unlocked', 1) < this.si + 2) S.set('unlocked', Math.min(SCENES.length, this.si + 2)); S.hub(`${Object.keys(best).length}/${SCENES.length} cenários · ${Object.values(best).reduce((a, b) => a + b, 0)} pontos`); HX.sfx(ok ? 'win' : 'lose');
+    HXA.menu({ title: ok ? 'Tudo encontrado!' : 'Tempo esgotado', text: `${SCENES[this.si].n} · ${this.found.length}/${this.find.length} itens${ok ? ` · bônus de tempo +${bonus}` : ''}${rec ? ' · recorde!' : ''}`, stats: [[this.pts, 'Pontos'], [this.wrong, 'Toques errados'], [3 - this.hints, 'Dicas usadas']], primary: ok && this.si < SCENES.length - 1 ? ['Próximo cenário', () => this.start(this.si + 1)] : ['Jogar de novo', () => this.start(this.si)], buttons: [['Cenários', () => UI.home()]] });
+  }
+};
+const St = HXA.stage(VW, VH);
+const View = {
+  draw() {
+    const g = St.begin(), G = Game; const sc = SCENES[G.si]; const bg = g.createLinearGradient(0, 0, 0, VH); bg.addColorStop(0, sc.bg[0]); bg.addColorStop(1, sc.bg[1]); g.fillStyle = bg; g.fillRect(0, 0, VW, VH);
+    g.save(); g.translate(-G.pan[0], -G.pan[1]); g.scale(G.zoom, G.zoom);
+    g.fillStyle = 'rgba(255,255,255,.04)'; for (let i = 0; i < 30; i++) { g.beginPath(); g.arc((i * 137) % VW, (i * 89) % VH, 20 + (i * 7) % 40, 0, 7); g.fill(); }
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#000'; for (const o of G.objs) { if (o.gone) continue; g.save(); g.translate(o.x, o.y); g.rotate(o.r); g.globalAlpha = o.a; g.font = `${o.s}px sans-serif`; g.fillText(o.e, 0, 0); g.restore(); }
+    if (G.hl) { g.strokeStyle = '#ffd54a'; g.lineWidth = 3; g.beginPath(); g.arc(G.hl.o.x, G.hl.o.y, 26 + Math.sin(G.hl.t * 10) * 4, 0, 7); g.stroke(); }
+    if (G.flash) { g.strokeStyle = G.flash.ok ? '#3ddc84' : '#e5484d'; g.lineWidth = 3; g.globalAlpha = Math.min(1, G.flash.t * 3); g.beginPath(); g.arc(G.flash.x, G.flash.y, 22, 0, 7); g.stroke(); g.globalAlpha = 1; }
+    g.restore(); g.textBaseline = 'alphabetic';
+    if (G.zoom > 1) { g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(VW - 70, 6, 64, 20); g.fillStyle = '#f1dca6'; g.font = '700 11px Manrope'; g.textAlign = 'center'; g.fillText('zoom 2×', VW - 38, 20); }
+  }
+};
+const UI = {
+  init() {
+    let down = null, moved = false;
+    St.cv.addEventListener('pointerdown', e => { e.preventDefault(); if (HX.isOpen()) return; down = St.toL(e); moved = false; St.cv.setPointerCapture(e.pointerId); this.p0 = [...Game.pan]; });
+    St.cv.addEventListener('pointermove', e => { if (!down) return; const [x, y] = St.toL(e); if (Math.hypot(x - down[0], y - down[1]) > 8) moved = true; if (moved && Game.zoom > 1) { Game.pan = [HX.clamp(this.p0[0] - (x - down[0]), 0, VW), HX.clamp(this.p0[1] - (y - down[1]), 0, VH)]; } });
+    St.cv.addEventListener('pointerup', e => { if (!down) return; const [x, y] = St.toL(e); down = null; if (moved && Game.zoom > 1) return; Game.tap((x + Game.pan[0]) / Game.zoom, (y + Game.pan[1]) / Game.zoom); });
+    HX.$('#hint').onclick = () => Game.hint(); HX.$('#zoom').onclick = () => { if (Game.zoom === 1) { Game.zoom = 2; Game.pan = [VW / 2, VH / 2]; HX.$('#zoom').textContent = '🔍 Reduzir'; } else { Game.zoom = 1; Game.pan = [0, 0]; HX.$('#zoom').textContent = '🔍 Ampliar'; } };
+    addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'Escape') this.pause(); }); HX.$('#menu').onclick = () => this.pause();
+    HXA.loop(dt => { if (!HX.isOpen()) Game.step(dt); View.draw(); }); HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  list() { const P = SCENES[Game.si].pool; HX.$('#list').innerHTML = Game.find.map(e => `<span class="${Game.found.includes(e) ? 'ok' : ''}"><i>${e}</i>${P[e]}</span>`).join(''); },
+  hud() { HX.$('#scn').textContent = `${Game.si + 1}/${SCENES.length}`; HX.$('#tm').textContent = HX.fmt(Math.max(0, Game.t) * 1000); HX.$('#pts').textContent = Game.pts; HX.$('#hint').textContent = `💡 Dica (${Game.hints})`; },
+  help: ['Encontre no cenário os 8 objetos da lista (embaixo) e toque neles. Os objetos ficam misturados a dezenas de outros, girados e em tamanhos diferentes.', 'Toque errado tira 3 s. Dica (3 por cenário) destaca um item e tira 10 s.', 'Use 🔍 Ampliar para ver em 2× e arraste para mover a visão.', 'Cada item vale 100 pontos e o tempo restante vira bônus. Completar um cenário libera o próximo; as posições mudam a cada partida.'],
+  home() { const un = S.get('unlocked', 1), best = S.get('best', {}); HXA.menu({ title: 'Hidden', text: 'Escolha um cenário.', html: `<div class="levels">${SCENES.map((s, i) => `<button class="lvb${best[i] ? ' done' : ''}" data-s="${i}" ${i >= un ? 'disabled' : ''}>${i >= un ? '🔒' : i + 1}<small style="display:block;font-size:10px">${s.n}${best[i] ? ' · ' + best[i] : ''}</small></button>`).join('')}</div>`, help: this.help });
+    document.querySelectorAll('.hx-card [data-s]').forEach(b => b.onclick = () => Game.start(+b.dataset.s)); },
+  pause() { if (Game.state !== 'play') return this.home(); HXA.menu({ title: 'Pausa', text: `${SCENES[Game.si].n} · ${Game.found.length}/${Game.find.length}`, primary: ['Continuar', () => {}], buttons: [['Recomeçar', () => Game.start(Game.si)], ['Cenários', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.HD = { Game, UI, S, SCENES };
