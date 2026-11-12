@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07090b">
+<title>H-LUX Swing</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#07090b;--bg2:radial-gradient(ellipse at 50% 0%,#14222c 0%,#07090b 66%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Swi<b>ng</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Fase</small><b id="lvl">1</b></div><div class="sc"><small>Tempo</small><b id="tm">0,0</b></div><div class="sc"><small>Estrelas</small><b id="stars">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script><script src="../shared/arcade.js"></script>
+<script>
+'use strict';
+/* H-LUX SWING v1.0 — segure para lançar a corda no gancho mais próximo à frente, balance e solte no momento certo.
+   A corda se recolhe sozinha até 140 px, conservando o momento angular (o balanço acelera ao encurtar).
+   O chão é lava; espinhos pendurados e ganchos móveis aparecem nas fases avançadas. Chegue à bandeira.
+   15 fases geradas com semente fixa (sempre iguais) e validadas por simulação; estrelas pelo tempo.
+   Controles: segurar/soltar a tela (ou espaço / botão do mouse). Módulos: Level · Phys · Game · View · UI */
+const S = HX.store('swing');
+const VW = 400, VH = 640, FLOOR = 600, GRAV = 1150, RANGE = 330, NLV = 15, MINR = 140, REEL = 240;
+const Level = {
+  make(n) {
+    const R = HX.rng(1000 + n * 37), hooks = [], plats = [{ x: -200, w: 360, y: 470 }], spikes = [];
+    let x = 160 + 90; const count = 5 + Math.floor(n * .8), gapMin = 120 + n * 5, gapMax = 170 + n * 9;
+    for (let i = 0; i < count; i++) {
+      const y = i === 0 ? 190 : 110 + R() * 110; const mov = i > 0 && n >= 5 && R() < .2 + n * .02; hooks.push({ x0: x, x, y, mov: mov ? 40 + R() * 30 : 0, f: .8 + R() * .8, ph: R() * 6 });
+      if (n >= 7 && i > 0 && R() < .35) spikes.push({ x: x - (gapMin * .5), y: 0, h: 40 + R() * 40, w: 40 });
+      if (n >= 3 && i % 4 === 3 && i < count - 1) { x += 90; plats.push({ x: x - 50, w: 100, y: 430 + R() * 60 }); x += 60; }
+      x += gapMin + R() * (gapMax - gapMin);
+    }
+    plats.push({ x: x - 60, w: 400, y: 470 }); const goal = x + 40;
+    const par = x / 560 + 1.5; return { hooks, plats, spikes, goal, par, n };
+  }
+};
+const Game = {
+  state: 'idle', lv: null, li: 0, p: null, t: 0, rope: null, parts: [],
+  start(li) { HX.close(); this.li = li; this.lv = Level.make(li + 1); this.reset(); },
+  reset() { this.p = { x: 60, y: 470 - 12, vx: 0, vy: 0, ground: true }; this.rope = null; this.t = 0; this.parts = []; this.state = 'play'; this.held = false; UI.hud(); },
+  hookPos(h, t) { return h.mov ? h.x0 + Math.sin(t * h.f + h.ph) * h.mov : h.x0; },
+  grab() { const P = this.p; let best = null, bd = 1e9; for (const h of this.lv.hooks) { const hx = h.x, d = Math.hypot(hx - P.x, h.y - P.y); if (d < RANGE && hx > P.x - 30 && h.y < P.y - 20) { const score = d - (hx - P.x) * .6; if (score < bd) { bd = score; best = h; } } }
+    if (best) { this.rope = { h: best, len: Math.hypot(best.x - P.x, best.y - P.y) }; HX.sfx('tap'); return true; } return false; },
+  input(down) { if (this.state !== 'play') return; this.held = down; if (down && !this.rope) this.grab(); if (!down && this.rope) { this.rope = null; } },
+  step(dt) {
+    if (this.state !== 'play') return; this.t += dt; const P = this.p, L = this.lv;
+    for (const h of L.hooks) h.x = this.hookPos(h, this.t);
+    if (this.held && !this.rope) this.grab();
+    const n = 4, h = dt / n; for (let i = 0; i < n; i++) {
+      if (P.ground) { P.vx = Math.max(P.vx, 170); P.vy = 0; } else P.vy += GRAV * h;
+      P.x += P.vx * h; P.y += P.vy * h;
+      if (this.rope && this.rope.len > MINR) { const L0 = this.rope.len, L1 = Math.max(MINR, L0 - REEL * h), H = this.rope.h, dx = P.x - H.x, dy = P.y - H.y, d = Math.hypot(dx, dy) || 1, tx = -dy / d, ty = dx / d, vt = P.vx * tx + P.vy * ty, k = L0 / L1; P.vx += tx * vt * (k - 1); P.vy += ty * vt * (k - 1); this.rope.len = L1; }
+      if (this.rope) { const H = this.rope.h, dx = P.x - H.x, dy = P.y - H.y, d = Math.hypot(dx, dy) || 1; if (d > this.rope.len) { const nx = dx / d, ny = dy / d; P.x = H.x + nx * this.rope.len; P.y = H.y + ny * this.rope.len; const vn = P.vx * nx + P.vy * ny; if (vn > 0) { P.vx -= vn * nx; P.vy -= vn * ny; } } P.ground = false; }
+      P.ground = false; for (const pl of L.plats) if (P.x > pl.x && P.x < pl.x + pl.w && P.y + 12 >= pl.y && P.y + 12 - P.vy * h <= pl.y + 4 && P.vy >= 0) { P.y = pl.y - 12; P.vy = 0; P.ground = true; P.vx *= .9; }
+    }
+    if (this.rope) { P.vx *= .9995; }
+    if (Math.random() < .5) this.parts.push({ x: P.x, y: P.y, t: .3 }); this.parts = this.parts.filter(q => (q.t -= dt) > 0);
+    for (const s of L.spikes) if (P.x > s.x - 10 && P.x < s.x + s.w + 10 && P.y - 12 < s.y + s.h) return this.die();
+    if (P.y > FLOOR - 12) return this.die();
+    if (P.x >= L.goal) return this.win();
+    UI.hud();
+  },
+  die() { this.state = 'dead'; this.rope = null; HX.sfx('boom'); HX.vibrate(40); const st = S.get('stats', { falls: 0, wins: 0 }); st.falls++; S.set('stats', st); setTimeout(() => { if (this.state === 'dead') this.reset(); }, 700); },
+  stars(t) { const p = this.lv.par; return t <= p ? 3 : t <= p * 1.4 ? 2 : 1; },
+  win() {
+    this.state = 'over'; HX.sfx('win'); const s = this.stars(this.t), all = S.get('stars', {}); const prev = all[this.li] || 0; all[this.li] = Math.max(prev, s); S.set('stars', all);
+    const bt = S.get('times', {}); const rec = !bt[this.li] || this.t < bt[this.li]; if (rec) { bt[this.li] = +this.t.toFixed(2); S.set('times', bt); } const st = S.get('stats', { falls: 0, wins: 0 }); st.wins++; S.set('stats', st);
+    const tot = Object.values(all).reduce((a, b) => a + b, 0); S.hub(`${Object.keys(all).length}/${NLV} fases · ${tot} estrelas`);
+    HXA.menu({ title: `Fase ${this.li + 1} concluída!`, text: `${'★'.repeat(s)}${'☆'.repeat(3 - s)} · ${this.t.toFixed(1)} s${rec ? ' · melhor tempo' : ''} (3 estrelas: até ${this.lv.par.toFixed(1)} s)`, primary: this.li < NLV - 1 ? ['Próxima fase', () => this.start(this.li + 1)] : ['Jogar de novo', () => this.start(this.li)], buttons: [['Repetir', () => this.start(this.li)], ['Fases', () => UI.home()]] });
+  }
+};
+const St = HXA.stage(VW, VH);
+const View = {
+  draw() {
+    const g = St.begin(), G = Game; const sky = g.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, '#0e1a24'); sky.addColorStop(1, '#2a1a14'); g.fillStyle = sky; g.fillRect(0, 0, VW, VH); if (!G.p) return;
+    const P = G.p, L = G.lv, cx = HX.clamp(P.x - VW * .35, -100, L.goal + 200 - VW);
+    g.fillStyle = 'rgba(201,164,92,.06)'; for (let i = 0; i < 12; i++) { const x = ((i * 140 - cx * .3) % 1680 + 1680) % 1680 - 140; g.fillRect(x, 260 + (i * 53) % 120, 30, VH); }
+    g.save(); g.translate(-cx, 0);
+    const lava = g.createLinearGradient(0, FLOOR - 10, 0, VH); lava.addColorStop(0, '#ff6a00'); lava.addColorStop(1, '#8a1a00'); g.fillStyle = lava; g.beginPath(); g.moveTo(cx - 10, VH); for (let x = cx - 10; x < cx + VW + 20; x += 20) g.lineTo(x, FLOOR + Math.sin(x * .05 + G.t * 3) * 4); g.lineTo(cx + VW + 20, VH); g.fill();
+    for (const pl of L.plats) { g.fillStyle = '#2a2420'; g.fillRect(pl.x, pl.y, pl.w, VH - pl.y); g.fillStyle = '#c9a45c'; g.fillRect(pl.x, pl.y, pl.w, 4); }
+    for (const s of L.spikes) { g.fillStyle = '#3a3a42'; g.fillRect(s.x, 0, s.w, s.h - 14); g.fillStyle = '#dfe7ff'; for (let x = s.x; x < s.x + s.w; x += 10) { g.beginPath(); g.moveTo(x, s.h - 14); g.lineTo(x + 5, s.h); g.lineTo(x + 10, s.h - 14); g.fill(); } }
+    for (const h of L.hooks) { const near = !G.rope && Math.hypot(h.x - P.x, h.y - P.y) < RANGE && h.x > P.x - 30 && h.y < P.y - 20; if (h.mov) { g.strokeStyle = 'rgba(201,164,92,.25)'; g.setLineDash([4, 6]); g.beginPath(); g.moveTo(h.x0 - h.mov, h.y); g.lineTo(h.x0 + h.mov, h.y); g.stroke(); g.setLineDash([]); }
+      g.fillStyle = near ? '#ffd54a' : '#8a6a2e'; g.beginPath(); g.arc(h.x, h.y, 9, 0, 7); g.fill(); g.strokeStyle = '#1a1408'; g.lineWidth = 3; g.beginPath(); g.arc(h.x, h.y, 4, 0, 7); g.stroke(); }
+    g.fillStyle = '#3ddc84'; g.fillRect(L.goal, 380, 4, 90); g.beginPath(); g.moveTo(L.goal + 4, 380); g.lineTo(L.goal + 40, 395); g.lineTo(L.goal + 4, 410); g.fill();
+    if (G.rope) { g.strokeStyle = '#e8e2cf'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(G.rope.h.x, G.rope.h.y); g.lineTo(P.x, P.y); g.stroke(); }
+    for (const q of G.parts) { g.globalAlpha = q.t * 2; g.fillStyle = '#e0b14a'; g.fillRect(q.x - 2, q.y - 2, 4, 4); } g.globalAlpha = 1;
+    if (G.state !== 'dead') { g.fillStyle = '#e0b14a'; g.beginPath(); g.arc(P.x, P.y, 12, 0, 7); g.fill(); g.fillStyle = '#1a1408'; g.beginPath(); g.arc(P.x + 4, P.y - 3, 2.5, 0, 7); g.fill(); g.fillStyle = '#e5484d'; g.fillRect(P.x - 12, P.y - 10, 24, 4); }
+    g.restore();
+    const prog = HX.clamp(P.x / L.goal, 0, 1); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(16, 14, VW - 32, 6); g.fillStyle = '#c9a45c'; g.fillRect(16, 14, (VW - 32) * prog, 6);
+    if (G.t < 2.5 && G.li === 0 && G.state === 'play') { g.fillStyle = '#f1dca6'; g.font = '700 16px Manrope,sans-serif'; g.textAlign = 'center'; g.fillText('Segure para agarrar · solte para voar', VW / 2, 60); }
+  }
+};
+const UI = {
+  init() {
+    St.cv.addEventListener('pointerdown', e => { e.preventDefault(); if (!HX.isOpen()) Game.input(true); }); addEventListener('pointerup', () => Game.input(false)); addEventListener('pointercancel', () => Game.input(false));
+    addEventListener('keydown', e => { if (e.key === ' ' && !e.repeat && !HX.isOpen()) { e.preventDefault(); Game.input(true); } if (e.key === 'p' || e.key === 'Escape') this.pause(); if (e.key === 'r' && Game.state === 'play') Game.reset(); });
+    addEventListener('keyup', e => { if (e.key === ' ') Game.input(false); });
+    HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { Game.step(dt); View.draw(); });
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  hud() { HX.$('#lvl').textContent = `${Game.li + 1}/${NLV}`; HX.$('#tm').textContent = Game.t.toFixed(1).replace('.', ','); const all = S.get('stars', {}); HX.$('#stars').textContent = Object.values(all).reduce((a, b) => a + b, 0); },
+  help: ['Segure a tela (ou espaço / botão do mouse) para prender a corda no gancho mais próximo à frente — o gancho alcançável fica amarelo. Solte para se soltar.', 'Solte na subida do balanço para ganhar distância e segure de novo para pegar o próximo gancho.', 'O chão é lava e os espinhos pendurados machucam. Plataformas servem para descansar. Ganchos móveis aparecem a partir da fase 5.', 'Chegue à bandeira verde. Estrelas pelo tempo; ao cair, a fase recomeça. Tecla R recomeça no PC.'],
+  home() { const all = S.get('stars', {}), tot = Object.values(all).reduce((a, b) => a + b, 0);
+    HXA.menu({ title: 'Swing', text: `${tot}/${NLV * 3} estrelas`, html: `<div class="levels">${Array.from({ length: NLV }, (_, i) => { const lock = i > 0 && all[i - 1] === undefined; return `<button class="lvb${all[i] ? ' done' : ''}" data-l="${i}" ${lock ? 'disabled' : ''}>${lock ? '🔒' : i + 1}<small style="display:block;font-size:10px">${all[i] ? '★'.repeat(all[i]) : ''}</small></button>`; }).join('')}</div>`, help: this.help });
+    document.querySelectorAll('.hx-card [data-l]').forEach(b => b.onclick = () => Game.start(+b.dataset.l)); },
+  pause() { if (Game.state !== 'play' && Game.state !== 'dead') return Game.state === 'pause' ? null : this.home(); const wasDead = Game.state === 'dead'; Game.state = 'pause';
+    HXA.menu({ title: 'Pausa', text: `Fase ${Game.li + 1}`, primary: ['Continuar', () => { if (wasDead) return Game.reset(); Game.state = 'play'; Game.held = !!Game.rope; if (Game.rope) HX.toast('Ainda preso à corda — solte quando quiser', 1200); }], buttons: [['Recomeçar fase', () => Game.start(Game.li)], ['Fases', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.SW = { Game, UI, S, Level };
+
+</script>
+</body>
+</html>

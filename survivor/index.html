@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0708">
+<title>H-LUX Survivor</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#0a0708;--bg2:radial-gradient(ellipse at 50% 0%,#2a1418 0%,#0a0708 66%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Survi<b>vor</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Tempo</small><b id="tm">0:00</b></div><div class="sc"><small>Nível</small><b id="lvl">1</b></div><div class="sc"><small>Vida</small><b id="hp">100</b></div><div class="sc"><small>Abates</small><b id="kills">0</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+</div>
+<script src="../shared/kit.js"></script><script src="../shared/arcade.js"></script>
+<script>
+'use strict';
+/* H-LUX SURVIVOR v1.0 — sobreviva 8 minutos a ondas de monstros. As armas atacam sozinhas; você só se move.
+   Cristais de experiência sobem de nível; a cada nível escolha 1 de 3 melhorias (armas novas ou evoluções).
+   Chefes aos 2, 4 e 6 minutos e um chefe final aos 8. Módulos: WEAPONS · Game · View · UI */
+const S = HX.store('survivor');
+const VW = 400, VH = 640, GOAL = 480;
+const WEAPONS = {
+  bolt: { n: 'Projétil arcano', d: 'Atira no inimigo mais próximo', max: 5 },
+  orbit: { n: 'Lâminas orbitais', d: 'Lâminas giram ao seu redor', max: 5 },
+  aura: { n: 'Aura dourada', d: 'Dano contínuo em volta de você', max: 5 },
+  nova: { n: 'Explosão estelar', d: 'Explosões periódicas em área', max: 5 },
+  chain: { n: 'Raio em cadeia', d: 'Relâmpago que salta entre inimigos', max: 5 }
+};
+const PASSIVE = { speed: { n: 'Botas leves', d: '+10% velocidade', max: 4 }, vigor: { n: 'Vigor', d: '+25 vida máxima e cura', max: 4 }, magnet: { n: 'Ímã', d: 'Atrai cristais de mais longe', max: 3 }, might: { n: 'Força', d: '+15% de dano em tudo', max: 5 }, regen: { n: 'Regeneração', d: 'Recupera vida com o tempo', max: 3 } };
+const FOES = { bat: { hp: 6, sp: 70, dmg: 6, r: 9, c: '#8a6bff', xp: 1 }, zombie: { hp: 16, sp: 45, dmg: 10, r: 12, c: '#5f8f4a', xp: 2 }, ghost: { hp: 10, sp: 95, dmg: 8, r: 10, c: '#cfd8ff', xp: 2 }, brute: { hp: 60, sp: 38, dmg: 18, r: 17, c: '#a0522d', xp: 6 }, boss: { hp: 900, sp: 52, dmg: 30, r: 32, c: '#e5484d', xp: 60 } };
+const Game = {
+  state: 'idle', t: 0, p: null, foes: [], gems: [], shots: [], fx: [], w: {}, pas: {}, kills: 0, spawnT: 0, bosses: 0, cd: {}, orbA: 0,
+  start() {
+    HX.close(); this.t = 0; this.kills = 0; this.bosses = 0; this.foes = []; this.gems = []; this.shots = []; this.fx = []; this.w = { bolt: 1 }; this.pas = {}; this.cd = {}; this.spawnT = 0;
+    this.p = { x: 0, y: 0, hp: 100, max: 100, lvl: 1, xp: 0, next: 6, inv: 0 }; this.state = 'play'; HX.sfx('power'); UI.hud();
+  },
+  mult() { return 1 + (this.pas.might || 0) * .15; },
+  spawn(type) { const a = Math.random() * 7, d = 380 + Math.random() * 60, F = FOES[type], sc = 1 + this.t / 170; this.foes.push({ type, x: this.p.x + Math.cos(a) * d, y: this.p.y + Math.sin(a) * d, hp: F.hp * sc * (type === 'boss' ? 1 + this.bosses * .6 : 1), max: F.hp * sc * (type === 'boss' ? 1 + this.bosses * .6 : 1), hit: 0 }); },
+  step(dt) {
+    if (this.state !== 'play') return; this.t += dt; const P = this.p;
+    const mv = UI.dir(), sp = 120 * (1 + (this.pas.speed || 0) * .1); if (mv.on) { P.x += mv.x * sp * dt; P.y += mv.y * sp * dt; }
+    if (P.inv > 0) P.inv -= dt; if (this.pas.regen) P.hp = Math.min(P.max, P.hp + this.pas.regen * .6 * dt);
+    // geração de inimigos: mais e mais fortes com o tempo
+    this.spawnT -= dt; if (this.spawnT <= 0) { const m = this.t / 60; this.spawnT = Math.max(.25, .9 - m * .1); const n = this.foes.length > 160 ? 0 : 1 + Math.floor(m / 2); for (let k = 0; k < n; k++) { const r = Math.random(); this.spawn(m < 1 ? 'bat' : r < .35 ? 'bat' : r < .65 ? 'zombie' : r < .88 ? 'ghost' : m > 2.5 ? 'brute' : 'zombie'); } }
+    const bossAt = [120, 240, 360, 480]; if (this.bosses < bossAt.length && this.t >= bossAt[this.bosses] ) { this.spawn('boss'); this.bosses++; HX.toast(this.bosses === 4 ? 'Chefe final!' : 'Um chefe apareceu!', 1300); HX.sfx('boom'); }
+    for (const f of this.foes) { const F = FOES[f.type], dx = P.x - f.x, dy = P.y - f.y, d = Math.hypot(dx, dy) || 1; f.x += dx / d * F.sp * dt; f.y += dy / d * F.sp * dt; if (f.hit > 0) f.hit -= dt;
+      if (d < F.r + 12 && P.inv <= 0) { P.hp -= F.dmg; P.inv = .5; HX.vibrate(20); HX.sfx('hit'); } }
+    // separação simples entre inimigos
+    for (let i = 0; i < this.foes.length; i += 2) { const a = this.foes[i], b = this.foes[(i + 7) % this.foes.length]; if (!b || a === b) continue; const dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy), m = FOES[a.type].r + FOES[b.type].r; if (d < m && d > 0) { a.x += dx / d * (m - d) * .5; a.y += dy / d * (m - d) * .5; } }
+    this.weapons(dt);
+    for (const s of this.shots) { s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; for (const f of this.foes) { if (f.hp <= 0 || s.hitSet.has(f)) continue; if (Math.hypot(f.x - s.x, f.y - s.y) < FOES[f.type].r + 5) { this.hurt(f, s.dmg); s.hitSet.add(f); if (--s.pierce < 0) { s.life = 0; break; } } } }
+    this.shots = this.shots.filter(s => s.life > 0);
+    for (const f of this.foes) if (f.hp <= 0 && !f.dead) { f.dead = true; this.kills++; this.gems.push({ x: f.x, y: f.y, v: FOES[f.type].xp }); if (f.type === 'boss') { HX.sfx('win'); this.gems.push({ x: f.x + 10, y: f.y, v: 1, heal: true }); } }
+    this.foes = this.foes.filter(f => !f.dead && Math.hypot(f.x - P.x, f.y - P.y) < 900);
+    const mag = 75 + (this.pas.magnet || 0) * 50;
+    for (const g of this.gems) { const d = Math.hypot(g.x - P.x, g.y - P.y); if (d < mag) { g.x += (P.x - g.x) / d * 300 * dt; g.y += (P.y - g.y) / d * 300 * dt; } if (d < 14) { g.got = true; if (g.heal) { P.hp = Math.min(P.max, P.hp + 40); HX.toast('+40 vida', 800); } else { P.xp += g.v; HX.sfx('coin'); } } }
+    this.gems = this.gems.filter(g => !g.got && Math.hypot(g.x - P.x, g.y - P.y) < 1000);
+    this.fx = this.fx.filter(e => (e.t -= dt) > 0);
+    if (P.xp >= P.next) { P.xp -= P.next; P.lvl++; P.next = Math.round(P.next * 1.18 + 3); HX.sfx('power'); return UI.levelUp(); }
+    if (P.hp <= 0) return this.end(false);
+    if (this.t >= GOAL && !this.foes.some(f => f.type === 'boss')) return this.end(true);
+    UI.hud();
+  },
+  hurt(f, v) { f.hp -= v * this.mult(); f.hit = .1; },
+  nearest(r = 1e9) { let best = null, bd = r; for (const f of this.foes) { if (f.hp <= 0) continue; const d = Math.hypot(f.x - this.p.x, f.y - this.p.y); if (d < bd) { bd = d; best = f; } } return best; },
+  weapons(dt) {
+    const P = this.p, W = this.w; const cd = (k, t) => { this.cd[k] = (this.cd[k] || 0) - dt; if (this.cd[k] > 0) return false; this.cd[k] = t; return true; };
+    if (W.bolt && cd('bolt', .9 - W.bolt * .1)) { const n = 1 + Math.floor(W.bolt / 2); for (let k = 0; k < n; k++) { const f = this.nearest(); if (!f) break; const a = Math.atan2(f.y - P.y, f.x - P.x) + (k - (n - 1) / 2) * .2; this.shots.push({ x: P.x, y: P.y, vx: Math.cos(a) * 380, vy: Math.sin(a) * 380, dmg: 8 + W.bolt * 3, life: 1.2, pierce: W.bolt >= 4 ? 1 : 0, hitSet: new Set(), c: '#f1dca6' }); } }
+    if (W.orbit) { this.orbA += dt * (2.4 + W.orbit * .3); const n = 1 + W.orbit, R = 56 + W.orbit * 6; for (let k = 0; k < n; k++) { const a = this.orbA + k / n * Math.PI * 2, x = P.x + Math.cos(a) * R, y = P.y + Math.sin(a) * R; for (const f of this.foes) if (f.hp > 0 && Math.hypot(f.x - x, f.y - y) < FOES[f.type].r + 10) { if (!f.orbT || f.orbT < this.t) { this.hurt(f, 6 + W.orbit * 3); f.orbT = this.t + .4; } } } }
+    if (W.aura) { const R = 50 + W.aura * 10; for (const f of this.foes) if (f.hp > 0 && Math.hypot(f.x - P.x, f.y - P.y) < R + FOES[f.type].r) this.hurt(f, (4 + W.aura * 2.5) * dt); }
+    if (W.nova && cd('nova', 3.2 - W.nova * .3)) { for (let k = 0; k < 1 + Math.floor(W.nova / 2); k++) { const f = this.foes[Math.floor(Math.random() * this.foes.length)]; const x = f ? f.x : P.x, y = f ? f.y : P.y, R = 50 + W.nova * 8; this.fx.push({ k: 'nova', x, y, r: R, t: .35 }); for (const o of this.foes) if (Math.hypot(o.x - x, o.y - y) < R) this.hurt(o, 18 + W.nova * 7); } HX.sfx('boom'); }
+    if (W.chain && cd('chain', 2.2 - W.chain * .2)) { let f = this.nearest(260), from = P, hit = new Set(); for (let k = 0; k < 2 + W.chain && f; k++) { this.fx.push({ k: 'zap', x: from.x, y: from.y, x2: f.x, y2: f.y, t: .15 }); this.hurt(f, 12 + W.chain * 5); hit.add(f); from = f; let nb = null, nd = 160; for (const o of this.foes) { if (hit.has(o) || o.hp <= 0) continue; const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < nd) { nd = d; nb = o; } } f = nb; } HX.sfx('shot'); }
+  },
+  choices() { const all = []; for (const [k, v] of Object.entries(WEAPONS)) { const lv = this.w[k] || 0; if (lv < v.max && (lv || Object.keys(this.w).length < 4)) all.push({ k, kind: 'w', n: v.n, d: lv ? `Nível ${lv + 1}` : v.d, lv }); }
+    for (const [k, v] of Object.entries(PASSIVE)) { const lv = this.pas[k] || 0; if (lv < v.max) all.push({ k, kind: 'p', n: v.n, d: v.d, lv }); }
+    return HX.shuffle(all).slice(0, 3); },
+  pick(c) { if (c.kind === 'w') this.w[c.k] = (this.w[c.k] || 0) + 1; else { this.pas[c.k] = (this.pas[c.k] || 0) + 1; if (c.k === 'vigor') { this.p.max += 25; this.p.hp = Math.min(this.p.max, this.p.hp + 40); } } },
+  end(win) {
+    this.state = 'over'; const secs = Math.round(this.t); HXA.best(S, 'bestTime', secs); HXA.best(S, 'bestKills', this.kills); const st = S.get('stats', { runs: 0, wins: 0 }); st.runs++; if (win) st.wins++; S.set('stats', st); S.hub(`Recorde ${HX.fmt(S.get('bestTime', 0) * 1000)} · ${st.wins} vitórias`);
+    HX.sfx(win ? 'win' : 'lose'); setTimeout(() => HXA.menu({ title: win ? 'Você sobreviveu!' : 'Você caiu', text: win ? 'O chefe final foi derrotado.' : `Aguentou ${HX.fmt(secs * 1000)} de ${HX.fmt(GOAL * 1000)}.`, stats: [[HX.fmt(secs * 1000), 'Tempo'], [this.kills, 'Abates'], [this.p.lvl, 'Nível']], primary: ['Jogar de novo', () => this.start()], buttons: [['Menu', () => UI.home()]] }), 700);
+  }
+};
+const View = {
+  draw() {
+    const g = St.begin(), G = Game, P = G.p; g.fillStyle = '#1a1214'; g.fillRect(0, 0, VW, VH); if (!P) return;
+    const ox = VW / 2 - P.x, oy = VH / 2 - P.y; g.save(); g.translate(ox, oy);
+    g.fillStyle = 'rgba(201,164,92,.06)'; const gx = Math.floor((P.x - VW / 2) / 64) * 64, gy = Math.floor((P.y - VH / 2) / 64) * 64; for (let x = gx; x < P.x + VW / 2 + 64; x += 64) for (let y = gy; y < P.y + VH / 2 + 64; y += 64) if (((x + y) / 64) % 2 === 0) g.fillRect(x, y, 64, 64);
+    for (const gm of G.gems) { g.fillStyle = gm.heal ? '#e5484d' : gm.v > 3 ? '#c86bff' : '#3ddc84'; g.beginPath(); g.moveTo(gm.x, gm.y - 6); g.lineTo(gm.x + 4, gm.y); g.lineTo(gm.x, gm.y + 6); g.lineTo(gm.x - 4, gm.y); g.fill(); }
+    if (G.w.aura) { const R = 50 + G.w.aura * 10; g.fillStyle = 'rgba(241,220,166,.08)'; g.strokeStyle = 'rgba(241,220,166,.3)'; g.beginPath(); g.arc(P.x, P.y, R, 0, 7); g.fill(); g.stroke(); }
+    for (const f of G.foes) { const F = FOES[f.type]; g.fillStyle = f.hit > 0 ? '#fff' : F.c; g.beginPath(); g.arc(f.x, f.y, F.r, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(f.x - F.r * .35, f.y - F.r * .2, F.r * .18, 0, 7); g.arc(f.x + F.r * .35, f.y - F.r * .2, F.r * .18, 0, 7); g.fill();
+      if (f.type === 'boss') { g.fillStyle = '#400'; g.fillRect(f.x - 30, f.y - 44, 60, 5); g.fillStyle = '#e5484d'; g.fillRect(f.x - 30, f.y - 44, 60 * Math.max(0, f.hp) / f.max, 5); } }
+    for (const s of G.shots) { g.fillStyle = s.c; g.beginPath(); g.arc(s.x, s.y, 4, 0, 7); g.fill(); }
+    if (G.w.orbit) { const n = 1 + G.w.orbit, R = 56 + G.w.orbit * 6; for (let k = 0; k < n; k++) { const a = G.orbA + k / n * Math.PI * 2; g.save(); g.translate(P.x + Math.cos(a) * R, P.y + Math.sin(a) * R); g.rotate(a * 3); g.fillStyle = '#c9a45c'; g.beginPath(); g.moveTo(0, -10); g.lineTo(5, 0); g.lineTo(0, 10); g.lineTo(-5, 0); g.fill(); g.restore(); } }
+    for (const e of G.fx) { if (e.k === 'nova') { g.globalAlpha = e.t * 2.5; g.fillStyle = '#ffb347'; g.beginPath(); g.arc(e.x, e.y, e.r, 0, 7); g.fill(); } else { g.globalAlpha = e.t * 6; g.strokeStyle = '#9fd2ff'; g.lineWidth = 3; g.beginPath(); g.moveTo(e.x, e.y); g.lineTo((e.x + e.x2) / 2 + (Math.random() - .5) * 14, (e.y + e.y2) / 2 + (Math.random() - .5) * 14); g.lineTo(e.x2, e.y2); g.stroke(); } g.globalAlpha = 1; }
+    g.fillStyle = P.inv > 0 && Math.floor(P.inv * 20) % 2 ? '#fff' : '#e0b14a'; g.beginPath(); g.arc(P.x, P.y, 12, 0, 7); g.fill(); g.fillStyle = '#1a1408'; g.font = '700 13px "Cormorant Garamond",serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('H', P.x, P.y + 1);
+    g.restore();
+    g.fillStyle = '#300'; g.fillRect(10, 10, VW - 20, 6); g.fillStyle = '#3d8bff'; g.fillRect(10, 10, (VW - 20) * P.xp / P.next, 6);
+    g.fillStyle = '#400'; g.fillRect(VW / 2 - 20, VH / 2 + 18, 40, 4); g.fillStyle = '#e5484d'; g.fillRect(VW / 2 - 20, VH / 2 + 18, 40 * Math.max(0, P.hp) / P.max, 4);
+    UI.st.draw(g);
+  }
+};
+const St = HXA.stage(VW, VH);
+const UI = {
+  st: null,
+  init() { this.st = HXA.stick(St, { zone: 'any', radius: 50 }); addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'Escape') this.pause(); });
+    HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { Game.step(dt); View.draw(); }); HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home(); },
+  dir() { const k = HXA.axis(); if (k.on) return k; if (this.st.active && Math.hypot(this.st.x, this.st.y) > .12) return { x: this.st.x, y: this.st.y, on: true }; return { on: false }; },
+  hud() { HX.$('#tm').textContent = HX.fmt(Game.t * 1000); HX.$('#lvl').textContent = Game.p.lvl; HX.$('#hp').textContent = Math.max(0, Math.round(Game.p.hp)); HX.$('#kills').textContent = Game.kills; },
+  help: ['Arraste o dedo em qualquer lugar para andar (no PC, WASD ou setas, ou arraste com o mouse). Suas armas atacam sozinhas.', 'Recolha os cristais que os monstros deixam para ganhar experiência. A cada nível, escolha uma melhoria: arma nova, evolução de arma ou habilidade.', 'Armas: projétil arcano, lâminas orbitais, aura dourada, explosão estelar e raio em cadeia (até 4 armas por partida).', 'Chefes aparecem aos 2, 4 e 6 minutos, e o chefe final aos 8. Derrote-o para vencer. Corações vermelhos curam.'],
+  home() { const st = S.get('stats', { runs: 0, wins: 0 }); HXA.menu({ title: 'Survivor', text: 'Sobreviva 8 minutos à horda.', stats: [[HX.fmt(S.get('bestTime', 0) * 1000), 'Melhor tempo'], [S.get('bestKills', 0), 'Mais abates'], [`${st.wins}/${st.runs}`, 'Vitórias']], primary: ['Começar', () => Game.start()], help: this.help }); },
+  levelUp() { Game.state = 'level'; const cs = Game.choices(); if (!cs.length) { Game.state = 'play'; return; }
+    const c = HX.overlay(`<h3>Nível ${Game.p.lvl}!</h3><p>Escolha uma melhoria</p>${cs.map((x, i) => `<button class="btn" data-i="${i}" style="text-align:left;display:block;width:100%;padding:10px 14px;min-height:56px"><b>${x.n}</b><br><small style="color:var(--muted)">${x.d}</small></button>`).join('')}`);
+    c.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { Game.pick(cs[+b.dataset.i]); HX.close(); Game.state = 'play'; }); },
+  pause() { if (Game.state !== 'play') return Game.state === 'level' ? null : this.home(); Game.state = 'pause';
+    const ws = Object.entries(Game.w).map(([k, l]) => `${WEAPONS[k].n} ${l}`).join(' · ');
+    HXA.menu({ title: 'Pausa', text: `${HX.fmt(Game.t * 1000)} · ${ws}`, primary: ['Continuar', () => { Game.state = 'play'; }], buttons: [['Recomeçar', () => Game.start()], ['Menu', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.SV = { Game, UI, S, WEAPONS, FOES };
+
+</script>
+</body>
+</html>
