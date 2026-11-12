@@ -247,11 +247,161 @@ window.HLUX_GAMES = [
     id: 'racer', name: 'Racer', tagline: 'Corrida arcade',
     description: 'Seis pistas com curvas, trânsito, cones e óleo, medalhas por tempo e um modo infinito.',
     path: 'racer/', cover: 'covers/racer.svg', accent: '#e0b14a', tags: ['Corrida', 'Medalhas', 'Infinito']
+  },
+  {
+    id: 'cells', name: 'Cells', tagline: 'Arena de células',
+    description: 'Cresça comendo partículas e células menores, divida-se para atacar e domine o ranking contra a IA.',
+    path: 'cells/', cover: 'covers/cells.svg', accent: '#e0b14a', tags: ['Arena', 'IA', 'Recordes']
+  },
+  {
+    id: 'snakearena', name: 'Snake Arena', tagline: 'Cobras em arena',
+    description: 'Colete energia, use o turbo e faça as cobras rivais baterem no seu corpo para crescer.',
+    path: 'snakearena/', cover: 'covers/snakearena.svg', accent: '#c9a45c', tags: ['Arena', 'IA', 'Turbo']
+  },
+  {
+    id: 'tankarena', name: 'Tank Arena', tagline: 'Combate de tanques',
+    description: 'Mova o tanque e gire a torre de forma independente, ricocheteie tiros e escolha melhorias entre as arenas.',
+    path: 'tankarena/', cover: 'covers/tankarena.svg', accent: '#e0b14a', tags: ['Arena', 'Melhorias', 'IA']
+  },
+  {
+    id: 'survivor', name: 'Survivor', tagline: 'Sobreviva à horda',
+    description: 'Oito minutos contra ondas de monstros: armas automáticas, níveis, melhorias e chefes.',
+    path: 'survivor/', cover: 'covers/survivor.svg', accent: '#e5484d', tags: ['Ondas', 'Chefes', 'Melhorias']
+  },
+  {
+    id: 'twinshooter', name: 'Twin Shooter', tagline: 'Tiro em arena',
+    description: 'Mova com uma mão e mire com a outra: 20 ondas, 4 armas, melhorias e chefes. Mouse e teclado no PC.',
+    path: 'twinshooter/', cover: 'covers/twinshooter.svg', accent: '#3d8bff', tags: ['Ondas', 'Chefes', 'Armas']
+  },
+  {
+    id: 'flight', name: 'Flight', tagline: 'Voo entre colunas',
+    description: 'Toque para bater as asas e passe pelos vãos. Três modos e medalhas.',
+    path: 'flight/', cover: 'covers/flight.svg', accent: '#e0b14a', tags: ['Toque único', 'Medalhas', 'Recordes']
+  },
+  {
+    id: 'dash', name: 'Dash', tagline: 'Plataforma rítmica',
+    description: 'O cubo corre no ritmo de trilhas originais: pule na batida, use o modo prática e conquiste as três fases.',
+    path: 'dash/', cover: 'covers/dash.svg', accent: '#c86bff', tags: ['Ritmo', 'Fases', 'Música original']
+  },
+  {
+    id: 'jumper', name: 'Jumper', tagline: 'Salto vertical',
+    description: 'Suba de plataforma em plataforma: molas, plataformas que quebram, monstros e foguete.',
+    path: 'jumper/', cover: 'covers/jumper.svg', accent: '#e0b14a', tags: ['Infinito', 'Altura', 'Recordes']
+  },
+  {
+    id: 'crossing', name: 'Crossing', tagline: 'Travessia',
+    description: 'Atravesse estradas, rios e trilhos em quatro ambientes sem ser pego pela águia.',
+    path: 'crossing/', cover: 'covers/crossing.svg', accent: '#3ddc84', tags: ['Infinito', 'Ambientes', 'Moedas']
+  },
+  {
+    id: 'colorrush', name: 'Color Rush', tagline: 'Passe pela sua cor',
+    description: 'A bola só atravessa a parte do obstáculo com a mesma cor: anéis, barras e cruzes giratórias.',
+    path: 'colorrush/', cover: 'covers/colorrush.svg', accent: '#3d8bff', tags: ['Toque único', 'Cores', 'Recordes']
+  },
+  {
+    id: 'hillrider', name: 'Hill Rider', tagline: 'Subida com física',
+    description: 'Dirija morro acima com suspensão e combustível, colete moedas e melhore três veículos em três fases.',
+    path: 'hillrider/', cover: 'covers/hillrider.svg', accent: '#c9a45c', tags: ['Física', 'Veículos', 'Melhorias']
+  },
+  {
+    id: 'ragdoll', name: 'Ragdoll Arena', tagline: 'Luta com física',
+    description: 'Bonecos de física, armas e caixas em três arenas contra a IA ou um amigo no teclado do PC.',
+    path: 'ragdoll/', cover: 'covers/ragdoll.svg', accent: '#e5484d', tags: ['Física', 'IA', 'Local']
+  },
+  {
+    id: 'slice', name: 'Slice', tagline: 'Corte as frutas',
+    description: 'Deslize para cortar frutas, faça combos e fuja das bombas. Modos Clássico, Arcade e Zen.',
+    path: 'slice/', cover: 'covers/slice.svg', accent: '#ff9a2e', tags: ['Combos', '3 modos', 'Recordes']
+  },
+  {
+    id: 'swing', name: 'Swing', tagline: 'Balanço na corda',
+    description: 'Prenda a corda, balance e solte na hora certa sobre a lava: 15 fases com ganchos móveis e espinhos.',
+    path: 'swing/', cover: 'covers/swing.svg', accent: '#e0b14a', tags: ['Física', '15 fases', 'Estrelas']
+  },
+  {
+    id: 'rhythm', name: 'Rhythm', tagline: 'Ritmo em 4 direções',
+    description: 'Toque no tempo das músicas originais: precisão, combos, três dificuldades e ajuste de latência.',
+    path: 'rhythm/', cover: 'covers/rhythm.svg', accent: '#c86bff', tags: ['Música original', 'Precisão', 'Latência']
+  },
+  {
+    id: 'guitar', name: 'Guitar', tagline: 'Notas coloridas',
+    description: 'Cinco trastes, acordes, notas longas, multiplicador e Poder Estelar em três músicas originais.',
+    path: 'guitar/', cover: 'covers/guitar.svg', accent: '#ff9a2e', tags: ['Música original', 'Multiplicador', '3 níveis']
+  },
+  {
+    id: 'pool', name: 'Pool', tagline: 'Sinuca bola 8',
+    description: 'Física de bolas e tabelas, regras oficiais da bola 8 com faltas e bola na mão, contra a IA ou a dois.',
+    path: 'pool/', cover: 'covers/pool.svg', accent: '#3ddc84', tags: ['Bola 8', 'IA', 'Local']
+  },
+  {
+    id: 'bowling', name: 'Bowling', tagline: 'Boliche de 10 pinos',
+    description: 'Posicione, mire e aplique efeito: dez quadros com pontuação oficial de strikes e spares.',
+    path: 'bowling/', cover: 'covers/bowling.svg', accent: '#e0b14a', tags: ['10 quadros', 'Física', 'IA']
+  },
+  {
+    id: 'minigolf', name: 'Mini Golf', tagline: 'Percurso de 9 buracos',
+    description: 'Paredes, rampas, areia, água e pás giratórias. Conte as tacadas e bata o par.',
+    path: 'minigolf/', cover: 'covers/minigolf.svg', accent: '#3ddc84', tags: ['9 buracos', 'Física', 'Par']
+  },
+  {
+    id: 'hoops', name: 'Hoops', tagline: 'Arremessos de basquete',
+    description: 'Arremesse com direção e força, acerte cestas de 3 e "chuás" contra o relógio ou no desafio de 3 pontos.',
+    path: 'hoops/', cover: 'covers/hoops.svg', accent: '#e07a2e', tags: ['Tempo', '3 modos', 'Recordes']
+  },
+  {
+    id: 'penalty', name: 'Penalty', tagline: 'Disputa de pênaltis',
+    description: 'Cobre e defenda contra a IA, com morte súbita e um torneio de três fases.',
+    path: 'penalty/', cover: 'covers/penalty.svg', accent: '#3ddc84', tags: ['Torneio', 'IA', 'Cobrar e defender']
+  },
+  {
+    id: 'archery', name: 'Archery', tagline: 'Tiro com arco',
+    description: 'Puxe a corda, compense o vento e acerte o centro em 12 fases com alvos móveis.',
+    path: 'archery/', cover: 'covers/archery.svg', accent: '#ffd54a', tags: ['Vento', '12 fases', 'Precisão']
+  },
+  {
+    id: 'fishing', name: 'Fishing', tagline: 'Pesca relaxante',
+    description: 'Quatro locais, 24 espécies em cinco raridades, loja de equipamentos, coleção e missões.',
+    path: 'fishing/', cover: 'covers/fishing.svg', accent: '#3d8bff', tags: ['Coleção', 'Missões', 'Relaxante']
+  },
+  {
+    id: 'kitchen', name: 'Kitchen', tagline: 'Lanchonete',
+    description: 'Prepare pedidos na chapa, tábua, fritadeira e forno antes que os clientes percam a paciência.',
+    path: 'kitchen/', cover: 'covers/kitchen.svg', accent: '#e5484d', tags: ['Pedidos', 'Dias', 'Melhorias']
+  },
+  {
+    id: 'shoptycoon', name: 'Shop Tycoon', tagline: 'Gestão de loja',
+    description: 'Compre estoque, defina preços, contrate equipe e expanda a loja até virar magnata.',
+    path: 'shoptycoon/', cover: 'covers/shoptycoon.svg', accent: '#3ddc84', tags: ['Gestão', 'Lucro', 'Expansão']
+  },
+  {
+    id: 'city', name: 'City', tagline: 'Construa uma cidade',
+    description: 'Estradas, casas, comércio, indústria, energia, água e serviços públicos: equilibre economia e satisfação.',
+    path: 'city/', cover: 'covers/city.svg', accent: '#3dacdc', tags: ['Construção', 'Economia', 'Livre']
+  },
+  {
+    id: 'escape', name: 'Escape', tagline: 'Salas de fuga',
+    description: 'Três salas com objetos, inventário e enigmas lógicos. Dicas limitadas e recorde de tempo.',
+    path: 'escape/', cover: 'covers/escape.svg', accent: '#c86bff', tags: ['3 salas', 'Inventário', 'Enigmas']
+  },
+  {
+    id: 'hidden', name: 'Hidden', tagline: 'Objetos escondidos',
+    description: 'Encontre oito objetos em cenários cheios, com zoom, dicas limitadas e tempo.',
+    path: 'hidden/', cover: 'covers/hidden.svg', accent: '#ffd54a', tags: ['8 cenários', 'Tempo', 'Dicas']
+  },
+  {
+    id: 'quest', name: 'Quest', tagline: 'Aventura de plataforma',
+    description: 'Três áreas com segredos, gemas, inimigos e chefes; aprenda o pulo duplo e chegue ao castelo.',
+    path: 'quest/', cover: 'covers/quest.svg', accent: '#3ddcc8', tags: ['Plataforma', 'Chefes', 'Segredos']
+  },
+  {
+    id: 'quiz', name: 'Quiz', tagline: 'Conhecimentos gerais',
+    description: 'Perguntas em português sobre oito temas, três dificuldades, modo com e sem tempo e sequência de acertos.',
+    path: 'quiz/', cover: 'covers/quiz.svg', accent: '#e0b14a', tags: ['8 categorias', 'Com e sem tempo', 'Recordes']
   }
 ];
 
 /* Categorias usadas pelos filtros do catálogo (um jogo pode estar em mais de uma). */
-window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'Cartas e peças', 'Dados', 'Palavras', 'Arcade', 'Corrida', 'Aventura', '2+ jogadores'];
+window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'Cartas e peças', 'Dados', 'Palavras', 'Arcade', 'Corrida', 'Aventura', 'Música', 'Esportes', 'Simulação', '2+ jogadores'];
 (function () {
   const C = {
     puzzle: ['Quebra-cabeças'], mahjong: ['Quebra-cabeças', 'Lógica'], nonogram: ['Lógica'], minefield: ['Lógica'], '2048': ['Lógica', 'Quebra-cabeças'],
@@ -264,7 +414,13 @@ window.HLUX_CATS = ['Quebra-cabeças', 'Lógica', 'Tabuleiro', 'Estratégia', 'C
     sudoku: ['Lógica'], wordsearch: ['Palavras'], wordmaster: ['Palavras', 'Lógica'], memory: ['Quebra-cabeças'], spider: ['Cartas e peças'],
     crazycards: ['Cartas e peças', '2+ jogadores'], domino: ['Cartas e peças', 'Tabuleiro', '2+ jogadores'], dice: ['Dados', '2+ jogadores'],
     invaders: ['Arcade'], breakout: ['Arcade'], defense: ['Estratégia'], pong: ['Arcade', '2+ jogadores'], tictactoe: ['Tabuleiro', '2+ jogadores'],
-    pinball: ['Arcade'], dungeon: ['Aventura'], racer: ['Corrida', 'Arcade']
+    pinball: ['Arcade'], dungeon: ['Aventura'], racer: ['Corrida', 'Arcade'],
+    cells: ['Arcade'], snakearena: ['Arcade'], tankarena: ['Arcade', 'Estratégia'], survivor: ['Arcade', 'Aventura'], twinshooter: ['Arcade'],
+    flight: ['Arcade'], dash: ['Arcade', 'Música'], jumper: ['Arcade'], crossing: ['Arcade'], colorrush: ['Arcade'],
+    hillrider: ['Corrida', 'Arcade'], ragdoll: ['Arcade', '2+ jogadores'], slice: ['Arcade'], swing: ['Arcade'], rhythm: ['Música'],
+    guitar: ['Música'], pool: ['Esportes', '2+ jogadores'], bowling: ['Esportes'], minigolf: ['Esportes', 'Quebra-cabeças'], hoops: ['Esportes'],
+    penalty: ['Esportes'], archery: ['Esportes'], fishing: ['Simulação'], kitchen: ['Simulação', 'Estratégia'], shoptycoon: ['Simulação', 'Estratégia'],
+    city: ['Simulação', 'Estratégia'], escape: ['Quebra-cabeças', 'Aventura'], hidden: ['Quebra-cabeças'], quest: ['Aventura'], quiz: ['Palavras']
   };
   window.HLUX_GAMES.forEach(g => { if (!g.cats) g.cats = C[g.id] || []; });
 })();

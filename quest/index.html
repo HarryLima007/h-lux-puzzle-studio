@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07080a">
+<title>H-LUX Quest</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+:root{--bg:#07080a;--bg2:radial-gradient(ellipse at 50% 0%,#1a2228 0%,#07080a 66%)}
+#cv{display:block;touch-action:none;border-radius:14px;box-shadow:0 0 0 2px #c9a45c,0 20px 50px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
+.pad2{display:flex;justify-content:space-between;gap:8px;margin-top:8px;width:100%;max-width:620px;align-self:center}.pad2 div{display:flex;gap:8px}.pad2 button{min-width:68px;min-height:64px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(#1c1c20,#121214);color:var(--gold-2);font:800 18px Manrope,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}.pad2 button.on{border-color:var(--gold);background:linear-gradient(#3a2f18,#1d170c)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><a class="back" href="../" data-platform-link><svg class="i"><path d="M14.5 6l-6 6 6 6"/></svg>H-LUX</a><div class="title">Qu<b>est</b></div><button class="ib" id="menu" aria-label="Menu"><svg class="i"><path d="M9 6v12M15 6v12"/></svg></button></div>
+  <div class="hud"><div class="sc"><small>Área</small><b id="area">1-1</b></div><div class="sc"><small>Vida</small><b id="hp">♥♥♥</b></div><div class="sc"><small>Gemas</small><b id="gems">0/3</b></div></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div><div class="pad2"><div><button data-k="L">◀</button><button data-k="R">▶</button></div><div><button data-k="A">⚔️</button><button data-k="J">⤒</button></div></div>
+</div>
+<script src="../shared/kit.js"></script><script src="../shared/arcade.js"></script>
+<script>
+'use strict';
+/* H-LUX QUEST v1.0 — aventura de plataforma 2D: 3 áreas (Floresta, Caverna, Castelo), cada uma com uma fase e um chefe.
+   Corra, pule (segure para pular mais alto; pulo duplo após vencer o 1º chefe), ataque com a espada, quebre paredes rachadas
+   para achar segredos, colete moedas e 3 gemas por fase, use bandeiras como checkpoint e chegue à porta.
+   Chefes: Rei Cogumelo (pula e invoca lodos), Morcego Ancião (mergulha) e Cavaleiro Sombrio (investe e lança lâminas).
+   Celular: botões ◀ ▶ ⚔️ ⤒. PC: setas/A-D, espaço/W/↑ pula, J/K ataca. Módulos: MAPS · Game · View · UI */
+const S = HX.store('quest');
+const VW = 400, VH = 448, TS = 32, G0 = 1800, JV = 640, SPD = 190;
+/* legenda: # bloco · B parede rachada (quebra com a espada) · F parede falsa (atravessável) · ^ espinhos · ~ lava/água
+   c moeda · g gema · h coração · s lodo · b morcego · k bandeira · D porta · P início · X chefe · = plataforma (atravessável por baixo) */
+const MAPS = [
+  { n: 'Floresta', id: '1-1', sky: ['#1e3a4a', '#4a7a5a'], tile: '#3a5a2a', top: '#5fae4a', rows: [
+    '                                                                                            ',
+    '                                                                                            ',
+    '                                                                                            ',
+    '                                                                                            ',
+    '                                 g                             b                            ',
+    '                               ====               k  s                          ccc g       ',
+    '                                        b        #######    ccc                ====      D  ',
+    '                     ccc k       s         ccc h Bg ####   ########        s        ########',
+    '                    #######   #######     ##############   ########     #######     ########',
+    '   P    ccc       s #######   ####### ^^^ ##############   ######## ^^^ #######     ########',
+    '#############  ############   ##########################   #################################',
+    '#############  ############   ##########################   #################################',
+    '#############~~############~~~##########################~~~#################################',
+    '############################################################################################'
+  ] },
+  { n: 'Rei Cogumelo', id: '1-★', boss: 0, sky: ['#2a1e3a', '#5a3a5a'], tile: '#4a3a2a', top: '#a07a4a', rows: [
+    '                         ', '                         ', '                         ', '                         ', '                         ', '                         ',
+    '   ====           ====   ', '                         ', '         =======         ', '                         ', '                         ',
+    '  P              X       ', '#########################', '#########################'] },
+  { n: 'Caverna', id: '2-1', sky: ['#0e0c14', '#2a2030'], tile: '#3a3440', top: '#6a5a7a', rows: [
+    '############################################################################################',
+    '#                                                                                          #',
+    '#                                                                                          #',
+    '#                                   g                                 b                    #',
+    '#           ccc         b          ===            b                                        #',
+    '#           ====            ccc s                        kccc                              #',
+    '#                          #######                   ##########      s                  D  #',
+    '#            s       k     #######   ^^        s     Fg #######   #######       ############',
+    '#         #######   #####################   ###################   #######       Bg #########',
+    '#  P  ccc #######   #####################   ###################   ##########################',
+    '#################   #####################   ###################   ##########################',
+    '#################   #####################   ###################   ##########################',
+    '#################~~~#####################~~~###################~~~##########################',
+    '############################################################################################'
+  ] },
+  { n: 'Morcego Ancião', id: '2-★', boss: 1, sky: ['#0a0a12', '#1e1a2a'], tile: '#3a3440', top: '#6a5a7a', rows: [
+    '#########################', '#                       #', '#                       #', '#         X             #', '#                       #', '#                       #',
+    '#   ====         ====   #', '#                       #', '#        =======        #', '#                       #', '#                       #',
+    '#  P                    #', '#########################', '#########################'] },
+  { n: 'Castelo', id: '3-1', sky: ['#1a0e0e', '#3a1a1a'], tile: '#4a4048', top: '#8a7a8a', rows: [
+    '############################################################################################',
+    '#                                                                                          #',
+    '#                                                                            g             #',
+    '#                 b                   g                                     ===            #',
+    '#                            ccc     ====                         b                        #',
+    '#             ====           ===                     k                                  D  #',
+    '#                      k  s             h           #######               ccc s ############',
+    '#            ccc      #######      #######      s   Bg ####       s      ###################',
+    '#           #######   #######  ^^^ #######   ##############    #######   ###################',
+    '#  P    ^^^ #######   ####### ############   ##############^^^ #######   ###################',
+    '###################   ####################   #########################   ###################',
+    '###################   ####################   #########################   ###################',
+    '###################~~~####################~~~#########################~~~###################',
+    '############################################################################################'
+  ] },
+  { n: 'Cavaleiro Sombrio', id: '3-★', boss: 2, sky: ['#14080a', '#2a1014'], tile: '#4a4048', top: '#8a7a8a', rows: [
+    '#########################', '#                       #', '#                       #', '#                       #', '#                       #', '#                       #',
+    '#   ====         ====   #', '#                       #', '#        =======        #', '#                       #', '#                       #',
+    '#  P              X     #', '#########################', '#########################'] }
+];
+const BOSS = [{ n: 'Rei Cogumelo', hp: 14, c: '#e5484d', w: 56, h: 56 }, { n: 'Morcego Ancião', hp: 16, c: '#7b4bd6', w: 64, h: 40 }, { n: 'Cavaleiro Sombrio', hp: 20, c: '#5a5a6a', w: 44, h: 64 }];
+const Game = {
+  state: 'idle', mi: 0, M: null, grid: null, W: 0, H: 0, p: null, ents: [], coins: 0, gems: 0, cp: null, boss: null, t: 0, fx: [], shots: [],
+  start(mi) {
+    HX.close(); this.mi = mi; this.M = MAPS[mi]; const rows = this.M.rows; this.W = Math.max(...rows.map(r => r.length)); this.H = rows.length; this.grid = rows.map(r => r.padEnd(this.W, ' ').split(''));
+    this.ents = []; this.shots = []; this.fx = []; this.coinsLv = 0; this.gemsLv = 0; this.gemTotal = 0; this.boss = null; let start = [2, 2];
+    for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) { const ch = this.grid[y][x], cx = x * TS + TS / 2, cy = y * TS + TS / 2;
+      if ('cghskbDPX'.includes(ch)) this.grid[y][x] = ' ';
+      if (ch === 'c') this.ents.push({ k: 'coin', x: cx, y: cy }); if (ch === 'g') { this.ents.push({ k: 'gem', x: cx, y: cy }); this.gemTotal++; } if (ch === 'h') this.ents.push({ k: 'heart', x: cx, y: cy });
+      if (ch === 's') this.ents.push({ k: 'slime', x: cx, y: cy + 4, vx: -50, hp: 2, w: 24, h: 18 }); if (ch === 'b') this.ents.push({ k: 'bat', x: cx, y: cy, y0: cy, t: Math.random() * 6, vx: 60, hp: 1, w: 24, h: 16 });
+      if (ch === 'k') this.ents.push({ k: 'flag', x: cx, y: cy }); if (ch === 'D') this.ents.push({ k: 'door', x: cx, y: cy }); if (ch === 'P') start = [cx, cy];
+      if (ch === 'X') { const B = BOSS[this.M.boss]; this.boss = { ...B, x: cx, y: cy, vx: 0, vy: 0, hpMax: B.hp, t: 0, phase: 0, inv: 0, ground: false }; } }
+    this.cp = start; this.spawn(); this.hp = 3; this.state = 'play'; this.t = 0; UI.hud(); HX.toast(`${this.M.id} · ${this.M.n}`, 1300);
+  },
+  spawn() { this.p = { x: this.cp[0], y: this.cp[1], vx: 0, vy: 0, w: 20, h: 28, face: 1, ground: false, jumps: 0, inv: 1, atk: 0, atkCd: 0, held: false }; },
+  solid(tx, ty, dy) { if (tx < 0 || tx >= this.W) return true; if (ty < 0) return false; if (ty >= this.H) return false; const ch = this.grid[ty][tx]; return ch === '#' || ch === 'B' || (ch === '=' && dy); },
+  tileAt(px, py) { const tx = Math.floor(px / TS), ty = Math.floor(py / TS); return ty >= 0 && ty < this.H && tx >= 0 && tx < this.W ? this.grid[ty][tx] : ' '; },
+  /* colisão AABB contra os blocos, eixo por eixo */
+  move(o, dt) {
+    o.x += o.vx * dt; let l = Math.floor((o.x - o.w / 2) / TS), r = Math.floor((o.x + o.w / 2 - .01) / TS), t = Math.floor((o.y - o.h / 2) / TS), b = Math.floor((o.y + o.h / 2 - .01) / TS);
+    for (let ty = t; ty <= b; ty++) { if (o.vx > 0 && this.solid(r, ty, false)) { o.x = r * TS - o.w / 2; o.vx = 0; o.hitWall = 1; } if (o.vx < 0 && this.solid(l, ty, false)) { o.x = (l + 1) * TS + o.w / 2; o.vx = 0; o.hitWall = -1; } }
+    const py = o.y; o.y += o.vy * dt; o.ground = false; l = Math.floor((o.x - o.w / 2) / TS); r = Math.floor((o.x + o.w / 2 - .01) / TS); t = Math.floor((o.y - o.h / 2) / TS); b = Math.floor((o.y + o.h / 2 - .01) / TS);
+    for (let tx = l; tx <= r; tx++) { if (o.vy > 0) { const plat = this.tileAt(tx * TS + 1, b * TS + 1) === '=' ; const prevB = Math.floor((py + o.h / 2 - .01) / TS); if (this.solid(tx, b, true) && (!plat || prevB < b) && !(plat && o.drop)) { o.y = b * TS - o.h / 2; o.vy = 0; o.ground = true; } } if (o.vy < 0 && this.solid(tx, t, false)) { o.y = (t + 1) * TS + o.h / 2; o.vy = 0; } }
+  },
+  hurt(src) { const P = this.p; if (P.inv > 0) return; this.hp--; P.inv = 1.2; P.vy = -380; P.vx = (P.x < src ? -1 : 1) * 220; HX.sfx('hit'); HX.vibrate(40); UI.hud(); if (this.hp <= 0) this.die(); },
+  die() { HX.sfx('lose'); this.lives = (this.lives || 0) + 1; this.hp = 3; this.spawn(); if (this.boss) { this.boss.hp = this.boss.hpMax; this.ents = this.ents.filter(e => e.k !== 'slime' || !e.minion); this.shots = []; } HX.toast('Voltou ao checkpoint', 900); UI.hud(); },
+  step(dt) {
+    if (this.state !== 'play') return; this.t += dt; const P = this.p, inp = UI.input(), dbl = S.get('beaten', 0) >= 1;
+    P.vx += ((inp.x * SPD) - P.vx) * Math.min(1, dt * (P.ground ? 14 : 7)); if (inp.x) P.face = inp.x; P.drop = inp.down;
+    if (inp.jumpPress) { if (P.ground) { P.vy = -JV; P.jumps = 1; HX.sfx('tap'); } else if (dbl && P.jumps < 2) { P.vy = -JV * .85; P.jumps = 2; HX.sfx('tap'); this.fx.push({ k: 'ring', x: P.x, y: P.y + 14, t: .3 }); } }
+    if (!inp.jump && P.vy < -200) P.vy += G0 * dt * 1.2; P.vy = Math.min(900, P.vy + G0 * dt);
+    this.move(P, dt); if (P.ground) P.jumps = 0; if (P.inv > 0) P.inv -= dt; P.atkCd -= dt; if (P.atk > 0) P.atk -= dt;
+    if (inp.attack && P.atkCd <= 0) { P.atk = .18; P.atkCd = .35; HX.sfx('shot'); const ax = P.x + P.face * 26, ay = P.y; const tx = Math.floor(ax / TS), ty = Math.floor(ay / TS); for (const dy of [-1, 0]) if (this.grid[ty + dy] && this.grid[ty + dy][tx] === 'B') { this.grid[ty + dy][tx] = ' '; HX.sfx('boom'); this.fx.push({ k: 'dust', x: tx * TS + 16, y: (ty + dy) * TS + 16, t: .4 }); } }
+    // perigos do mapa
+    const feet = this.tileAt(P.x, P.y + P.h / 2 - 2), body = this.tileAt(P.x, P.y); if (feet === '^') this.hurt(P.x - P.face); if (feet === '~' || body === '~' || P.y > this.H * TS + 40) { this.hp = Math.max(0, this.hp - 1); UI.hud(); if (this.hp <= 0) return this.die(); this.spawn(); HX.sfx('lose'); }
+    // entidades
+    const box = (a, b) => Math.abs(a.x - b.x) < (a.w + (b.w || 20)) / 2 && Math.abs(a.y - b.y) < (a.h + (b.h || 20)) / 2;
+    const atkBox = P.atk > 0 ? { x: P.x + P.face * 24, y: P.y, w: 34, h: 30 } : null;
+    for (const e of this.ents) { if (e.dead) continue;
+      if (e.k === 'slime') { e.vy = (e.vy || 0) + G0 * dt; const ahead = Math.floor((e.x + Math.sign(e.vx) * 14) / TS), below = Math.floor((e.y + e.h / 2 + 4) / TS); e.hitWall = 0; this.move(e, dt); if (e.hitWall || (e.ground && !this.solid(ahead, below, true))) e.vx = -e.vx || 50; }
+      if (e.k === 'bat') { e.t += dt; e.x += e.vx * dt; e.y = e.y0 + Math.sin(e.t * 2.5) * 30; const tx = Math.floor((e.x + Math.sign(e.vx) * 14) / TS), ty = Math.floor(e.y / TS); if (this.solid(tx, ty, false) || Math.abs(e.x - (e.x0 ??= e.x)) > 140) e.vx = -e.vx; }
+      if ((e.k === 'slime' || e.k === 'bat')) { if (atkBox && box(atkBox, e)) { e.hp--; e.x += P.face * 12; HX.sfx('hit'); if (e.hp <= 0) { e.dead = true; this.fx.push({ k: 'dust', x: e.x, y: e.y, t: .4 }); } }
+        else if (box(P, e)) { if (P.vy > 120 && P.y < e.y - 6) { e.dead = true; P.vy = -420; HX.sfx('boom'); } else this.hurt(e.x); } }
+      if (e.k === 'coin' && box(P, { x: e.x, y: e.y, w: 16, h: 16 })) { e.dead = true; this.coinsLv++; HX.sfx('coin'); }
+      if (e.k === 'gem' && box(P, { x: e.x, y: e.y, w: 18, h: 18 })) { e.dead = true; this.gemsLv++; HX.sfx('power'); HX.toast(`Gema ${this.gemsLv}/${this.gemTotal}!`, 800); UI.hud(); }
+      if (e.k === 'heart' && box(P, { x: e.x, y: e.y, w: 18, h: 18 })) { e.dead = true; this.hp = Math.min(5, this.hp + 1); HX.sfx('power'); UI.hud(); }
+      if (e.k === 'flag' && !e.on && box(P, { x: e.x, y: e.y, w: 18, h: 32 })) { e.on = true; this.cp = [e.x, e.y]; HX.sfx('coin'); HX.toast('Checkpoint!', 700); }
+      if (e.k === 'door' && box(P, { x: e.x, y: e.y, w: 20, h: 32 })) return this.clear(); }
+    this.ents = this.ents.filter(e => !e.dead || e.k === 'flag');
+    if (this.boss) this.bossStep(dt, atkBox, box);
+    for (const s of this.shots) { s.x += s.vx * dt; s.y += s.vy * dt; s.t -= dt; if (box(P, { x: s.x, y: s.y, w: 14, h: 10 })) { s.t = 0; this.hurt(s.x); } if (atkBox && box(atkBox, { x: s.x, y: s.y, w: 14, h: 10 })) { s.t = 0; HX.sfx('hit'); } }
+    this.shots = this.shots.filter(s => s.t > 0); this.fx = this.fx.filter(f => (f.t -= dt) > 0); UI.hudLight();
+  },
+  bossStep(dt, atkBox, box) {
+    const B = this.boss, P = this.p; if (B.hp <= 0) return; B.t += dt; if (B.inv > 0) B.inv -= dt; const rage = B.hp < B.hpMax / 2 ? 1.4 : 1;
+    if (this.M.boss === 0) { B.vy += G0 * dt; if (B.ground) { B.vx *= .8; if (B.t > 1.6 / rage) { B.t = 0; B.vy = -760; B.vx = Math.sign(P.x - B.x) * 170 * rage; if (Math.random() < .5) this.ents.push({ k: 'slime', x: B.x, y: B.y - 20, vx: (Math.random() < .5 ? -1 : 1) * 60, hp: 1, w: 20, h: 16, minion: true }); } } this.move(B, dt); if (B.ground && B.prevAir) { HX.sfx('boom'); HX.vibrate(30); } B.prevAir = !B.ground; }
+    if (this.M.boss === 1) { B.phase += dt; if (B.mode !== 'dive') { B.x += Math.sin(B.phase * 1.2) * 120 * dt * rage; B.y = 120 + Math.sin(B.phase * 2.4) * 30; if (B.t > 2.6 / rage) { B.t = 0; B.mode = 'dive'; B.tx = P.x; B.ty = P.y; } } else { const dx = B.tx - B.x, dy = B.ty - B.y, d = Math.hypot(dx, dy); B.x += dx / d * 340 * rage * dt; B.y += dy / d * 340 * rage * dt; if (d < 20 || B.t > 1.4) { B.mode = 'up'; B.t = 0; } } if (B.mode === 'up') { B.y -= 200 * dt; if (B.y < 130) B.mode = 'fly'; } B.x = HX.clamp(B.x, 60, this.W * TS - 60); }
+    if (this.M.boss === 2) { B.vy += G0 * dt; if (B.mode === 'charge') { B.vx = B.dir * 330 * rage; if (B.t > 1.1) { B.mode = 'idle'; B.t = 0; } } else { B.vx = Math.sign(P.x - B.x) * 50; if (B.t > 1.4 / rage) { B.t = 0; if (Math.random() < .55) { B.mode = 'charge'; B.dir = Math.sign(P.x - B.x) || 1; } else { for (const a of [-.25, 0, .25]) { const ang = Math.atan2(P.y - B.y, P.x - B.x) + a; this.shots.push({ x: B.x, y: B.y - 10, vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260, t: 3 }); } HX.sfx('shot'); } } } this.move(B, dt); }
+    if (atkBox && B.inv <= 0 && box(atkBox, B)) { B.hp--; B.inv = .35; HX.sfx('hit'); this.fx.push({ k: 'dust', x: B.x, y: B.y, t: .3 }); if (B.hp <= 0) return this.bossDown(); }
+    if (box(P, B)) { if (P.vy > 150 && P.y < B.y - B.h / 3 && B.inv <= 0) { B.hp--; B.inv = .5; P.vy = -520; HX.sfx('boom'); if (B.hp <= 0) return this.bossDown(); } else this.hurt(B.x); }
+  },
+  bossDown() { HX.sfx('win'); HX.toast(`${this.boss.n} derrotado!`, 1500); this.ents.push({ k: 'door', x: this.boss.x, y: (this.H - 3) * TS + 16 }); this.boss.hp = 0; this.bossDead = true; const b = S.get('beaten', 0); if (this.M.boss + 1 > b) S.set('beaten', this.M.boss + 1); if (this.M.boss === 0) HX.toast('Você aprendeu o PULO DUPLO!', 2500); },
+  clear() {
+    this.state = 'over'; HX.sfx('win'); const prog = S.get('prog', {}); const pr = prog[this.M.id] || { gems: 0, coins: 0 }; pr.gems = Math.max(pr.gems, this.gemsLv); pr.coins = Math.max(pr.coins, this.coinsLv); pr.done = true; prog[this.M.id] = pr; S.set('prog', prog);
+    if (S.get('unlocked', 1) < this.mi + 2) S.set('unlocked', Math.min(MAPS.length, this.mi + 2)); const gt = Object.values(prog).reduce((a, p) => a + p.gems, 0); S.hub(`${Object.values(prog).filter(p => p.done).length}/${MAPS.length} fases · ${gt}/9 gemas`);
+    const last = this.mi === MAPS.length - 1; HXA.menu({ title: last ? 'Aventura concluída! 👑' : `${this.M.n}: concluído!`, text: this.gemTotal ? `Gemas ${this.gemsLv}/${this.gemTotal} · moedas ${this.coinsLv}` : 'Chefe vencido!', primary: last ? ['Mapa', () => UI.home()] : ['Continuar', () => this.start(this.mi + 1)], buttons: [['Repetir', () => this.start(this.mi)], ['Mapa', () => UI.home()]] });
+  }
+};
+const St = HXA.stage(VW, VH);
+const View = {
+  draw() {
+    const g = St.begin(), G = Game; if (!G.M) { g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, VW, VH); return; } const M = G.M, P = G.p;
+    const sky = g.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, M.sky[0]); sky.addColorStop(1, M.sky[1]); g.fillStyle = sky; g.fillRect(0, 0, VW, VH);
+    const cx = HX.clamp(P.x - VW / 2, 0, Math.max(0, G.W * TS - VW)), cy = HX.clamp(P.y - VH * .55, 0, Math.max(0, G.H * TS - VH));
+    g.fillStyle = 'rgba(255,255,255,.05)'; for (let i = 0; i < 10; i++) { const x = ((i * 170 - cx * .3) % 1700 + 1700) % 1700 - 100; g.beginPath(); g.moveTo(x, VH); g.lineTo(x + 80, 160 + (i * 37) % 120); g.lineTo(x + 160, VH); g.fill(); }
+    g.save(); g.translate(-Math.round(cx), -Math.round(cy));
+    const x0 = Math.floor(cx / TS), x1 = Math.ceil((cx + VW) / TS), y0 = Math.floor(cy / TS), y1 = Math.ceil((cy + VH) / TS);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const ch = G.grid[y] && G.grid[y][x]; if (!ch || ch === ' ') continue; const px = x * TS, py = y * TS;
+      if (ch === '#' || ch === 'F' || ch === 'B') { g.fillStyle = M.tile; g.fillRect(px, py, TS, TS); const above = G.grid[y - 1] && G.grid[y - 1][x]; if (!above || above === ' ' || above === '=' || above === '^') { g.fillStyle = M.top; g.fillRect(px, py, TS, 6); } g.strokeStyle = 'rgba(0,0,0,.25)'; g.strokeRect(px + .5, py + .5, TS - 1, TS - 1);
+        if (ch === 'B') { g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 2; g.beginPath(); g.moveTo(px + 8, py + 4); g.lineTo(px + 16, py + 16); g.lineTo(px + 10, py + 28); g.moveTo(px + 16, py + 16); g.lineTo(px + 26, py + 20); g.stroke(); g.lineWidth = 1; } }
+      else if (ch === '=') { g.fillStyle = '#8a6a3a'; g.fillRect(px, py, TS, 8); g.fillStyle = '#c9a45c'; g.fillRect(px, py, TS, 2); }
+      else if (ch === '^') { g.fillStyle = '#c8c8d0'; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(px + k * 8, py + TS); g.lineTo(px + k * 8 + 4, py + TS - 14); g.lineTo(px + k * 8 + 8, py + TS); g.fill(); } }
+      else if (ch === '~') { g.fillStyle = M.n === 'Caverna' ? '#2a6ab0' : '#ff6a00'; g.fillRect(px, py + 6 + Math.sin(G.t * 3 + x) * 2, TS, TS - 6); } }
+    for (const e of G.ents) { if (e.dead && e.k !== 'flag') continue; const b = Math.sin(G.t * 4 + e.x) * 3;
+      if (e.k === 'coin') { g.fillStyle = '#ffd54a'; g.beginPath(); g.ellipse(e.x, e.y + b, 6 * Math.abs(Math.cos(G.t * 3 + e.x)) + 1, 8, 0, 0, 7); g.fill(); }
+      if (e.k === 'gem') { g.fillStyle = '#3ddcc8'; g.beginPath(); g.moveTo(e.x, e.y - 10 + b); g.lineTo(e.x + 8, e.y + b); g.lineTo(e.x, e.y + 10 + b); g.lineTo(e.x - 8, e.y + b); g.fill(); g.strokeStyle = '#fff'; g.stroke(); }
+      if (e.k === 'heart') { g.fillStyle = '#e5484d'; g.font = '18px sans-serif'; g.textAlign = 'center'; g.fillText('♥', e.x, e.y + 6 + b); }
+      if (e.k === 'flag') { g.fillStyle = '#ccc'; g.fillRect(e.x - 2, e.y - 16, 3, 32); g.fillStyle = e.on ? '#3ddc84' : '#888'; g.beginPath(); g.moveTo(e.x + 1, e.y - 16); g.lineTo(e.x + 18, e.y - 10); g.lineTo(e.x + 1, e.y - 4); g.fill(); }
+      if (e.k === 'door') { g.fillStyle = '#5a3a1c'; g.fillRect(e.x - 14, e.y - 16, 28, 32); g.fillStyle = '#c9a45c'; g.fillRect(e.x + 6, e.y, 3, 3); g.strokeStyle = '#c9a45c'; g.strokeRect(e.x - 14, e.y - 16, 28, 32); }
+      if (e.k === 'slime') { g.fillStyle = e.minion ? '#e5a04d' : '#5fbf4a'; g.beginPath(); g.ellipse(e.x, e.y + 2, 13, 10 + Math.sin(G.t * 8) * 1.5, 0, Math.PI, 0); g.fill(); g.fillRect(e.x - 13, e.y + 2, 26, 6); g.fillStyle = '#111'; g.fillRect(e.x - 6 + Math.sign(e.vx) * 3, e.y - 3, 3, 3); g.fillRect(e.x + 3 + Math.sign(e.vx) * 3, e.y - 3, 3, 3); }
+      if (e.k === 'bat') { g.fillStyle = '#7b4bd6'; const w = Math.sin(G.t * 16) * 8; g.beginPath(); g.moveTo(e.x - 14, e.y - w); g.lineTo(e.x, e.y + 4); g.lineTo(e.x + 14, e.y - w); g.lineTo(e.x, e.y - 6); g.fill(); g.fillStyle = '#ffd54a'; g.fillRect(e.x - 3, e.y - 3, 2, 2); g.fillRect(e.x + 1, e.y - 3, 2, 2); } }
+    const B = G.boss; if (B && B.hp > 0) { g.globalAlpha = B.inv > 0 && Math.floor(B.inv * 20) % 2 ? .5 : 1; g.fillStyle = B.c;
+      if (G.M.boss === 0) { g.beginPath(); g.ellipse(B.x, B.y - 6, 34, 22, 0, Math.PI, 0); g.fill(); g.fillStyle = '#fff'; for (const o of [-16, 0, 16]) { g.beginPath(); g.arc(B.x + o, B.y - 16, 5, 0, 7); g.fill(); } g.fillStyle = '#f1dcb0'; g.fillRect(B.x - 14, B.y - 6, 28, 34); g.fillStyle = '#111'; g.fillRect(B.x - 8, B.y + 2, 4, 4); g.fillRect(B.x + 4, B.y + 2, 4, 4); }
+      else if (G.M.boss === 1) { const w = Math.sin(G.t * 12) * 16; g.beginPath(); g.moveTo(B.x - 40, B.y - w); g.lineTo(B.x, B.y + 12); g.lineTo(B.x + 40, B.y - w); g.lineTo(B.x, B.y - 14); g.fill(); g.fillStyle = '#ff3030'; g.fillRect(B.x - 7, B.y - 6, 4, 4); g.fillRect(B.x + 3, B.y - 6, 4, 4); }
+      else { g.fillRect(B.x - 20, B.y - 30, 40, 60); g.fillStyle = '#e5484d'; g.fillRect(B.x - 12, B.y - 20, 24, 4); g.fillStyle = '#ccc'; g.fillRect(B.x + (B.vx >= 0 ? 18 : -30), B.y - 10, 12, 4); }
+      g.globalAlpha = 1; }
+    g.fillStyle = '#dfe7ff'; for (const s of G.shots) { g.beginPath(); g.arc(s.x, s.y, 6, 0, 7); g.fill(); }
+    if (P) { g.globalAlpha = P.inv > 0 && Math.floor(P.inv * 16) % 2 ? .45 : 1; g.save(); g.translate(P.x, P.y); g.scale(P.face, 1); g.fillStyle = '#2a4a8a'; g.fillRect(-9, -2, 18, 16); g.fillStyle = '#f1c27d'; g.fillRect(-8, -14, 16, 12); g.fillStyle = '#e0b14a'; g.fillRect(-9, -16, 18, 5); g.fillStyle = '#111'; g.fillRect(2, -10, 3, 3); g.fillStyle = '#3a2a1a'; g.fillRect(-8, 12, 6, 4); g.fillRect(2, 12, 6, 4);
+      if (P.atk > 0) { g.strokeStyle = '#dfe7ff'; g.lineWidth = 4; g.beginPath(); g.arc(8, 0, 24, -1.2, 1.2); g.stroke(); } else { g.fillStyle = '#ccc'; g.fillRect(8, -4, 4, 16); } g.restore(); g.globalAlpha = 1; }
+    for (const f of G.fx) { g.globalAlpha = f.t * 2.5; g.strokeStyle = '#f1dca6'; g.lineWidth = 2; g.beginPath(); g.arc(f.x, f.y, 20 * (1 - f.t), 0, 7); g.stroke(); g.globalAlpha = 1; }
+    g.restore();
+    if (B && B.hp > 0) { g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(60, 12, 280, 12); g.fillStyle = B.c; g.fillRect(60, 12, 280 * B.hp / B.hpMax, 12); g.fillStyle = '#f1dca6'; g.font = '700 11px Manrope,sans-serif'; g.textAlign = 'center'; g.fillText(B.n, VW / 2, 38); }
+    g.fillStyle = '#ffd54a'; g.font = '700 13px Manrope,sans-serif'; g.textAlign = 'left'; g.fillText(`● ${G.coinsLv}`, 10, VH - 10);
+  }
+};
+const UI = {
+  btn: { L: 0, R: 0, J: 0, A: 0 }, jp: false, last: { J: 0 },
+  init() {
+    document.querySelectorAll('.pad2 [data-k]').forEach(b => { const k = b.dataset.k; const on = v => e => { e.preventDefault(); if (v && k === 'J' && !this.btn.J) this.jp = true; if (v && k === 'A') this.ap = true; this.btn[k] = v; b.classList.toggle('on', !!v); }; b.addEventListener('pointerdown', on(1)); b.addEventListener('pointerup', on(0)); b.addEventListener('pointerleave', on(0)); b.addEventListener('pointercancel', on(0)); b.addEventListener('contextmenu', e => e.preventDefault()); });
+    addEventListener('keydown', e => { if (e.repeat) return; if ([' ', 'w', 'W', 'ArrowUp'].includes(e.key)) { e.preventDefault(); this.jp = true; } if (['j', 'J', 'k', 'K'].includes(e.key)) this.ap = true; if (e.key === 'p' || e.key === 'Escape') this.pause(); });
+    HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { if (!HX.isOpen()) Game.step(Math.min(dt, 1 / 30)); View.draw(); });
+    HX.life({ onHide: () => { if (Game.state === 'play') this.pause(); } }); this.home();
+  },
+  input() { const k = HXA.key, x = (this.btn.R || k('ArrowRight', 'd', 'D') ? 1 : 0) - (this.btn.L || k('ArrowLeft', 'a', 'A') ? 1 : 0); const r = { x, jump: this.btn.J || k(' ', 'w', 'W', 'ArrowUp'), jumpPress: this.jp, attack: this.ap || this.btn.A && false, down: k('ArrowDown', 's', 'S') }; this.jp = false; this.ap = false; return r; },
+  hud() { HX.$('#area').textContent = Game.M ? Game.M.id : '—'; HX.$('#hp').textContent = '♥'.repeat(Math.max(0, Game.hp || 0)) || '—'; HX.$('#gems').textContent = Game.M && Game.gemTotal ? `${Game.gemsLv}/${Game.gemTotal}` : '—'; },
+  hudLight() { if (this._g !== Game.gemsLv || this._h !== Game.hp) { this._g = Game.gemsLv; this._h = Game.hp; this.hud(); } },
+  help: ['◀ ▶ andam, ⤒ pula (segure para pular mais alto) e ⚔️ ataca com a espada. No PC: setas ou A/D, espaço/W/↑ para pular, J ou K para atacar, ↓ para descer de plataformas de madeira.', 'Pise na cabeça dos inimigos ou use a espada. Espinhos tiram vida; lava, água e buracos te devolvem ao último checkpoint (bandeira).', 'Cada fase tem 3 gemas, algumas em segredos: paredes rachadas quebram com a espada e algumas paredes são falsas. Chegue à porta para concluir.', 'Ao vencer o Rei Cogumelo você aprende o pulo duplo. Derrote os três chefes para concluir a aventura.'],
+  home() { const un = S.get('unlocked', 1), prog = S.get('prog', {}); HXA.menu({ title: 'Quest', text: 'Escolha a fase.', html: `<div style="display:grid;gap:6px;margin:8px 0">${MAPS.map((m, i) => { const p = prog[m.id]; return `<button class="btn" data-m="${i}" ${i >= un ? 'disabled' : ''} style="display:flex;justify-content:space-between;padding:9px 12px"><span>${i >= un ? '🔒 ' : ''}${m.id} · ${m.n}</span><small>${p ? (m.boss !== undefined ? '✓' : `💎 ${p.gems}/3`) : ''}</small></button>`; }).join('')}</div>`, help: this.help });
+    document.querySelectorAll('.hx-card [data-m]').forEach(b => b.onclick = () => Game.start(+b.dataset.m)); },
+  pause() { if (Game.state !== 'play') return this.home(); HXA.menu({ title: 'Pausa', text: Game.M.n, primary: ['Continuar', () => {}], buttons: [['Recomeçar fase', () => Game.start(Game.mi)], ['Mapa', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.QS = { Game, UI, S, MAPS };
+
+</script>
+</body>
+</html>
