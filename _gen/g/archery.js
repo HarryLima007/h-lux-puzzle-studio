@@ -1,0 +1,84 @@
+/*@ {"name":"Archery","t1":"Arch","t2":"ery","theme":"#080a06","bg2":"radial-gradient(ellipse at 50% 0%,#1e2a14 0%,#080a06 66%)",
+"hud":[["Fase","lvl","1"],["Pontos","pts","0"],["Flechas","arrows","3"]]} @*/
+/* H-LUX ARCHERY v1.0 — tiro com arco em visão de mira. Segure para puxar a corda (força), arraste para mirar e solte.
+   A mira oscila (mais com a distância e se segurar demais); sem força total a flecha cai; o vento desvia na direção indicada.
+   Pontuação pelos anéis (10 no centro, 9…1), "X" no miolo. 12 fases: distância crescente, vento e alvos móveis;
+   cada fase tem 3 flechas e uma pontuação mínima para passar. Módulos: LEVELS · Game · View · UI */
+const S = HX.store('archery');
+const VW = 400, VH = 600, CX = 200, CY = 250;
+const LEVELS = Array.from({ length: 12 }, (_, i) => ({ dist: 18 + i * 5, wind: i < 2 ? 0 : (i - 1) * .55, move: i >= 5 ? (i >= 9 ? 2 : 1) : 0, need: [21, 21, 20, 20, 19, 19, 18, 18, 17, 17, 16, 16][i] }));
+const Game = {
+  state: 'idle', li: 0, L: null, arrows: 0, pts: 0, hits: [], aim: [CX, CY], draw: 0, holdT: 0, wind: 0, t: 0, flight: null, tgt: [CX, CY],
+  start(li) { HX.close(); this.li = li; this.L = LEVELS[li]; this.arrows = 3; this.pts = 0; this.hits = []; this.t = 0; this.newWind(); this.state = 'aim'; this.draw = 0; UI.hud(); HX.toast(`${this.L.dist} m${this.L.wind ? ' · vento' : ''}${this.L.move ? ' · alvo móvel' : ''}`, 1100); },
+  newWind() { const w = this.L.wind; this.wind = w ? (Math.random() < .5 ? -1 : 1) * (w * .5 + Math.random() * w * .5) : 0; },
+  R() { return 135 * 18 / this.L.dist; },
+  sway() { const k = this.L.dist / 18, f = Math.max(0, this.holdT - 2.5) * 1.6 + 1; return [Math.sin(this.t * 1.7) * 5 * k * f + Math.sin(this.t * 4.3) * 2 * k, Math.cos(this.t * 1.3) * 4 * k * f + Math.sin(this.t * 3.1) * 2 * k]; },
+  step(dt) {
+    this.t += dt; const L = this.L; if (!L) return; this.tgt = [CX + (L.move ? Math.sin(this.t * (L.move === 2 ? 1.6 : 1)) * 90 : 0), CY];
+    if (this.state === 'aim' && UI.holding) { this.draw = Math.min(1, this.draw + dt / .9); this.holdT += dt; }
+    if (this.state === 'fly') { const F = this.flight; F.t += dt; if (F.t >= F.dur) this.land(); }
+  },
+  release() {
+    if (this.state !== 'aim' || this.draw < .15) { this.draw = 0; this.holdT = 0; return; } const [sx, sy] = this.sway(); const p = this.draw; const L = this.L;
+    const drop = (1 - p) * (1 - p) * 220 * L.dist / 30 + (1 - p) * 30, drift = this.wind * L.dist * .35;
+    this.flight = { x0: this.aim[0] + sx, y0: this.aim[1] + sy, x: this.aim[0] + sx + drift, y: this.aim[1] + sy + drop, t: 0, dur: .25 + L.dist / 110 * (1.4 - p * .5) };
+    this.state = 'fly'; this.draw = 0; this.holdT = 0; HX.sfx('shot');
+  },
+  land() {
+    const F = this.flight; // a posição do alvo no instante do impacto (alvo móvel) é a que vale
+    const dx = F.x - this.tgt[0], dy = F.y - this.tgt[1], d = Math.hypot(dx, dy), R = this.R(); const ring = d <= R ? Math.min(10, 10 - Math.floor(d / (R / 10))) : 0; const X = d < R / 20;
+    this.hits.push({ dx, dy, ring, X }); this.pts += ring; this.arrows--; HX.sfx(ring >= 9 ? 'win' : ring ? 'hit' : 'lose'); HX.vibrate(ring ? 20 : 8); UI.flash(ring ? (X ? 'X — 10!' : ring) : 'Fora');
+    this.state = 'aim'; this.newWind(); UI.hud(); if (this.arrows <= 0) { this.state = 'wait'; setTimeout(() => this.end(), 900); }
+  },
+  end() {
+    const L = this.L, pass = this.pts >= L.need; const best = S.get('best', {}); const rec = !best[this.li] || this.pts > best[this.li]; if (rec) { best[this.li] = this.pts; S.set('best', best); }
+    if (pass && S.get('unlocked', 1) < this.li + 2) S.set('unlocked', Math.min(12, this.li + 2)); const tot = Object.values(best).reduce((a, b) => a + b, 0); S.hub(`${Object.keys(best).filter(k => best[k] >= LEVELS[k].need).length}/12 fases · ${tot} pontos`);
+    this.state = 'over'; const stars = this.pts >= 28 ? 3 : this.pts >= 24 ? 2 : pass ? 1 : 0;
+    HXA.menu({ title: pass ? 'Fase concluída!' : 'Não foi dessa vez', text: `${this.pts} pontos (mínimo ${L.need}) · ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}${rec ? ' · recorde da fase' : ''}`, primary: pass && this.li < 11 ? ['Próxima fase', () => this.start(this.li + 1)] : ['Tentar de novo', () => this.start(this.li)], buttons: [['Fases', () => UI.home()]] });
+  }
+};
+const St = HXA.stage(VW, VH);
+const View = {
+  draw() {
+    const g = St.begin(), G = Game; const sky = g.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, '#203a54'); sky.addColorStop(.55, '#6a8a6a'); sky.addColorStop(.56, '#3d6a32'); sky.addColorStop(1, '#2a4a22'); g.fillStyle = sky; g.fillRect(0, 0, VW, VH);
+    g.fillStyle = 'rgba(20,40,20,.6)'; for (let i = 0; i < 9; i++) { const x = i * 52 - 10; g.beginPath(); g.moveTo(x, 330); g.lineTo(x + 26, 250 - (i % 3) * 20); g.lineTo(x + 52, 330); g.fill(); }
+    if (!G.L) return; const R = G.R(), [tx, ty] = G.tgt;
+    g.fillStyle = '#5a3a1c'; g.fillRect(tx - 4, ty, 8, R * 1.6 + 30); g.fillRect(tx - R * .7, ty + R * 1.1, 6, R * .7); g.fillRect(tx + R * .7 - 6, ty + R * 1.1, 6, R * .7);
+    const cols = ['#f4efe2', '#f4efe2', '#222', '#222', '#3d8bff', '#3d8bff', '#e5484d', '#e5484d', '#ffd54a', '#ffd54a'];
+    for (let i = 0; i < 10; i++) { g.fillStyle = cols[i]; g.beginPath(); g.arc(tx, ty, R * (10 - i) / 10, 0, 7); g.fill(); g.strokeStyle = i === 2 || i === 3 ? '#888' : '#222'; g.lineWidth = .8; g.stroke(); }
+    g.strokeStyle = '#222'; g.beginPath(); g.arc(tx, ty, R / 20, 0, 7); g.stroke();
+    for (const h of G.hits) { const x = tx + h.dx, y = ty + h.dy; g.fillStyle = '#1a1408'; g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); g.strokeStyle = '#c9a45c'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 6, y + 8); g.stroke(); }
+    if (G.state === 'fly') { const F = G.flight, u = F.t / F.dur, x = F.x0 + (F.x - F.x0) * u, y = F.y0 + (F.y - F.y0) * u * u; g.strokeStyle = '#c9a45c'; g.lineWidth = 3 - u * 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (1 - u) * 20, y + (1 - u) * 40); g.stroke(); }
+    // vento
+    g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.roundRect(12, 12, 130, 34, 10); g.fill(); g.fillStyle = '#f1dca6'; g.font = '700 12px Manrope'; g.textAlign = 'left'; g.fillText(G.wind ? `Vento ${Math.abs(G.wind).toFixed(1)}` : 'Sem vento', 20, 34);
+    if (G.wind) { g.strokeStyle = '#9fd2ff'; g.lineWidth = 3; const s = Math.sign(G.wind), L = 14 + Math.abs(G.wind) * 6; g.beginPath(); g.moveTo(112 - s * L / 2, 29); g.lineTo(112 + s * L / 2, 29); g.lineTo(112 + s * L / 2 - s * 6, 24); g.moveTo(112 + s * L / 2, 29); g.lineTo(112 + s * L / 2 - s * 6, 34); g.stroke(); }
+    g.textAlign = 'right'; g.fillText(`${G.L.dist} m · fase ${G.li + 1}`, VW - 14, 34);
+    if (G.state === 'aim') { const [sx, sy] = G.sway(), ax = G.aim[0] + sx, ay = G.aim[1] + sy; g.strokeStyle = UI.holding ? '#3ddc84' : 'rgba(255,255,255,.8)'; g.lineWidth = 2; g.beginPath(); g.arc(ax, ay, 14, 0, 7); g.moveTo(ax - 22, ay); g.lineTo(ax - 6, ay); g.moveTo(ax + 6, ay); g.lineTo(ax + 22, ay); g.moveTo(ax, ay - 22); g.lineTo(ax, ay - 6); g.moveTo(ax, ay + 6); g.lineTo(ax, ay + 22); g.stroke(); }
+    // arco e barra de força
+    g.strokeStyle = '#5a3a1c'; g.lineWidth = 8; g.beginPath(); g.arc(VW / 2, VH + 120, 200, -Math.PI * .78, -Math.PI * .22); g.stroke(); g.strokeStyle = '#ddd'; g.lineWidth = 1.5; const pull = G.draw * 60; g.beginPath(); g.moveTo(VW / 2 - 156, VH - 6); g.lineTo(VW / 2, VH - 70 + pull); g.lineTo(VW / 2 + 156, VH - 6); g.stroke();
+    g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(VW - 26, 380, 12, 160); g.fillStyle = G.draw >= 1 ? '#3ddc84' : '#e0b14a'; g.fillRect(VW - 26, 540 - 160 * G.draw, 12, 160 * G.draw);
+    for (let i = 0; i < 3; i++) { g.fillStyle = i < G.arrows ? '#c9a45c' : 'rgba(255,255,255,.15)'; g.fillRect(16 + i * 12, VH - 60, 4, 44); }
+    if (UI.fl) { g.globalAlpha = Math.min(1, UI.fl.t * 2); g.fillStyle = '#ffd54a'; g.font = '800 40px Manrope'; g.textAlign = 'center'; g.fillText(UI.fl.s, VW / 2, 470); g.globalAlpha = 1; }
+  }
+};
+const UI = {
+  holding: false, off: [0, -70], fl: null,
+  init() {
+    St.cv.addEventListener('pointerdown', e => { e.preventDefault(); if (Game.state !== 'aim' || HX.isOpen()) return; St.cv.setPointerCapture(e.pointerId); const [x, y] = St.toL(e); this.off = e.pointerType === 'mouse' ? [0, 0] : [0, -70]; Game.aim = [x + this.off[0], y + this.off[1]]; this.holding = true; Game.draw = 0; Game.holdT = 0; });
+    St.cv.addEventListener('pointermove', e => { const [x, y] = St.toL(e); if (this.holding || e.pointerType === 'mouse') Game.aim = [x + (this.holding ? this.off[0] : 0), y + (this.holding ? this.off[1] : 0)]; });
+    const up = () => { if (!this.holding) return; this.holding = false; Game.release(); }; St.cv.addEventListener('pointerup', up); St.cv.addEventListener('pointercancel', up);
+    addEventListener('keydown', e => { const k = 4; if (e.key === 'ArrowLeft') Game.aim[0] -= k; if (e.key === 'ArrowRight') Game.aim[0] += k; if (e.key === 'ArrowUp') Game.aim[1] -= k; if (e.key === 'ArrowDown') Game.aim[1] += k; if (e.key === ' ' && !e.repeat && Game.state === 'aim' && !HX.isOpen()) { e.preventDefault(); this.holding = true; Game.draw = 0; Game.holdT = 0; } if (e.key === 'p' || e.key === 'Escape') this.pause(); });
+    addEventListener('keyup', e => { if (e.key === ' ') up(); });
+    HX.$('#menu').onclick = () => this.pause(); HXA.loop(dt => { if (Game.state !== 'pause') Game.step(dt); if (this.fl && (this.fl.t -= dt) <= 0) this.fl = null; View.draw(); });
+    this.home();
+  },
+  flash(s) { this.fl = { s: String(s), t: 1 }; },
+  hud() { HX.$('#lvl').textContent = `${Game.li + 1}/12`; HX.$('#pts').textContent = Game.pts; HX.$('#arrows').textContent = Game.arrows; },
+  help: ['Toque e segure para puxar a corda — a barra à direita mostra a força. Sem soltar, arraste para mirar (a mira fica um pouco acima do dedo para não ficar escondida). Solte para atirar.', 'Com força incompleta a flecha cai abaixo da mira. O vento (canto superior esquerdo) empurra a flecha para o lado da seta — compense mirando contra o vento.', 'A mira balança, mais nas distâncias longas; segurar a corda por mais de 2,5 s cansa e aumenta o balanço.', 'Anéis valem de 10 (centro) a 1. Cada fase tem 3 flechas e uma pontuação mínima para liberar a próxima. A partir da fase 6 o alvo se move. PC: mouse mira, segure o botão (ou espaço) para puxar; setas fazem ajuste fino.'],
+  home() { const un = S.get('unlocked', 1), best = S.get('best', {});
+    HXA.menu({ title: 'Archery', text: 'Tiro com arco: 12 fases.', html: `<div class="levels">${LEVELS.map((L, i) => `<button class="lvb${best[i] >= L.need ? ' done' : ''}" data-l="${i}" ${i >= un ? 'disabled' : ''}>${i >= un ? '🔒' : i + 1}<small style="display:block;font-size:10px">${best[i] !== undefined ? best[i] + ' pts' : L.dist + ' m'}</small></button>`).join('')}</div>`, help: this.help });
+    document.querySelectorAll('.hx-card [data-l]').forEach(b => b.onclick = () => Game.start(+b.dataset.l)); },
+  pause() { if (Game.state === 'idle' || Game.state === 'over') return this.home(); const prev = Game.state; Game.state = 'pause'; this.holding = false; HXA.menu({ title: 'Pausa', text: `Fase ${Game.li + 1} · ${Game.pts} pontos`, primary: ['Continuar', () => { Game.state = prev === 'fly' ? 'fly' : prev; }], buttons: [['Recomeçar fase', () => Game.start(Game.li)], ['Fases', () => this.home()]] }); }
+};
+UI.init(); HX.sw();
+window.AR = { Game, UI, S, LEVELS };
