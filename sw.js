@@ -1,7 +1,7 @@
 // H-LUX — service worker da plataforma (offline para todos os jogos).
 // Ao publicar uma nova versão, altere VERSION: o cache antigo é apagado
 // automaticamente; os dados dos jogos (IndexedDB/localStorage) não são tocados.
-const VERSION = 'hlux-v5.1.0';
+const VERSION = 'hlux-v5.1.1';
 const CORE = [
   './', './index.html', './games.js', './manifest.webmanifest',
   './covers/puzzle.svg', './covers/mahjong.svg', './covers/nonogram.svg', './covers/minefield.svg', './covers/2048.svg', './covers/solitaire.svg', './covers/snake.svg',
